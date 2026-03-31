@@ -21,6 +21,8 @@ const ORANGE_PRIMARY = '#FF6F3C';
 const TEXT_DARK = '#2D3436';
 const TEXT_GRAY = '#636E72';
 
+const Text = (props: any) => <RNText {...props} style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]} />;
+
 export default function LoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -29,7 +31,6 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
 
   // Helper text component
-  const Text = (props: any) => <RNText {...props} style={[styles.baseText, props.style]} />;
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -44,8 +45,8 @@ export default function LoginScreen() {
       await setAuthToken(token);
       await SecureStore.setItemAsync('user', JSON.stringify(user));
       
-      if (user.role === 'admin') {
-        router.replace('/admin/dashboard');
+      if (user.role === 'stall manager') {
+        router.replace('/admin/stall_manager_dashboard');
       } else {
         router.replace('/user/dashboard');
       }

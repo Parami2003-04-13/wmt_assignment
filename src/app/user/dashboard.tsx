@@ -1,34 +1,39 @@
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { 
-  View, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
-  SafeAreaView, 
-  Alert, 
-  StatusBar,
+import {
+  Alert,
   Platform,
   Text as RNText // Renamed for helper
+  ,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import { useRouter } from 'expo-router';
 // Using standard Icons for 100% stability
-import { MaterialCommunityIcons } from '@expo/vector-icons'; 
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 
-const ORANGE_PRIMARY = '#FF6F3C'; 
+const ORANGE_PRIMARY = '#FF6F3C';
 const TEXT_DARK = '#2D3436';
 const TEXT_GRAY = '#636E72';
+
+const Text = (props: any) => <RNText {...props} style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]} />;
 
 export default function UserDashboard() {
   const router = useRouter();
   const [userName, setUserName] = useState('');
 
   useEffect(() => {
+    let isMounted = true;
     const fetchUser = async () => {
       const userStr = await SecureStore.getItemAsync('user');
-      if (userStr) setUserName(JSON.parse(userStr).name);
+      if (isMounted && userStr) setUserName(JSON.parse(userStr).name);
     };
     fetchUser();
+    return () => { isMounted = false; };
   }, []);
 
   const handleLogout = () => {
@@ -37,8 +42,8 @@ export default function UserDashboard() {
       'Are you sure you want to logout?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Ok', 
+        {
+          text: 'Ok',
           onPress: async () => {
             await SecureStore.deleteItemAsync('token');
             await SecureStore.deleteItemAsync('user');
@@ -57,12 +62,11 @@ export default function UserDashboard() {
   ];
 
   // Helper text component
-  const Text = (props: any) => <RNText {...props} style={[styles.baseText, props.style]} />;
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
-      
+
       {/* Header Matching UI Style */}
       <View style={styles.header}>
         <View>
@@ -81,57 +85,57 @@ export default function UserDashboard() {
           {recentOrders.map((order) => (
             <View key={order.id} style={styles.orderCard}>
               <View style={styles.orderIconBox}>
-                 <MaterialCommunityIcons name={order.icon as any} size={24} color={ORANGE_PRIMARY} />
+                <MaterialCommunityIcons name={order.icon as any} size={24} color={ORANGE_PRIMARY} />
               </View>
-              
+
               <View style={styles.orderMain}>
                 <Text style={styles.orderDish}>{order.dish}</Text>
                 <Text style={styles.orderTime}>{order.time}</Text>
               </View>
 
               <View style={styles.orderRight}>
-                 <Text style={styles.orderPrice}>{order.price}</Text>
-                 <View style={[
-                   styles.statusTag, 
-                   { backgroundColor: order.status === 'Processing' ? '#FFF9E1' : '#E1FFF1' }
-                 ]}>
-                    <Text style={[
-                      styles.statusText, 
-                      { color: order.status === 'Processing' ? '#FF9F43' : '#10AC84' }
-                    ]}>
-                      {order.status}
-                    </Text>
-                 </View>
+                <Text style={styles.orderPrice}>{order.price}</Text>
+                <View style={[
+                  styles.statusTag,
+                  { backgroundColor: order.status === 'Processing' ? '#FFF9E1' : '#E1FFF1' }
+                ]}>
+                  <Text style={[
+                    styles.statusText,
+                    { color: order.status === 'Processing' ? '#FF9F43' : '#10AC84' }
+                  ]}>
+                    {order.status}
+                  </Text>
+                </View>
               </View>
             </View>
           ))}
-          
+
           <TouchableOpacity style={styles.promoCard}>
-             <View>
-                <Text style={styles.promoHeader}>Craving something new?</Text>
-                <Text style={styles.promoSub}>Explore special campus deals</Text>
-             </View>
-             <View style={styles.promoBtn}>
-                <MaterialCommunityIcons name="chevron-right" size={24} color="#fff" />
-             </View>
+            <View>
+              <Text style={styles.promoHeader}>Craving something new?</Text>
+              <Text style={styles.promoSub}>Explore special campus deals</Text>
+            </View>
+            <View style={styles.promoBtn}>
+              <MaterialCommunityIcons name="chevron-right" size={24} color="#fff" />
+            </View>
           </TouchableOpacity>
         </View>
       </ScrollView>
 
       {/* Modern Bottom Tabs */}
       <View style={styles.bottomTab}>
-         <TouchableOpacity style={styles.tabItem}>
-            <MaterialCommunityIcons name="home-outline" size={24} color={ORANGE_PRIMARY} />
-            <Text style={[styles.tabLabel, { color: ORANGE_PRIMARY }]}>Home</Text>
-         </TouchableOpacity>
-         <TouchableOpacity style={styles.tabItem}>
-            <MaterialCommunityIcons name="history" size={24} color={TEXT_GRAY} />
-            <Text style={styles.tabLabel}>History</Text>
-         </TouchableOpacity>
-         <TouchableOpacity style={styles.tabItem}>
-            <MaterialCommunityIcons name="account-outline" size={24} color={TEXT_GRAY} />
-            <Text style={styles.tabLabel}>Profile</Text>
-         </TouchableOpacity>
+        <TouchableOpacity style={styles.tabItem}>
+          <MaterialCommunityIcons name="home-outline" size={24} color={ORANGE_PRIMARY} />
+          <Text style={[styles.tabLabel, { color: ORANGE_PRIMARY }]}>Home</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tabItem}>
+          <MaterialCommunityIcons name="history" size={24} color={TEXT_GRAY} />
+          <Text style={styles.tabLabel}>History</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tabItem}>
+          <MaterialCommunityIcons name="account-outline" size={24} color={TEXT_GRAY} />
+          <Text style={styles.tabLabel}>Profile</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );

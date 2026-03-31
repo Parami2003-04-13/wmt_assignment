@@ -27,10 +27,10 @@ const seedDatabase = async () => {
         name: 'Regular Student'
       },
       {
-        email: 'admin@campusbites.com',
-        password: 'admin123',
-        role: 'admin',
-        name: 'Stall Manager'
+        email: 'nadeesha@campusbites.com',
+        password: 'nadeesha123',
+        role: 'stall manager',
+        name: 'Nadeesha'
       }
     ];
 

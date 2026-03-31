@@ -25,8 +25,8 @@ export default function Initializer() {
         
         // Brief delay for splash effect
         setTimeout(() => {
-          if (user.role === 'admin') {
-            router.replace('/admin/dashboard');
+          if (user.role === 'stall manager') {
+            router.replace('/admin/stall_manager_dashboard');
           } else {
             router.replace('/user/dashboard');
           }

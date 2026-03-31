@@ -4,6 +4,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const dotenv = require('dotenv');
 const User = require('./models/User');
+const Stall = require('./models/Stall');
 
 dotenv.config();
 
@@ -12,6 +13,12 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Request logger
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url}`);
+  next();
+});
 
 // PORT
 const PORT = process.env.PORT || 5000;
@@ -106,18 +113,47 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-// Protected Route Example
-app.get('/api/auth/me', async (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader) return res.status(401).json({ message: 'Unauthorized' });
+// --- Stall Routes ---
 
-  const token = authHeader.split(' ')[1];
+// Create Stall
+app.post('/api/stalls', async (req, res) => {
+  const { name, address, phone, description, latitude, longitude, profilePhoto, coverPhoto, managerId } = req.body;
+
+  if (!name || !address || !latitude || !longitude || !managerId) {
+    return res.status(400).json({ message: 'Missing required fields' });
+  }
+
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecretkey');
-    const user = await User.findById(decoded.id).select('-password');
-    res.json(user);
+    const newStall = new Stall({
+      name, address, phone, description, latitude, longitude,
+      profilePhoto, coverPhoto, manager: managerId
+    });
+    await newStall.save();
+    res.status(201).json(newStall);
   } catch (err) {
-    res.status(401).json({ message: 'Invalid token' });
+    console.error('Stall creation error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get Stalls by Manager
+app.get('/api/stalls/manager/:managerId', async (req, res) => {
+  try {
+    const stalls = await Stall.find({ manager: req.params.managerId });
+    res.json(stalls);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Update Stall Status
+app.patch('/api/stalls/:id/status', async (req, res) => {
+  const { status } = req.body;
+  try {
+    const stall = await Stall.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    res.json(stall);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
