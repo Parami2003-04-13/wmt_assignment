@@ -10,6 +10,8 @@ const StallSchema = new mongoose.Schema({
   profilePhoto: { type: String },
   coverPhoto: { type: String },
   manager: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  approvedDocument: { type: String }, // URL or Path to the document
+  isApproved: { type: Boolean, default: false },
   status: { type: String, enum: ['Open', 'Closed'], default: 'Open' },
   createdAt: { type: Date, default: Date.now }
 });

@@ -1,12 +1,17 @@
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
-const dotenv = require('dotenv');
 const User = require('./models/User');
 const Stall = require('./models/Stall');
-
-dotenv.config();
+const { 
+  sendNotificationEmail, 
+  getApproveEmailTemplate, 
+  getRejectEmailTemplate,
+  getReviewEmailTemplate,
+  getAdminNotificationTemplate
+} = require('./utils/emailService');
 
 const app = express();
 
@@ -100,7 +105,10 @@ app.post('/api/auth/register', async (req, res) => {
       email,
       password, // hashed automatically by schema middleware
       role: role || 'user',
-      name
+      name,
+      firstName: req.body.firstName,
+      lastName: req.body.lastName,
+      nic: req.body.nic
     });
 
     await newUser.save();
@@ -126,9 +134,28 @@ app.post('/api/stalls', async (req, res) => {
   try {
     const newStall = new Stall({
       name, address, phone, description, latitude, longitude,
-      profilePhoto, coverPhoto, manager: managerId
+      profilePhoto, coverPhoto, manager: managerId,
+      approvedDocument: req.body.approvedDocument,
+      isApproved: false 
     });
+    
     await newStall.save();
+
+    // Notify Owner & Admin
+    const owner = await User.findById(managerId);
+    if (owner && owner.email) {
+       // To Owner
+       const ownerMsg = getReviewEmailTemplate(owner.name, name);
+       await sendNotificationEmail(owner.email, `Stall Under Review: ${name}`, ownerMsg);
+       
+       // To Admin (Default to EMAIL_USER)
+       const adminEmail = process.env.EMAIL_USER;
+       if (adminEmail) {
+         const adminMsg = getAdminNotificationTemplate(owner.name, name);
+         await sendNotificationEmail(adminEmail, `ACTION REQUIRED: New Stall Request`, adminMsg);
+       }
+    }
+
     res.status(201).json(newStall);
   } catch (err) {
     console.error('Stall creation error:', err);
@@ -146,12 +173,67 @@ app.get('/api/stalls/manager/:managerId', async (req, res) => {
   }
 });
 
+// Get Stall by ID
+app.get('/api/stalls/:id', async (req, res) => {
+  try {
+    const stall = await Stall.findById(req.params.id);
+    if (!stall) return res.status(404).json({ message: 'Stall not found' });
+    res.json(stall);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get All Stalls (for Admin)
+app.get('/api/stalls', async (req, res) => {
+  try {
+    const stalls = await Stall.find().populate('manager', 'name email nic');
+    res.json(stalls);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Update Stall Status
 app.patch('/api/stalls/:id/status', async (req, res) => {
   const { status } = req.body;
   try {
     const stall = await Stall.findByIdAndUpdate(req.params.id, { status }, { new: true });
     res.json(stall);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Approve Stall
+app.patch('/api/stalls/:id/approve', async (req, res) => {
+  try {
+    const stall = await Stall.findByIdAndUpdate(req.params.id, { isApproved: true }, { new: true })
+      .populate('manager', 'email name');
+    
+    if (stall && stall.manager && stall.manager.email) {
+      const emailContent = getApproveEmailTemplate(stall.manager.name, stall.name);
+      await sendNotificationEmail(stall.manager.email, `Stall Approved: ${stall.name}`, emailContent);
+    }
+
+    res.json(stall);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Delete Stall (Reject)
+app.delete('/api/stalls/:id', async (req, res) => {
+  try {
+    const stall = await Stall.findById(req.params.id).populate('manager', 'email name');
+    
+    if (stall && stall.manager && stall.manager.email) {
+      const emailContent = getRejectEmailTemplate(stall.manager.name, stall.name);
+      await sendNotificationEmail(stall.manager.email, `Registration Rejected: ${stall.name}`, emailContent);
+    }
+
+    await Stall.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Stall deleted successfully' });
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
   }

@@ -10,12 +10,11 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
-  Text as RNText // Renamed for helper
+  Text as RNText 
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons'; 
-import api, { setAuthToken } from '../services/api';
-import * as SecureStore from 'expo-secure-store';
+import api from '../services/api';
 
 const ORANGE_PRIMARY = '#FF6F3C';
 const TEXT_DARK = '#2D3436';
@@ -23,37 +22,55 @@ const TEXT_GRAY = '#636E72';
 
 const Text = (props: any) => <RNText {...props} style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]} />;
 
-export default function LoginScreen() {
+export default function SignupScreen() {
   const router = useRouter();
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Helper text component
+  const validateEmail = (email: string) => {
+    const domainPart = email.split('@')[1];
+    return domainPart === 'my.sliit.lk' || domainPart === 'sliit.lk';
+  };
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Missing Info', 'Please enter both email and password.');
+  const handleSignup = async () => {
+    if (!name || !email || !password || !confirmPassword) {
+      Alert.alert('Missing Info', 'Please fill in all fields.');
+      return;
+    }
+
+    if (!validateEmail(email)) {
+      Alert.alert('Invalid Email', 'Please use your university email (@my.sliit.lk or @sliit.lk).');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match.');
+      return;
+    }
+
+    if (password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters long.');
       return;
     }
 
     setLoading(true);
     try {
-      const response = await api.post('/auth/login', { email, password });
-      const { token, user } = response.data;
-      await setAuthToken(token);
-      await SecureStore.setItemAsync('user', JSON.stringify(user));
+      const response = await api.post('/auth/register', { 
+        name, 
+        email: email.toLowerCase(), 
+        password,
+        role: 'user' // Default to student/user role
+      });
       
-      if (user.role === 'stall manager') {
-        router.replace('/admin/admin_approval_dashboard');
-      } else if (user.role === 'stall owner') {
-        router.replace('/owner/owner_dashboard');
-      } else {
-        router.replace('/user/dashboard');
-      }
+      Alert.alert('Success', 'Account created successfully! Please login.', [
+        { text: 'OK', onPress: () => router.push('/login') }
+      ]);
     } catch (error: any) {
-      Alert.alert('Login Failed', error.response?.data?.message || 'Check your internet or credentials.');
+      Alert.alert('Signup Failed', error.response?.data?.message || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -67,31 +84,49 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <MaterialCommunityIcons name="arrow-left" size={28} color={TEXT_DARK} />
+          </TouchableOpacity>
           <View style={styles.logoContainer}>
-            <Image 
+             <Image 
               source={{ uri: 'file:///C:/Users/malsh/.gemini/antigravity/brain/55884d5d-4c4e-4152-aaec-d5b451480081/campusbites_logo_1774873960810.png' }} 
               style={styles.logo} 
             />
           </View>
-          <Text style={styles.appTitle}>CampusBites</Text>
-          <Text style={styles.subtitle}>Your campus dining companion</Text>
+          <Text style={styles.appTitle}>Create Account</Text>
+          <Text style={styles.subtitle}>Join CampusBites today</Text>
         </View>
 
         <View style={styles.form}>
           <View style={styles.inputWrapper}>
-             <Text style={styles.inputLabel}>Email</Text>
+             <Text style={styles.inputLabel}>Full Name</Text>
+             <View style={styles.inputRow}>
+                <MaterialCommunityIcons name="account-outline" size={20} color="#A0A0A0" style={styles.inputIcon} />
+                <TextInput
+                  value={name}
+                  onChangeText={(v) => setName(v)}
+                  placeholder="Enter your full name"
+                  placeholderTextColor="#A0A0A0"
+                  style={styles.input}
+                />
+             </View>
+          </View>
+
+          <View style={styles.inputWrapper}>
+             <Text style={styles.inputLabel}>University Email</Text>
              <View style={styles.inputRow}>
                 <MaterialCommunityIcons name="email-outline" size={20} color="#A0A0A0" style={styles.inputIcon} />
                 <TextInput
                   value={email}
                   onChangeText={(v) => setEmail(v)}
-                  placeholder="Enter your university email"
+                  placeholder="name@my.sliit.lk"
                   placeholderTextColor="#A0A0A0"
                   style={styles.input}
                   keyboardType="email-address"
                   autoCapitalize="none"
                 />
              </View>
+             <Text style={styles.hintText}>Only @my.sliit.lk or @sliit.lk allowed</Text>
           </View>
 
           <View style={styles.inputWrapper}>
@@ -102,7 +137,7 @@ export default function LoginScreen() {
                   secureTextEntry={!showPassword}
                   value={password}
                   onChangeText={(v) => setPassword(v)}
-                  placeholder="Enter your password"
+                  placeholder="Create a password"
                   placeholderTextColor="#A0A0A0"
                   style={styles.input}
                 />
@@ -116,34 +151,39 @@ export default function LoginScreen() {
              </View>
           </View>
 
+          <View style={styles.inputWrapper}>
+             <Text style={styles.inputLabel}>Confirm Password</Text>
+             <View style={styles.inputRow}>
+                <MaterialCommunityIcons name="lock-check-outline" size={20} color="#A0A0A0" style={styles.inputIcon} />
+                <TextInput
+                  secureTextEntry={!showPassword}
+                  value={confirmPassword}
+                  onChangeText={(v) => setConfirmPassword(v)}
+                  placeholder="Repeat your password"
+                  placeholderTextColor="#A0A0A0"
+                  style={styles.input}
+                />
+             </View>
+          </View>
+
           <TouchableOpacity 
-            style={[styles.loginBtn, loading && { opacity: 0.7 }]} 
-            onPress={handleLogin}
+            style={[styles.signupBtn, loading && { opacity: 0.7 }]} 
+            onPress={handleSignup}
             disabled={loading}
           >
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.loginBtnText}>Login</Text>
+              <Text style={styles.signupBtnText}>Sign Up</Text>
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.forgotBtn}>
-            <Text style={styles.forgotText}>Forgot Password?</Text>
-          </TouchableOpacity>
-
-          <View style={{ height: 2, backgroundColor: '#E1E4E8', marginVertical: 30, opacity: 0.5 }} />
-
-          <TouchableOpacity 
-            style={[styles.signupBtnOutline, { backgroundColor: ORANGE_PRIMARY, borderColor: ORANGE_PRIMARY, marginBottom: 12 }]} 
-            onPress={() => router.push('/signup')}
-          >
-            <Text style={[styles.signupBtnText, { color: '#fff' }]}>Sign Up as Student</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.signupBtnOutline} onPress={() => router.push('/signup_owner')}>
-            <Text style={styles.signupBtnText}>Become a Stall Owner</Text>
-          </TouchableOpacity>
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>Already have an account? </Text>
+            <TouchableOpacity onPress={() => router.push('/login')}>
+              <Text style={styles.loginLink}>Login</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -155,36 +195,47 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8F9FA',
   },
-  baseText: {
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
-  },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
-    paddingVertical: 40,
+    paddingBottom: 40,
   },
   header: {
     alignItems: 'center',
+    marginTop: 60,
     marginBottom: 30,
+    paddingHorizontal: 25,
+  },
+  backBtn: {
+    position: 'absolute',
+    left: 25,
+    top: -10,
+    padding: 8,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   logoContainer: {
-    width: 100,
-    height: 100,
+    width: 80,
+    height: 80,
     backgroundColor: ORANGE_PRIMARY,
-    borderRadius: 24,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
     shadowColor: ORANGE_PRIMARY,
-    shadowOffset: { width: 0, height: 10 },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
-    shadowRadius: 15,
-    elevation: 8,
+    shadowRadius: 12,
+    elevation: 6,
   },
   logo: {
-    width: 100,
-    height: 100,
-    borderRadius: 24,
+    width: 80,
+    height: 80,
+    borderRadius: 20,
   },
   appTitle: {
     fontSize: 28,
@@ -200,7 +251,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 25,
   },
   inputWrapper: {
-    marginBottom: 20,
+    marginBottom: 18,
   },
   inputLabel: {
     fontSize: 14,
@@ -227,44 +278,42 @@ const styles = StyleSheet.create({
     color: TEXT_DARK,
     height: '100%',
   },
-  loginBtn: {
+  hintText: {
+    fontSize: 11,
+    color: TEXT_GRAY,
+    marginTop: 4,
+    marginLeft: 4,
+  },
+  signupBtn: {
     backgroundColor: ORANGE_PRIMARY,
     height: 56,
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 15,
     shadowColor: ORANGE_PRIMARY,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 5,
   },
-  loginBtnText: {
+  signupBtnText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
   },
-  forgotBtn: {
-    alignItems: 'center',
-    marginTop: 20,
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 25,
   },
-  forgotText: {
-    color: ORANGE_PRIMARY,
-    fontWeight: '600',
+  footerText: {
+    color: TEXT_GRAY,
     fontSize: 14,
   },
-  signupBtnOutline: {
-    height: 56,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: ORANGE_PRIMARY,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  signupBtnText: {
+  loginLink: {
     color: ORANGE_PRIMARY,
-    fontSize: 16,
     fontWeight: 'bold',
+    fontSize: 14,
   },
 });

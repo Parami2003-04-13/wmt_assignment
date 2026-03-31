@@ -15,12 +15,26 @@ const UserSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['user', 'stall manager'],
+    enum: ['user', 'stall owner', 'stall manager', 'admin'],
     default: 'user'
   },
   name: {
     type: String,
     required: true
+  },
+  firstName: {
+    type: String,
+    required: false
+  },
+  lastName: {
+    type: String,
+    required: false
+  },
+  nic: {
+    type: String,
+    required: false,
+    unique: true,
+    sparse: true // Allows multiple documents to NOT have a NIC
   },
   createdAt: {
     type: Date,
