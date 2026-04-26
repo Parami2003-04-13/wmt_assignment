@@ -5,6 +5,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const User = require('./models/User');
 const Stall = require('./models/Stall');
+const Meal = require('./models/Meal');
 const { 
   sendNotificationEmail, 
   getApproveEmailTemplate, 
@@ -235,6 +236,75 @@ app.delete('/api/stalls/:id', async (req, res) => {
     await Stall.findByIdAndDelete(req.params.id);
     res.json({ message: 'Stall deleted successfully' });
   } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// --- Meal Routes ---
+
+// Create Meal
+app.post('/api/meals', async (req, res) => {
+  const { name, description, price, quantity, image, stallId } = req.body;
+
+  if (!name || !description || !price || !quantity || !stallId) {
+    return res.status(400).json({ message: 'Missing required fields' });
+  }
+
+  try {
+    const newMeal = new Meal({
+      name, description, price, quantity, image, stall: stallId
+    });
+    
+    await newMeal.save();
+    res.status(201).json(newMeal);
+  } catch (err) {
+    console.error('Meal creation error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get meals by Stall
+app.get('/api/meals/stall/:stallId', async (req, res) => {
+  try {
+    const meals = await Meal.find({ stall: req.params.stallId });
+    res.json(meals);
+  } catch (err) {
+    console.error('Fetch meals error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Update Meal
+app.patch('/api/meals/:id', async (req, res) => {
+  try {
+    const updatedMeal = await Meal.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!updatedMeal) return res.status(404).json({ message: 'Meal not found' });
+    res.json(updatedMeal);
+  } catch (err) {
+    console.error('Update meal error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Delete Meal
+app.delete('/api/meals/:id', async (req, res) => {
+  try {
+    const deletedMeal = await Meal.findByIdAndDelete(req.params.id);
+    if (!deletedMeal) return res.status(404).json({ message: 'Meal not found' });
+    res.json({ message: 'Meal deleted successfully' });
+  } catch (err) {
+    console.error('Delete meal error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get all meals (for Explore/Discovery)
+app.get('/api/meals', async (req, res) => {
+  try {
+    const meals = await Meal.find().populate('stall', 'name');
+    res.json(meals);
+  } catch (err) {
+    console.error('Fetch all meals error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });

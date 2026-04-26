@@ -16,6 +16,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../../services/api';
+import MealModal from '../../components/meal-modal';
 
 const { width } = Dimensions.get('window');
 const ORANGE_PRIMARY = '#FF6F3C';
@@ -33,6 +34,8 @@ export default function StallManagement() {
   const [stall, setStall] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [meals, setMeals] = useState<any[]>([]);
+  const [mealModalVisible, setMealModalVisible] = useState(false);
+  const [selectedMeal, setSelectedMeal] = useState<any>(null);
 
   useEffect(() => {
     fetchStallDetails();
@@ -56,9 +59,41 @@ export default function StallManagement() {
       const response = await api.get(`/meals/stall/${id}`);
       setMeals(response.data);
     } catch (error) {
-      // Suppress error for now as meals module is pending
-      console.log('Meals endpoint likely not ready yet');
+      console.error('Fetch meals error:', error);
     }
+  };
+
+  const handleDeleteMeal = (mealId: string) => {
+    Alert.alert(
+      "Delete Meal",
+      "Are you sure you want to remove this item from your menu?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await api.delete(`/meals/${mealId}`);
+              Alert.alert("Success", "Meal deleted successfully");
+              fetchMeals();
+            } catch (error) {
+              Alert.alert("Error", "Failed to delete meal");
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleEditMeal = (meal: any) => {
+    setSelectedMeal(meal);
+    setMealModalVisible(true);
+  };
+
+  const handleAddMeal = () => {
+    setSelectedMeal(null);
+    setMealModalVisible(true);
   };
 
   if (loading) {
@@ -157,7 +192,7 @@ export default function StallManagement() {
           {/* Add Meals Card */}
           <TouchableOpacity 
             style={styles.addMealCard}
-            onPress={() => Alert.alert("Coming Soon", "Meal management module implementation in progress!")}
+            onPress={handleAddMeal}
           >
             <View style={styles.addIconBg}>
               <MaterialCommunityIcons name="plus" size={32} color={ORANGE_PRIMARY} />
@@ -167,11 +202,26 @@ export default function StallManagement() {
 
           {/* Meals List */}
           {meals.map((meal) => (
-            <TouchableOpacity key={meal._id} style={styles.mealItemCard}>
-              <Image source={{ uri: meal.image }} style={styles.mealImg} />
+            <TouchableOpacity key={meal._id} style={styles.mealItemCard} onPress={() => handleEditMeal(meal)}>
+              <View style={styles.mealImageRow}>
+                <Image source={{ uri: meal.image || 'https://via.placeholder.com/150' }} style={styles.mealImg} />
+                <View style={styles.mealSideActions}>
+                  <TouchableOpacity style={styles.sideEditBtn} onPress={() => handleEditMeal(meal)}>
+                    <MaterialCommunityIcons name="pencil-outline" size={18} color={ORANGE_PRIMARY} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.sideDeleteBtn} onPress={() => handleDeleteMeal(meal._id)}>
+                    <MaterialCommunityIcons name="trash-can-outline" size={18} color="#EE5253" />
+                  </TouchableOpacity>
+                </View>
+              </View>
               <View style={styles.mealDetails}>
                 <Text style={styles.mealTitle} numberOfLines={1}>{meal.name}</Text>
-                <Text style={styles.mealPriceText}>Rs. {meal.price}</Text>
+                <View style={styles.mealInfoRow}>
+                  <Text style={styles.mealPriceText}>Rs. {meal.price}</Text>
+                  <View style={styles.qtyTag}>
+                    <Text style={styles.qtyTagText}>{meal.quantity} Qty</Text>
+                  </View>
+                </View>
               </View>
             </TouchableOpacity>
           ))}
@@ -185,6 +235,14 @@ export default function StallManagement() {
 
         <View style={{ height: 50 }} />
       </ScrollView>
+
+      <MealModal 
+        visible={mealModalVisible}
+        onClose={() => setMealModalVisible(false)}
+        onSave={fetchMeals}
+        stallId={id as string}
+        meal={selectedMeal}
+      />
     </View>
   );
 }
@@ -449,7 +507,60 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: ORANGE_PRIMARY,
     fontWeight: '800',
-    marginTop: 4,
+  },
+  mealImageRow: {
+    flexDirection: 'row',
+    height: 120,
+    width: '100%',
+  },
+  mealSideActions: {
+    position: 'absolute',
+    right: 8,
+    top: 8,
+    gap: 8,
+  },
+  sideEditBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  sideDeleteBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  mealInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  qtyTag: {
+    backgroundColor: '#F1F3F5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  qtyTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: TEXT_GRAY,
   },
   emptyState: {
     flex: 1,

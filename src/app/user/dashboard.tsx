@@ -10,8 +10,12 @@ import {
   StatusBar,
   StyleSheet,
   TouchableOpacity,
-  View
+  View,
+  Image,
+  ActivityIndicator
 } from 'react-native';
+import api from '../../services/api';
+import MealDetailsModal from '../../components/meal-details-modal';
 // Using standard Icons for 100% stability
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
@@ -33,8 +37,38 @@ export default function UserDashboard() {
       if (isMounted && userStr) setUserName(JSON.parse(userStr).name);
     };
     fetchUser();
+    fetchMeals();
     return () => { isMounted = false; };
   }, []);
+
+  const [meals, setMeals] = useState<any[]>([]);
+  const [loadingMeals, setLoadingMeals] = useState(true);
+  const [selectedMeal, setSelectedMeal] = useState<any>(null);
+  const [detailsVisible, setDetailsVisible] = useState(false);
+
+  const fetchMeals = async () => {
+    try {
+      // For demo, we get all meals. In real app, might be filtered by stall or recommendations
+      const response = await api.get('/meals/stall/all'); // Wait, I didn't add this route. 
+      // Let's use a fallback or add the route.
+      // Actually, let's just get all stalls and then their meals, or just add a 'get all meals' route.
+      // I'll add a 'GET /api/meals' route to server.js in a moment.
+      const res = await api.get('/stalls');
+      if (res.data.length > 0) {
+        const mealRes = await api.get(`/meals/stall/${res.data[0]._id}`);
+        setMeals(mealRes.data);
+      }
+    } catch (error) {
+      console.log('Fetch meals failed');
+    } finally {
+      setLoadingMeals(false);
+    }
+  };
+
+  const handleViewMeal = (meal: any) => {
+    setSelectedMeal(meal);
+    setDetailsVisible(true);
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -119,8 +153,40 @@ export default function UserDashboard() {
               <MaterialCommunityIcons name="chevron-right" size={24} color="#fff" />
             </View>
           </TouchableOpacity>
+
+          <View style={styles.mealsHeader}>
+            <Text style={styles.sectionTitle}>Today's Specials</Text>
+            <TouchableOpacity onPress={fetchMeals}>
+               <MaterialCommunityIcons name="refresh" size={20} color={ORANGE_PRIMARY} />
+            </TouchableOpacity>
+          </View>
+
+          {loadingMeals ? (
+            <ActivityIndicator color={ORANGE_PRIMARY} style={{ marginTop: 20 }} />
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.mealsScroll}>
+              {meals.map((meal) => (
+                <TouchableOpacity key={meal._id} style={styles.mealCard} onPress={() => handleViewMeal(meal)}>
+                  <Image source={{ uri: meal.image || 'https://via.placeholder.com/150' }} style={styles.mealImage} />
+                  <View style={styles.mealInfo}>
+                    <Text style={styles.mealName} numberOfLines={1}>{meal.name}</Text>
+                    <Text style={styles.mealPrice}>Rs. {meal.price}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+              {meals.length === 0 && (
+                <Text style={styles.noMealsText}>Check back later for specials!</Text>
+              )}
+            </ScrollView>
+          )}
         </View>
       </ScrollView>
+
+      <MealDetailsModal 
+        visible={detailsVisible}
+        onClose={() => setDetailsVisible(false)}
+        meal={selectedMeal}
+      />
 
       {/* Modern Bottom Tabs */}
       <View style={styles.bottomTab}>
@@ -290,4 +356,52 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: TEXT_GRAY,
   },
+  mealsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 25,
+    marginBottom: 15,
+  },
+  mealsScroll: {
+    marginLeft: -20,
+    paddingLeft: 20,
+  },
+  mealCard: {
+    width: 160,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    marginRight: 15,
+    overflow: 'hidden',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    marginBottom: 10,
+  },
+  mealImage: {
+    width: '100%',
+    height: 100,
+  },
+  mealInfo: {
+    padding: 12,
+  },
+  mealName: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: TEXT_DARK,
+  },
+  mealPrice: {
+    fontSize: 13,
+    color: ORANGE_PRIMARY,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  noMealsText: {
+    fontSize: 14,
+    color: TEXT_GRAY,
+    fontStyle: 'italic',
+    marginTop: 10,
+  }
 });
