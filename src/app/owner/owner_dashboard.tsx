@@ -15,11 +15,10 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons'; 
-import * as SecureStore from 'expo-secure-store';
 import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LeafletMap from '../../components/leaflet_map';
-import api from '../../services/api';
+import api, { clearAuthStorage, getStoredUser } from '../../services/api';
 
 const ORANGE_PRIMARY = '#FF6F3C'; 
 const TEXT_DARK = '#2D3436';
@@ -63,10 +62,9 @@ export default function OwnerDashboard() {
   useEffect(() => {
     let isMounted = true;
     const checkRole = async () => {
-      const userStr = await SecureStore.getItemAsync('user');
+      const user = await getStoredUser();
       if (isMounted) {
-        if (userStr) {
-          const user = JSON.parse(userStr);
+        if (user) {
           if (user.role !== 'stall owner') {
             router.replace('/login');
             return;
@@ -186,8 +184,7 @@ export default function OwnerDashboard() {
       { 
         text: 'Ok', 
         onPress: async () => {
-          await SecureStore.deleteItemAsync('token');
-          await SecureStore.deleteItemAsync('user');
+          await clearAuthStorage();
           router.replace('/login');
         },
         style: 'destructive'

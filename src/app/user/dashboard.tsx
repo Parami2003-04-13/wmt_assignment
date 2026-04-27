@@ -14,11 +14,10 @@ import {
   Image,
   ActivityIndicator
 } from 'react-native';
-import api from '../../services/api';
+import api, { clearAuthStorage, getStoredUser } from '../../services/api';
 import MealDetailsModal from '../../components/meal-details-modal';
 // Using standard Icons for 100% stability
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import * as SecureStore from 'expo-secure-store';
 
 const ORANGE_PRIMARY = '#FF6F3C';
 const TEXT_DARK = '#2D3436';
@@ -33,8 +32,8 @@ export default function UserDashboard() {
   useEffect(() => {
     let isMounted = true;
     const fetchUser = async () => {
-      const userStr = await SecureStore.getItemAsync('user');
-      if (isMounted && userStr) setUserName(JSON.parse(userStr).name);
+      const user = await getStoredUser();
+      if (isMounted && user) setUserName(user.name);
     };
     fetchUser();
     fetchMeals();
@@ -79,8 +78,7 @@ export default function UserDashboard() {
         {
           text: 'Ok',
           onPress: async () => {
-            await SecureStore.deleteItemAsync('token');
-            await SecureStore.deleteItemAsync('user');
+            await clearAuthStorage();
             router.replace('/login');
           },
           style: 'destructive'

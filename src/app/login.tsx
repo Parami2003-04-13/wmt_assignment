@@ -14,8 +14,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons'; 
-import api, { setAuthToken } from '../services/api';
-import * as SecureStore from 'expo-secure-store';
+import api, { API_BASE_URL, setAuthToken, setStoredUser } from '../services/api';
 
 const ORANGE_PRIMARY = '#FF6F3C';
 const TEXT_DARK = '#2D3436';
@@ -40,10 +39,13 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      const response = await api.post('/auth/login', { email, password });
+      const response = await api.post('/auth/login', {
+        email: email.trim().toLowerCase(),
+        password
+      });
       const { token, user } = response.data;
       await setAuthToken(token);
-      await SecureStore.setItemAsync('user', JSON.stringify(user));
+      await setStoredUser(user);
       
       if (user.role === 'stall manager') {
         router.replace('/admin/admin_approval_dashboard');
@@ -53,7 +55,18 @@ export default function LoginScreen() {
         router.replace('/user/dashboard');
       }
     } catch (error: any) {
-      Alert.alert('Login Failed', error.response?.data?.message || 'Check your internet or credentials.');
+      const message = error.response?.data?.message
+        || (error.request ? `Cannot reach backend at ${API_BASE_URL}. Open this URL from your phone/browser to check the connection.` : error.message)
+        || 'Check your internet or credentials.';
+
+      console.error('Login failed:', {
+        baseURL: API_BASE_URL,
+        code: error.code,
+        message: error.message,
+        status: error.response?.status,
+        response: error.response?.data,
+      });
+      Alert.alert('Login Failed', message);
     } finally {
       setLoading(false);
     }

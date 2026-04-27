@@ -1,8 +1,8 @@
 import React, { useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
 import { Text } from '@ant-design/react-native';
+import { getStoredToken, getStoredUser } from '../services/api';
 
 const ORANGE_PRIMARY = '#FF8C00';
 
@@ -12,17 +12,15 @@ export default function Initializer() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const token = await SecureStore.getItemAsync('token');
-        const userStr = await SecureStore.getItemAsync('user');
+        const token = await getStoredToken();
+        const user = await getStoredUser();
 
-        if (!token || !userStr) {
+        if (!token || !user) {
           // No token, redirect to login after a small delay
           setTimeout(() => router.replace('/login'), 1500);
           return;
         }
 
-        const user = JSON.parse(userStr);
-        
         // Brief delay for splash effect
         setTimeout(() => {
           if (user.role === 'stall manager') {

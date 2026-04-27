@@ -26,6 +26,10 @@ app.use((req, res, next) => {
   next();
 });
 
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
 // PORT
 const PORT = process.env.PORT || 5000;
 
