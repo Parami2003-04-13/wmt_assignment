@@ -20,6 +20,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const sendEmailInBackground = (to, subject, htmlContent) => {
+  sendNotificationEmail(to, subject, htmlContent).catch((error) => {
+    console.error('Background email error:', error);
+  });
+};
+
 // Request logger
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.url}`);
@@ -146,22 +152,28 @@ app.post('/api/stalls', async (req, res) => {
     
     await newStall.save();
 
-    // Notify Owner & Admin
-    const owner = await User.findById(managerId);
-    if (owner && owner.email) {
-       // To Owner
-       const ownerMsg = getReviewEmailTemplate(owner.name, name);
-       await sendNotificationEmail(owner.email, `Stall Under Review: ${name}`, ownerMsg);
-       
-       // To Admin (Default to EMAIL_USER)
-       const adminEmail = process.env.EMAIL_USER;
-       if (adminEmail) {
-         const adminMsg = getAdminNotificationTemplate(owner.name, name);
-         await sendNotificationEmail(adminEmail, `ACTION REQUIRED: New Stall Request`, adminMsg);
-       }
-    }
-
     res.status(201).json(newStall);
+
+    // Notify Owner & Admin without blocking the saved response.
+    (async () => {
+      try {
+        const owner = await User.findById(managerId);
+        if (owner && owner.email) {
+          // To Owner
+          const ownerMsg = getReviewEmailTemplate(owner.name, name);
+          sendEmailInBackground(owner.email, `Stall Under Review: ${name}`, ownerMsg);
+
+          // To Admin (Default to EMAIL_USER)
+          const adminEmail = process.env.EMAIL_USER;
+          if (adminEmail) {
+            const adminMsg = getAdminNotificationTemplate(owner.name, name);
+            sendEmailInBackground(adminEmail, `ACTION REQUIRED: New Stall Request`, adminMsg);
+          }
+        }
+      } catch (emailLookupError) {
+        console.error('Stall notification lookup error:', emailLookupError);
+      }
+    })();
   } catch (err) {
     console.error('Stall creation error:', err);
     res.status(500).json({ message: 'Server error' });
@@ -218,7 +230,7 @@ app.patch('/api/stalls/:id/approve', async (req, res) => {
     
     if (stall && stall.manager && stall.manager.email) {
       const emailContent = getApproveEmailTemplate(stall.manager.name, stall.name);
-      await sendNotificationEmail(stall.manager.email, `Stall Approved: ${stall.name}`, emailContent);
+      sendEmailInBackground(stall.manager.email, `Stall Approved: ${stall.name}`, emailContent);
     }
 
     res.json(stall);
@@ -234,7 +246,7 @@ app.delete('/api/stalls/:id', async (req, res) => {
     
     if (stall && stall.manager && stall.manager.email) {
       const emailContent = getRejectEmailTemplate(stall.manager.name, stall.name);
-      await sendNotificationEmail(stall.manager.email, `Registration Rejected: ${stall.name}`, emailContent);
+      sendEmailInBackground(stall.manager.email, `Registration Rejected: ${stall.name}`, emailContent);
     }
 
     await Stall.findByIdAndDelete(req.params.id);
