@@ -5,6 +5,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const User = require('./models/User');
 const Stall = require('./models/Stall');
+const Meal = require('./models/Meal');
 const { 
   sendNotificationEmail, 
   getApproveEmailTemplate, 
@@ -19,10 +20,20 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const sendEmailInBackground = (to, subject, htmlContent) => {
+  sendNotificationEmail(to, subject, htmlContent).catch((error) => {
+    console.error('Background email error:', error);
+  });
+};
+
 // Request logger
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.url}`);
   next();
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok' });
 });
 
 // PORT
@@ -141,22 +152,28 @@ app.post('/api/stalls', async (req, res) => {
     
     await newStall.save();
 
-    // Notify Owner & Admin
-    const owner = await User.findById(managerId);
-    if (owner && owner.email) {
-       // To Owner
-       const ownerMsg = getReviewEmailTemplate(owner.name, name);
-       await sendNotificationEmail(owner.email, `Stall Under Review: ${name}`, ownerMsg);
-       
-       // To Admin (Default to EMAIL_USER)
-       const adminEmail = process.env.EMAIL_USER;
-       if (adminEmail) {
-         const adminMsg = getAdminNotificationTemplate(owner.name, name);
-         await sendNotificationEmail(adminEmail, `ACTION REQUIRED: New Stall Request`, adminMsg);
-       }
-    }
-
     res.status(201).json(newStall);
+
+    // Notify Owner & Admin without blocking the saved response.
+    (async () => {
+      try {
+        const owner = await User.findById(managerId);
+        if (owner && owner.email) {
+          // To Owner
+          const ownerMsg = getReviewEmailTemplate(owner.name, name);
+          sendEmailInBackground(owner.email, `Stall Under Review: ${name}`, ownerMsg);
+
+          // To Admin (Default to EMAIL_USER)
+          const adminEmail = process.env.EMAIL_USER;
+          if (adminEmail) {
+            const adminMsg = getAdminNotificationTemplate(owner.name, name);
+            sendEmailInBackground(adminEmail, `ACTION REQUIRED: New Stall Request`, adminMsg);
+          }
+        }
+      } catch (emailLookupError) {
+        console.error('Stall notification lookup error:', emailLookupError);
+      }
+    })();
   } catch (err) {
     console.error('Stall creation error:', err);
     res.status(500).json({ message: 'Server error' });
@@ -213,7 +230,7 @@ app.patch('/api/stalls/:id/approve', async (req, res) => {
     
     if (stall && stall.manager && stall.manager.email) {
       const emailContent = getApproveEmailTemplate(stall.manager.name, stall.name);
-      await sendNotificationEmail(stall.manager.email, `Stall Approved: ${stall.name}`, emailContent);
+      sendEmailInBackground(stall.manager.email, `Stall Approved: ${stall.name}`, emailContent);
     }
 
     res.json(stall);
@@ -229,12 +246,81 @@ app.delete('/api/stalls/:id', async (req, res) => {
     
     if (stall && stall.manager && stall.manager.email) {
       const emailContent = getRejectEmailTemplate(stall.manager.name, stall.name);
-      await sendNotificationEmail(stall.manager.email, `Registration Rejected: ${stall.name}`, emailContent);
+      sendEmailInBackground(stall.manager.email, `Registration Rejected: ${stall.name}`, emailContent);
     }
 
     await Stall.findByIdAndDelete(req.params.id);
     res.json({ message: 'Stall deleted successfully' });
   } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// --- Meal Routes ---
+
+// Create Meal
+app.post('/api/meals', async (req, res) => {
+  const { name, description, price, quantity, image, stallId } = req.body;
+
+  if (!name || !description || !price || !quantity || !stallId) {
+    return res.status(400).json({ message: 'Missing required fields' });
+  }
+
+  try {
+    const newMeal = new Meal({
+      name, description, price, quantity, image, stall: stallId
+    });
+    
+    await newMeal.save();
+    res.status(201).json(newMeal);
+  } catch (err) {
+    console.error('Meal creation error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get meals by Stall
+app.get('/api/meals/stall/:stallId', async (req, res) => {
+  try {
+    const meals = await Meal.find({ stall: req.params.stallId });
+    res.json(meals);
+  } catch (err) {
+    console.error('Fetch meals error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Update Meal
+app.patch('/api/meals/:id', async (req, res) => {
+  try {
+    const updatedMeal = await Meal.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!updatedMeal) return res.status(404).json({ message: 'Meal not found' });
+    res.json(updatedMeal);
+  } catch (err) {
+    console.error('Update meal error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Delete Meal
+app.delete('/api/meals/:id', async (req, res) => {
+  try {
+    const deletedMeal = await Meal.findByIdAndDelete(req.params.id);
+    if (!deletedMeal) return res.status(404).json({ message: 'Meal not found' });
+    res.json({ message: 'Meal deleted successfully' });
+  } catch (err) {
+    console.error('Delete meal error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get all meals (for Explore/Discovery)
+app.get('/api/meals', async (req, res) => {
+  try {
+    const meals = await Meal.find().populate('stall', 'name');
+    res.json(meals);
+  } catch (err) {
+    console.error('Fetch all meals error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
