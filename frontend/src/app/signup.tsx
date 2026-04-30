@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { 
   View, 
   StyleSheet, 
@@ -27,11 +27,28 @@ export default function SignupScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [passwordTouched, setPasswordTouched] = useState(false);
+  const [confirmTouched, setConfirmTouched] = useState(false);
 
   const validateEmail = (email: string) => {
     const domainPart = email.split('@')[1];
     return domainPart === 'my.sliit.lk' || domainPart === 'sliit.lk';
   };
+
+  const passwordRules = useMemo(() => {
+    const minLengthOk = password.length >= 6;
+    const matchOk = password.length > 0 && confirmPassword.length > 0 && password === confirmPassword;
+    return { minLengthOk, matchOk };
+  }, [password, confirmPassword]);
+
+  const showPasswordValidation = passwordTouched || confirmTouched || password.length > 0 || confirmPassword.length > 0;
+
+  const isFormValid =
+    name.trim().length > 0 &&
+    email.trim().length > 0 &&
+    validateEmail(email.trim().toLowerCase()) &&
+    passwordRules.minLengthOk &&
+    password === confirmPassword;
 
   const handleSignup = async () => {
     if (!name || !email || !password || !confirmPassword) {
@@ -134,6 +151,7 @@ export default function SignupScreen() {
                   secureTextEntry={!showPassword}
                   value={password}
                   onChangeText={(v) => setPassword(v)}
+                  onFocus={() => setPasswordTouched(true)}
                   placeholder="Create a password"
                   placeholderTextColor="#A0A0A0"
                   style={styles.input}
@@ -146,6 +164,31 @@ export default function SignupScreen() {
                   />
                 </TouchableOpacity>
              </View>
+
+             {showPasswordValidation && (
+               <View style={styles.passwordRules}>
+                 <View style={styles.ruleRow}>
+                   <MaterialCommunityIcons
+                     name={passwordRules.minLengthOk ? 'check-circle' : 'close-circle'}
+                     size={16}
+                     color={passwordRules.minLengthOk ? COLORS.success : COLORS.danger}
+                   />
+                   <Text style={[styles.ruleText, { color: passwordRules.minLengthOk ? COLORS.success : COLORS.danger }]}>
+                     At least 6 characters
+                   </Text>
+                 </View>
+                 <View style={styles.ruleRow}>
+                   <MaterialCommunityIcons
+                     name={passwordRules.matchOk ? 'check-circle' : 'close-circle'}
+                     size={16}
+                     color={passwordRules.matchOk ? COLORS.success : COLORS.danger}
+                   />
+                   <Text style={[styles.ruleText, { color: passwordRules.matchOk ? COLORS.success : COLORS.danger }]}>
+                     Passwords match
+                   </Text>
+                 </View>
+               </View>
+             )}
           </View>
 
           <View style={styles.inputWrapper}>
@@ -156,6 +199,7 @@ export default function SignupScreen() {
                   secureTextEntry={!showPassword}
                   value={confirmPassword}
                   onChangeText={(v) => setConfirmPassword(v)}
+                  onFocus={() => setConfirmTouched(true)}
                   placeholder="Repeat your password"
                   placeholderTextColor="#A0A0A0"
                   style={styles.input}
@@ -164,9 +208,12 @@ export default function SignupScreen() {
           </View>
 
           <TouchableOpacity 
-            style={[styles.signupBtn, loading && { opacity: 0.7 }]} 
+            style={[
+              styles.signupBtn,
+              (loading || !isFormValid) && { opacity: 0.6 },
+            ]} 
             onPress={handleSignup}
-            disabled={loading}
+            disabled={loading || !isFormValid}
           >
             {loading ? (
               <ActivityIndicator color="#fff" />
@@ -280,6 +327,25 @@ const styles = StyleSheet.create({
     color: COLORS.textGray,
     marginTop: 4,
     marginLeft: 4,
+  },
+  passwordRules: {
+    marginTop: 10,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(15,91,87,0.12)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  ruleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 3,
+  },
+  ruleText: {
+    marginLeft: 8,
+    fontSize: 12,
+    fontWeight: '700',
   },
   signupBtn: {
     backgroundColor: COLORS.primary,

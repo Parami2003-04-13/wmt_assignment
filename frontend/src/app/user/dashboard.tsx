@@ -8,7 +8,6 @@ import {
     Text as RNText // Renamed for helper
     ,
 
-    SafeAreaView,
     ScrollView,
     StatusBar,
     StyleSheet,
@@ -16,6 +15,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import MealDetailsModal from '../../components/meal-details-modal';
 import api, { clearAuthStorage, getStoredUser } from '../../services/api';
 // Using standard Icons for 100% stability
@@ -33,8 +33,10 @@ const Text = (props: any) => <RNText {...props} style={[{ fontFamily: Platform.O
 
 export default function UserDashboard() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [userName, setUserName] = useState('');
   const [query, setQuery] = useState('');
+  const [selectedStallId, setSelectedStallId] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -43,30 +45,37 @@ export default function UserDashboard() {
       if (isMounted && user) setUserName(user.name);
     };
     fetchUser();
-    fetchMeals();
+    fetchDashboardData();
     return () => { isMounted = false; };
   }, []);
 
   const [meals, setMeals] = useState<any[]>([]);
+  const [stalls, setStalls] = useState<any[]>([]);
   const [loadingMeals, setLoadingMeals] = useState(true);
+  const [loadingStalls, setLoadingStalls] = useState(true);
   const [selectedMeal, setSelectedMeal] = useState<any>(null);
   const [detailsVisible, setDetailsVisible] = useState(false);
 
-  const fetchMeals = async () => {
+  const fetchDashboardData = async () => {
+    setLoadingStalls(true);
+    setLoadingMeals(true);
     try {
-      // For demo, we get all meals. In real app, might be filtered by stall or recommendations
-      const response = await api.get('/meals/stall/all'); // Wait, I didn't add this route. 
-      // Let's use a fallback or add the route.
-      // Actually, let's just get all stalls and then their meals, or just add a 'get all meals' route.
-      // I'll add a 'GET /api/meals' route to server.js in a moment.
-      const res = await api.get('/stalls');
-      if (res.data.length > 0) {
-        const mealRes = await api.get(`/meals/stall/${res.data[0]._id}`);
-        setMeals(mealRes.data);
-      }
+      const [stallsRes, mealsRes] = await Promise.all([
+        api.get('/stalls'),
+        api.get('/meals'),
+      ]);
+
+      // Only show approved stalls to users
+      const approvedStalls = Array.isArray(stallsRes.data)
+        ? stallsRes.data.filter((s: any) => s?.isApproved)
+        : [];
+
+      setStalls(approvedStalls);
+      setMeals(Array.isArray(mealsRes.data) ? mealsRes.data : []);
     } catch (error) {
-      console.log('Fetch meals failed');
+      console.log('Fetch dashboard data failed');
     } finally {
+      setLoadingStalls(false);
       setLoadingMeals(false);
     }
   };
@@ -94,11 +103,26 @@ export default function UserDashboard() {
     );
   };
 
-  const recentOrders = [
-    { id: 1, dish: 'Pizza Margherita', status: 'Delivered', time: 'Today, 2:45 PM', price: '$12.50', icon: 'pizza' },
-    { id: 2, dish: 'Spicy Chicken Burger', status: 'Processing', time: 'Just now', price: '$8.90', icon: 'hamburger' },
-    { id: 3, dish: 'Mango Shake', status: 'Delivered', time: 'Yesterday', price: '$4.50', icon: 'glass-cocktail' },
-  ];
+  const normalizedQuery = query.trim().toLowerCase();
+
+  const getMealStallId = (meal: any) => {
+    if (!meal) return null;
+    if (typeof meal.stall === 'string') return meal.stall;
+    return meal.stall?._id || null;
+  };
+
+  const filteredStalls = stalls.filter((s: any) => {
+    if (!normalizedQuery) return true;
+    return `${s?.name || ''} ${s?.address || ''}`.toLowerCase().includes(normalizedQuery);
+  });
+
+  const filteredMeals = meals.filter((m: any) => {
+    const stallName = typeof m?.stall === 'object' ? (m?.stall?.name || '') : '';
+    const haystack = `${m?.name || ''} ${m?.description || ''} ${stallName}`.toLowerCase();
+    const matchesQuery = normalizedQuery ? haystack.includes(normalizedQuery) : true;
+    const matchesStall = selectedStallId ? getMealStallId(m) === selectedStallId : true;
+    return matchesQuery && matchesStall;
+  });
 
   // Helper text component
 
@@ -107,7 +131,7 @@ export default function UserDashboard() {
       <StatusBar barStyle="light-content" />
 
       {/* Header (teal) */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 14) }]}>
         <View style={styles.headerTopRow}>
           <View style={styles.locationWrap}>
             <MaterialCommunityIcons name="map-marker-outline" size={18} color="rgba(255,255,255,0.85)" />
@@ -187,36 +211,46 @@ export default function UserDashboard() {
             ))}
           </ScrollView>
 
-          {/* Recent orders (kept, restyled) */}
-          <Text style={[styles.sectionTitle, { marginTop: 18 }]}>Recent Orders</Text>
+          {/* Popular stalls (real from DB) */}
+          <View style={styles.mealsHeader}>
+            <Text style={styles.sectionTitle}>Popular Stalls</Text>
+            <TouchableOpacity onPress={fetchDashboardData} accessibilityLabel="Refresh stalls and meals">
+              <MaterialCommunityIcons name="refresh" size={20} color={PRIMARY} />
+            </TouchableOpacity>
+          </View>
 
-          {recentOrders.map((order) => (
-            <View key={order.id} style={styles.orderCard}>
-              <View style={styles.orderIconBox}>
-                <MaterialCommunityIcons name={order.icon as any} size={24} color={PRIMARY} />
-              </View>
-
-              <View style={styles.orderMain}>
-                <Text style={styles.orderDish}>{order.dish}</Text>
-                <Text style={styles.orderTime}>{order.time}</Text>
-              </View>
-
-              <View style={styles.orderRight}>
-                <Text style={styles.orderPrice}>{order.price}</Text>
-                <View style={[
-                  styles.statusTag,
-                  { backgroundColor: order.status === 'Processing' ? '#FFF7E1' : '#E8F7F0' }
-                ]}>
-                  <Text style={[
-                    styles.statusText,
-                    { color: order.status === 'Processing' ? '#B7791F' : '#0F766E' }
-                  ]}>
-                    {order.status}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          ))}
+          {loadingStalls ? (
+            <ActivityIndicator color={PRIMARY} style={{ marginTop: 6 }} />
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.stallsScroll}>
+              {filteredStalls.map((stall: any) => {
+                const isSelected = selectedStallId === stall._id;
+                return (
+                  <TouchableOpacity
+                    key={stall._id}
+                    style={[styles.stallCard, isSelected && styles.stallCardSelected]}
+                    onPress={() => setSelectedStallId(isSelected ? null : stall._id)}
+                    activeOpacity={0.85}
+                  >
+                    <Image
+                      source={{ uri: stall.profilePhoto || 'https://via.placeholder.com/120?text=Stall' }}
+                      style={styles.stallImage}
+                    />
+                    <View style={styles.stallInfo}>
+                      <Text style={styles.stallName} numberOfLines={1}>{stall.name}</Text>
+                      <View style={styles.stallMetaRow}>
+                        <View style={[styles.stallDot, { backgroundColor: stall.status === 'Open' ? '#10AC84' : '#EE5253' }]} />
+                        <Text style={styles.stallMetaText}>{stall.status || 'Unknown'}</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+              {filteredStalls.length === 0 && (
+                <Text style={styles.noMealsText}>No stalls found.</Text>
+              )}
+            </ScrollView>
+          )}
 
           <TouchableOpacity style={styles.promoCard} accessibilityLabel="Explore deals">
             <View>
@@ -229,26 +263,38 @@ export default function UserDashboard() {
           </TouchableOpacity>
 
           <View style={styles.mealsHeader}>
-            <Text style={styles.sectionTitle}>Today's Specials</Text>
-            <TouchableOpacity onPress={fetchMeals}>
-               <MaterialCommunityIcons name="refresh" size={20} color={PRIMARY} />
-            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sectionTitle}>Today's Specials</Text>
+              {selectedStallId && (
+                <Text style={styles.filterPill} numberOfLines={1}>
+                  Filtered by stall
+                </Text>
+              )}
+            </View>
+            {selectedStallId && (
+              <TouchableOpacity onPress={() => setSelectedStallId(null)} accessibilityLabel="Clear stall filter" style={styles.clearFilterBtn}>
+                <MaterialCommunityIcons name="close" size={18} color={PRIMARY} />
+              </TouchableOpacity>
+            )}
           </View>
 
           {loadingMeals ? (
             <ActivityIndicator color={PRIMARY} style={{ marginTop: 20 }} />
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.mealsScroll}>
-              {meals.map((meal) => (
+              {filteredMeals.map((meal) => (
                 <TouchableOpacity key={meal._id} style={styles.mealCard} onPress={() => handleViewMeal(meal)}>
                   <Image source={{ uri: meal.image || 'https://via.placeholder.com/150' }} style={styles.mealImage} />
                   <View style={styles.mealInfo}>
                     <Text style={styles.mealName} numberOfLines={1}>{meal.name}</Text>
+                    {meal?.stall?.name && (
+                      <Text style={styles.mealStallName} numberOfLines={1}>{meal.stall.name}</Text>
+                    )}
                     <Text style={styles.mealPrice}>Rs. {meal.price}</Text>
                   </View>
                 </TouchableOpacity>
               ))}
-              {meals.length === 0 && (
+              {filteredMeals.length === 0 && (
                 <Text style={styles.noMealsText}>Check back later for specials!</Text>
               )}
             </ScrollView>
@@ -291,7 +337,6 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 20,
-    paddingTop: 14,
     paddingBottom: 18,
     backgroundColor: PRIMARY,
   },
@@ -465,58 +510,56 @@ const styles = StyleSheet.create({
     color: TEXT_DARK,
     marginRight: 10,
   },
-  orderCard: {
-    flexDirection: 'row',
-    backgroundColor: SURFACE,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  orderIconBox: {
-    width: 50,
-    height: 50,
-    borderRadius: 12,
-    backgroundColor: PRIMARY_SOFT,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 15,
-  },
-  orderMain: {
-    flex: 1,
-  },
-  orderDish: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: TEXT_DARK,
-  },
-  orderTime: {
-    fontSize: 12,
-    color: TEXT_GRAY,
+  stallsScroll: {
+    marginLeft: -20,
+    paddingLeft: 20,
     marginTop: 2,
   },
-  orderRight: {
-    alignItems: 'flex-end',
+  stallCard: {
+    width: 170,
+    backgroundColor: SURFACE,
+    borderRadius: 16,
+    marginRight: 14,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(15,91,87,0.10)',
   },
-  orderPrice: {
-    fontSize: 15,
-    fontWeight: 'bold',
+  stallCardSelected: {
+    borderColor: 'rgba(15,91,87,0.35)',
+    shadowColor: PRIMARY_DARK,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 14,
+    elevation: 5,
+  },
+  stallImage: {
+    width: '100%',
+    height: 96,
+    backgroundColor: PRIMARY_SOFT,
+  },
+  stallInfo: {
+    padding: 12,
+  },
+  stallName: {
+    fontSize: 14,
+    fontWeight: '800',
     color: TEXT_DARK,
   },
-  statusTag: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+  stallMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginTop: 6,
   },
-  statusText: {
-    fontSize: 10,
-    fontWeight: 'bold',
+  stallDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  stallMetaText: {
+    fontSize: 12,
+    color: TEXT_GRAY,
+    fontWeight: '700',
   },
   promoCard: {
     backgroundColor: PRIMARY,
@@ -585,6 +628,27 @@ const styles = StyleSheet.create({
     marginTop: 25,
     marginBottom: 15,
   },
+  filterPill: {
+    marginTop: 6,
+    alignSelf: 'flex-start',
+    fontSize: 11,
+    fontWeight: '800',
+    color: PRIMARY,
+    backgroundColor: PRIMARY_SOFT,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  clearFilterBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: PRIMARY_SOFT,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(15,91,87,0.18)',
+  },
   mealsScroll: {
     marginLeft: -20,
     paddingLeft: 20,
@@ -613,6 +677,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
     color: TEXT_DARK,
+  },
+  mealStallName: {
+    fontSize: 11,
+    color: TEXT_GRAY,
+    marginTop: 2,
+    fontWeight: '700',
   },
   mealPrice: {
     fontSize: 13,

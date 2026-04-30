@@ -51,9 +51,16 @@ export default function MealDetailsModal({ visible, onClose, meal }: MealDetails
                 <Text style={styles.price}>Rs. {meal.price}</Text>
               </View>
 
+              {meal?.stall?.name && (
+                <View style={styles.stallRow}>
+                  <MaterialCommunityIcons name="storefront-outline" size={16} color={TEXT_GRAY} />
+                  <Text style={styles.stallName} numberOfLines={1}>{meal.stall.name}</Text>
+                </View>
+              )}
+
               <View style={styles.qtyBadge}>
                 <MaterialCommunityIcons name="tag-outline" size={14} color={PRIMARY} />
-                <Text style={styles.qtyText}>{meal.quantity} available</Text>
+                <Text style={styles.qtyText}>{meal.quantity ?? 0} available</Text>
               </View>
 
               <Text style={styles.sectionTitle}>Description</Text>
@@ -113,6 +120,18 @@ const styles = StyleSheet.create({
   },
   name: { fontSize: 22, fontWeight: 'bold', color: TEXT_DARK, flex: 1, marginRight: 10 },
   price: { fontSize: 20, fontWeight: '800', color: PRIMARY },
+  stallRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  stallName: {
+    marginLeft: 8,
+    fontSize: 13,
+    color: TEXT_GRAY,
+    fontWeight: '700',
+    flex: 1,
+  },
   qtyBadge: { 
     flexDirection: 'row', 
     alignItems: 'center', 

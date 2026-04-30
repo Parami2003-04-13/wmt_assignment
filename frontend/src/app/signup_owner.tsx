@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons'; 
-import api from '../services/api';
+import api, { API_BASE_URL } from '../services/api';
 import { COLORS } from '../theme/colors';
 
 const Text = (props: any) => <RNText {...props} style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]} />;
@@ -47,20 +47,37 @@ export default function SignupOwnerScreen() {
     setLoading(true);
     try {
       await api.post('/auth/register', {
-        email,
+        email: email.trim().toLowerCase(),
         password,
         role: 'stall owner',
-        name: `${firstName} ${lastName}`,
-        firstName,
-        lastName,
-        nic
+        name: `${firstName.trim()} ${lastName.trim()}`.trim(),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        nic: nic.trim()
       });
       
       Alert.alert('Success', 'Account created! Please login now.', [
         { text: 'OK', onPress: () => router.replace('/login') }
       ]);
     } catch (error: any) {
-      Alert.alert('Signup Failed', error.response?.data?.message || 'Something went wrong.');
+      const data = error.response?.data;
+      const message =
+        (typeof data === 'object' && data?.message != null ? String(data.message) : '') ||
+        (typeof data === 'string' ? data : '') ||
+        (error.code === 'ECONNABORTED'
+          ? `Request timed out. Try again or check API: ${API_BASE_URL}`
+          : error.request && !error.response
+            ? `Cannot reach backend at ${API_BASE_URL}. Check internet and Expo env (restart with npx expo start -c).`
+            : '') ||
+        error.message ||
+        'Something went wrong.';
+      console.error('Stall owner signup failed:', {
+        baseURL: API_BASE_URL,
+        code: error.code,
+        status: error.response?.status,
+        data: error.response?.data,
+      });
+      Alert.alert('Signup Failed', message);
     } finally {
       setLoading(false);
     }
