@@ -5,6 +5,40 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const User = require('./models/User');
 const Stall = require('./models/Stall');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
+
+async function authUserFromRequest(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || typeof authHeader !== 'string' || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+  try {
+    const payload = jwt.verify(authHeader.slice('Bearer '.length).trim(), JWT_SECRET);
+    if (!payload || !mongoose.Types.ObjectId.isValid(payload.id)) return null;
+    const user = await User.findById(payload.id).select('_id role staffStallId');
+    return user;
+  } catch {
+    return null;
+  }
+}
+
+function isStallOwnerUser(stallDoc, ownerUserDoc) {
+  if (!ownerUserDoc || !stallDoc) return false;
+  return stallDoc.manager.toString() === ownerUserDoc._id.toString();
+}
+
+async function stallCanManageMeals(stallId, actingUserId, actingRole, staffStallId) {
+  const stall = await Stall.findById(stallId);
+  if (!stall) return { ok: false, stall: null };
+  const sid = stall._id.toString();
+  const ownerMatch = stall.manager.toString() === actingUserId;
+  const staffMatch = actingRole === 'stall staff' && staffStallId && sid === staffStallId.toString();
+  if (actingRole === 'stall owner' && ownerMatch) return { ok: true, stall };
+  if (actingRole === 'stall staff' && staffMatch) return { ok: true, stall };
+  return { ok: false, stall };
+}
+
 const Meal = require('./models/Meal');
 const {
   normalizeTimeInput,
@@ -80,11 +114,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     // Generate JWT
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET || 'supersecretkey',
-      { expiresIn: '1h' }
-    );
+    const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
 
     res.json({
       token,
@@ -92,8 +122,9 @@ app.post('/api/auth/login', async (req, res) => {
         id: user._id,
         email: user.email,
         role: user.role,
-        name: user.name
-      }
+        name: user.name,
+        ...(user.staffStallId ? { staffStallId: user.staffStallId.toString() } : {}),
+      },
     });
 
   } catch (err) {
@@ -239,6 +270,9 @@ app.delete('/api/users/:id', async (req, res) => {
     const stallDocs = await Stall.find({ manager: id }).select('_id');
     const stallIds = stallDocs.map((s) => s._id);
     await Meal.deleteMany({ stall: { $in: stallIds } });
+    if (stallIds.length > 0) {
+      await User.deleteMany({ role: 'stall staff', staffStallId: { $in: stallIds } });
+    }
     await Stall.deleteMany({ manager: id });
     await User.findByIdAndDelete(id);
 
@@ -311,6 +345,120 @@ app.get('/api/stalls/manager/:managerId', async (req, res) => {
   }
 });
 
+// --- Stall staff (menu + manual open/closed; no stall profile / hours / phone / images via API) ---
+app.post('/api/stalls/:stallId/staff', async (req, res) => {
+  const auth = await authUserFromRequest(req);
+  if (!auth || auth.role !== 'stall owner') {
+    return res.status(403).json({ message: 'Only stall owners can add staff.' });
+  }
+  const { stallId } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(stallId)) {
+    return res.status(400).json({ message: 'Invalid stall id' });
+  }
+  const stall = await Stall.findById(stallId);
+  if (!stall) return res.status(404).json({ message: 'Stall not found' });
+  if (!isStallOwnerUser(stall, auth)) {
+    return res.status(403).json({ message: 'You can only add staff to your own stalls.' });
+  }
+
+  const { name, email, password } = req.body;
+  const emailNorm = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  const nameNorm = typeof name === 'string' ? name.trim() : '';
+  const passStr = password != null ? String(password) : '';
+  if (!emailNorm || !nameNorm || passStr.length < 6) {
+    return res.status(400).json({ message: 'Provide name, email, and a password (at least 6 characters).' });
+  }
+
+  try {
+    const exists = await User.findOne({ email: emailNorm });
+    if (exists) {
+      return res.status(400).json({ message: 'An account with this email already exists.' });
+    }
+    const nu = new User({
+      email: emailNorm,
+      password: passStr,
+      name: nameNorm,
+      role: 'stall staff',
+      staffStallId: stallId,
+    });
+    await nu.save();
+    res.status(201).json({
+      id: nu._id.toString(),
+      email: nu.email,
+      name: nu.name,
+      role: nu.role,
+      staffStallId: stall._id.toString(),
+    });
+  } catch (err) {
+    console.error('Add staff error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+app.get('/api/stalls/:stallId/staff', async (req, res) => {
+  const auth = await authUserFromRequest(req);
+  if (!auth || auth.role !== 'stall owner') {
+    return res.status(403).json({ message: 'Only stall owners can list staff.' });
+  }
+  const { stallId } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(stallId)) {
+    return res.status(400).json({ message: 'Invalid stall id' });
+  }
+  const stall = await Stall.findById(stallId);
+  if (!stall) return res.status(404).json({ message: 'Stall not found' });
+  if (!isStallOwnerUser(stall, auth)) {
+    return res.status(403).json({ message: 'Not your stall.' });
+  }
+  try {
+    const list = await User.find({ role: 'stall staff', staffStallId: stall._id })
+      .select('_id name email createdAt')
+      .sort({ createdAt: 1 });
+    res.json(
+      list.map((u) => ({
+        id: u._id.toString(),
+        name: u.name,
+        email: u.email,
+        createdAt: u.createdAt,
+      }))
+    );
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+app.delete('/api/stalls/:stallId/staff/:userId', async (req, res) => {
+  const auth = await authUserFromRequest(req);
+  if (!auth || auth.role !== 'stall owner') {
+    return res.status(403).json({ message: 'Only stall owners can remove staff.' });
+  }
+  const { stallId, userId } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(stallId) || !mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({ message: 'Invalid id' });
+  }
+  const stall = await Stall.findById(stallId);
+  if (!stall) return res.status(404).json({ message: 'Stall not found' });
+  if (!isStallOwnerUser(stall, auth)) {
+    return res.status(403).json({ message: 'Not your stall.' });
+  }
+  try {
+    const target = await User.findById(userId);
+    if (
+      !target ||
+      target.role !== 'stall staff' ||
+      !target.staffStallId ||
+      target.staffStallId.toString() !== stallId
+    ) {
+      return res.status(404).json({ message: 'Staff member not found for this stall.' });
+    }
+    await User.findByIdAndDelete(userId);
+    res.json({ message: 'Staff removed' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Get Stall by ID
 app.get('/api/stalls/:id', async (req, res) => {
   try {
@@ -345,12 +493,30 @@ app.patch('/api/stalls/:id/status', async (req, res) => {
   }
 
   try {
+    const sid = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(sid)) {
+      return res.status(400).json({ message: 'Invalid stall id' });
+    }
+
+    const pre = await Stall.findById(sid);
+    if (!pre) return res.status(404).json({ message: 'Stall not found' });
+
+    const auth = await authUserFromRequest(req);
+    if (auth) {
+      const platform = auth.role === 'stall manager' || auth.role === 'admin';
+      const ownerOk = auth.role === 'stall owner' && isStallOwnerUser(pre, auth);
+      const staffOk =
+        auth.role === 'stall staff' && auth.staffStallId && auth.staffStallId.toString() === sid;
+      if (!(platform || ownerOk || staffOk)) {
+        return res.status(403).json({ message: 'Not authorised to change this stall status.' });
+      }
+    }
+
     const stall = await Stall.findByIdAndUpdate(
-      req.params.id,
+      sid,
       { status, hoursAuto: false },
       { new: true }
     );
-    if (!stall) return res.status(404).json({ message: 'Stall not found' });
     res.json(stall);
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
@@ -382,6 +548,23 @@ app.patch('/api/stalls/:id', async (req, res) => {
       return res.status(400).json({ message: 'Invalid stall id' });
     }
 
+    const stallPre = await Stall.findById(id);
+    if (!stallPre) return res.status(404).json({ message: 'Stall not found' });
+
+    const auth = await authUserFromRequest(req);
+    if (auth) {
+      if (auth.role === 'stall staff') {
+        return res.status(403).json({
+          message: 'Staff cannot change description, hours, phone, stall images, or address.',
+        });
+      }
+      const platformOk = auth.role === 'stall manager' || auth.role === 'admin';
+      const ownerOk = auth.role === 'stall owner' && isStallOwnerUser(stallPre, auth);
+      if (!(platformOk || ownerOk)) {
+        return res.status(403).json({ message: 'Not authorised to edit this stall.' });
+      }
+    }
+
     const update = {};
     if (typeof req.body.name === 'string' && req.body.name.trim()) update.name = req.body.name.trim();
     if (typeof req.body.address === 'string' && req.body.address.trim()) update.address = req.body.address.trim();
@@ -389,6 +572,10 @@ app.patch('/api/stalls/:id', async (req, res) => {
     if (typeof req.body.description === 'string') update.description = req.body.description;
     if (typeof req.body.latitude === 'number' && !Number.isNaN(req.body.latitude)) update.latitude = req.body.latitude;
     if (typeof req.body.longitude === 'number' && !Number.isNaN(req.body.longitude)) update.longitude = req.body.longitude;
+    if (typeof req.body.profilePhoto === 'string' && req.body.profilePhoto.trim())
+      update.profilePhoto = req.body.profilePhoto.trim();
+    if (typeof req.body.coverPhoto === 'string' && req.body.coverPhoto.trim())
+      update.coverPhoto = req.body.coverPhoto.trim();
 
     const hasHoursKeys =
       Object.prototype.hasOwnProperty.call(req.body, 'openingTime') ||
@@ -440,7 +627,7 @@ app.patch('/api/stalls/:id', async (req, res) => {
       return res.status(400).json({ message: 'No valid fields to update' });
     }
 
-    let stall = await Stall.findByIdAndUpdate(id, { $set: clean }, { new: true, runValidators: true }).populate(
+    let stall = await Stall.findByIdAndUpdate(stallPre._id, { $set: clean }, { new: true, runValidators: true }).populate(
       'manager',
       'name email nic'
     );
@@ -470,6 +657,7 @@ app.delete('/api/stalls/:id', async (req, res) => {
     }
 
     await Meal.deleteMany({ stall: req.params.id });
+    await User.deleteMany({ role: 'stall staff', staffStallId: req.params.id });
     await Stall.findByIdAndDelete(req.params.id);
     res.json({ message: 'Stall deleted successfully' });
   } catch (err) {
@@ -491,6 +679,14 @@ app.post('/api/meals', async (req, res) => {
   }
 
   try {
+    const auth = await authUserFromRequest(req);
+    if (auth) {
+      const { ok } = await stallCanManageMeals(stallId, auth._id.toString(), auth.role, auth.staffStallId);
+      if (!ok) {
+        return res.status(403).json({ message: 'You cannot add meals to this stall.' });
+      }
+    }
+
     const newMeal = new Meal({
       name,
       description,
@@ -525,6 +721,15 @@ app.patch('/api/meals/:id', async (req, res) => {
     const existing = await Meal.findById(req.params.id);
     if (!existing) return res.status(404).json({ message: 'Meal not found' });
 
+    const auth = await authUserFromRequest(req);
+    if (auth) {
+      const stallId = existing.stall.toString();
+      const { ok } = await stallCanManageMeals(stallId, auth._id.toString(), auth.role, auth.staffStallId);
+      if (!ok) {
+        return res.status(403).json({ message: 'You cannot edit this meal.' });
+      }
+    }
+
     const { name, description, price, quantity, image } = req.body;
     const update = {};
     if (name !== undefined) update.name = name;
@@ -553,6 +758,18 @@ app.patch('/api/meals/:id', async (req, res) => {
 // Delete Meal
 app.delete('/api/meals/:id', async (req, res) => {
   try {
+    const candidate = await Meal.findById(req.params.id);
+    if (!candidate) return res.status(404).json({ message: 'Meal not found' });
+
+    const auth = await authUserFromRequest(req);
+    if (auth) {
+      const stallId = candidate.stall.toString();
+      const { ok } = await stallCanManageMeals(stallId, auth._id.toString(), auth.role, auth.staffStallId);
+      if (!ok) {
+        return res.status(403).json({ message: 'You cannot remove this meal.' });
+      }
+    }
+
     const deletedMeal = await Meal.findByIdAndDelete(req.params.id);
     if (!deletedMeal) return res.status(404).json({ message: 'Meal not found' });
     res.json({ message: 'Meal deleted successfully' });

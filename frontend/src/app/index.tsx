@@ -23,7 +23,11 @@ export default function Initializer() {
         // Brief delay for splash effect
         setTimeout(() => {
           if (user.role === 'stall manager') {
-            router.replace('/admin/stall_manager_dashboard');
+            router.replace('/admin/admin_approval_dashboard');
+          } else if (user.role === 'stall owner') {
+            router.replace('/owner/owner_dashboard');
+          } else if (user.role === 'stall staff' && user.staffStallId) {
+            router.replace(`/owner/${user.staffStallId}`);
           } else {
             router.replace('/user/dashboard');
           }

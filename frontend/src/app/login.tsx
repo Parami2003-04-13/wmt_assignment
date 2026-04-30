@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons'; 
-import api, { API_BASE_URL, setAuthToken, setStoredUser } from '../services/api';
+import api, { API_BASE_URL, clearAuthStorage, setAuthToken, setStoredUser } from '../services/api';
 import { COLORS } from '../theme/colors';
 
 const Text = (props: any) => <RNText {...props} style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]} />;
@@ -48,6 +48,15 @@ export default function LoginScreen() {
         router.replace('/admin/admin_approval_dashboard');
       } else if (user.role === 'stall owner') {
         router.replace('/owner/owner_dashboard');
+      } else if (user.role === 'stall staff') {
+        const sid = user.staffStallId;
+        if (sid) {
+          router.replace(`/owner/${sid}`);
+        } else {
+          await clearAuthStorage();
+          Alert.alert('Staff account', 'Your account is not linked to a stall. Ask the owner to add you again.');
+          router.replace('/login');
+        }
       } else {
         router.replace('/user/dashboard');
       }
