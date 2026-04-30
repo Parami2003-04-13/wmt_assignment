@@ -10,7 +10,8 @@ const API_BASE_URL =
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  // Vercel serverless + Mongo cold starts can exceed 10s; RN often reports this as ERR_NETWORK.
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
