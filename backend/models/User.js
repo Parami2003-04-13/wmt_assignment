@@ -28,6 +28,12 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  phone: {
+    type: String,
+    required: false,
+    trim: true,
+    default: null,
+  },
   firstName: {
     type: String,
     required: false

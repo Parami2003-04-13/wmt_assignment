@@ -15,23 +15,19 @@ export default function Initializer() {
         const user = await getStoredUser();
 
         if (!token || !user) {
-          // No token, redirect to login after a small delay
-          setTimeout(() => router.replace('/login'), 1500);
+          router.replace('/login');
           return;
         }
 
-        // Brief delay for splash effect
-        setTimeout(() => {
-          if (user.role === 'stall manager') {
-            router.replace('/admin/admin_approval_dashboard');
-          } else if (user.role === 'stall owner') {
-            router.replace('/owner/owner_dashboard');
-          } else if (user.role === 'stall staff' && user.staffStallId) {
-            router.replace(`/owner/${user.staffStallId}`);
-          } else {
-            router.replace('/user/dashboard');
-          }
-        }, 1500);
+        if (user.role === 'stall manager') {
+          router.replace('/admin/admin_approval_dashboard');
+        } else if (user.role === 'stall owner') {
+          router.replace('/owner/owner_dashboard');
+        } else if (user.role === 'stall staff' && user.staffStallId) {
+          router.replace(`/owner/${user.staffStallId}`);
+        } else {
+          router.replace('/user/dashboard');
+        }
 
       } catch (e) {
         console.error('Auth check error', e);

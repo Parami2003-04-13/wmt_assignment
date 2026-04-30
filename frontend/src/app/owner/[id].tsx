@@ -17,7 +17,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import api, { getStoredUser } from '../../services/api';
+import api, { clearAuthStorage, getStoredUser } from '../../services/api';
 import MealModal from '../../components/meal-modal';
 import StallEditModal from '../../components/stall-edit-modal';
 import AddStaffModal from '../../components/add-staff-modal';
@@ -118,6 +118,11 @@ export default function StallManagement() {
       setRefreshing(false);
     }
   }, [fetchStallDetails, fetchMeals]);
+
+  const handleStaffLogout = async () => {
+    await clearAuthStorage();
+    router.replace('/login');
+  };
 
   const handleDeleteMeal = (mealId: string) => {
     Alert.alert('Delete meal', 'Remove this item from your menu?', [
@@ -237,12 +242,14 @@ export default function StallManagement() {
             <MaterialCommunityIcons name="arrow-left" size={24} color="#fff" />
           </Pressable>
 
-          <Pressable
-            style={[styles.roundIconBtn, { top: coverTop, right: 16 }]}
-            onPress={onRefresh}
-            hitSlop={12}>
-            <MaterialCommunityIcons name="refresh" size={22} color="#fff" />
-          </Pressable>
+          {isStaffViewer ? (
+            <Pressable
+              style={[styles.roundIconBtn, { top: coverTop, right: 16 }]}
+              onPress={handleStaffLogout}
+              hitSlop={12}>
+              <MaterialCommunityIcons name="logout" size={22} color="#fff" />
+            </Pressable>
+          ) : null}
         </View>
 
         <View style={styles.sheet}>
@@ -400,6 +407,22 @@ export default function StallManagement() {
                 {meals.length} {meals.length === 1 ? 'item' : 'items'}
                 {isStaffViewer ? ' · staff: menu & stock' : ' · tap a card to edit'}
               </Text>
+            </View>
+            <View style={styles.menuActions}>
+              <TouchableOpacity
+                style={styles.menuActionBtn}
+                activeOpacity={0.85}
+                onPress={() => Alert.alert('Coming soon', 'Orders will be available in a future update.')}>
+                <MaterialCommunityIcons name="receipt-text-outline" size={18} color={COLORS.primary} />
+                <Text style={styles.menuActionText}>Orders</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.menuActionBtn}
+                activeOpacity={0.85}
+                onPress={() => Alert.alert('Coming soon', 'Support chat will be available in a future update.')}>
+                <MaterialCommunityIcons name="lifebuoy" size={18} color={COLORS.primary} />
+                <Text style={styles.menuActionText}>Support</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -764,11 +787,25 @@ const styles = StyleSheet.create({
   },
   menuTitle: { fontSize: 20, fontWeight: '900', color: COLORS.textDark },
   menuSubtitle: { marginTop: 4, fontSize: 13, color: COLORS.textGray },
+  menuActions: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  menuActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: COLORS.primarySoft,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  menuActionText: { fontSize: 13, fontWeight: '800', color: COLORS.primary },
 
   mealsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: GRID_GAP,
+    // Avoid `gap` here: it is not consistently supported on Android for wrapped flex layouts.
+    justifyContent: 'space-between',
   },
   addCard: {
     width: CARD_W,
@@ -778,6 +815,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     backgroundColor: COLORS.background,
     overflow: 'hidden',
+    marginBottom: GRID_GAP,
   },
   addImageZone: {
     aspectRatio: 1,
@@ -818,6 +856,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 3,
+    marginBottom: GRID_GAP,
   },
   mealImagePress: { width: '100%', aspectRatio: 1, backgroundColor: COLORS.background },
   mealImg: { width: '100%', height: '100%', resizeMode: 'cover' as const },

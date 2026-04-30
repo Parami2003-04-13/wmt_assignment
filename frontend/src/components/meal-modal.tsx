@@ -59,11 +59,16 @@ export default function MealModal({ visible, onClose, onSave, stallId, meal }: M
   }, [meal, visible]);
 
   const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Allow photo library access to choose a meal image.');
+      return;
+    }
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
-      aspect: [1, 1],
-      quality: 1,
+      aspect: [4, 3],
+      quality: 0.9,
     });
 
     if (!result.canceled) {
@@ -114,77 +119,103 @@ export default function MealModal({ visible, onClose, onSave, stallId, meal }: M
   return (
     <Modal visible={visible} animationType="slide">
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>{meal ? 'Edit Meal' : 'Add New Meal'}</Text>
-          <TouchableOpacity onPress={onClose}>
-            <MaterialCommunityIcons name="close" size={28} color={COLORS.textDark} />
+        <View style={styles.photoHeader}>
+          <Image
+            source={{
+              uri: formData.image || 'https://via.placeholder.com/900x650?text=Meal+photo',
+            }}
+            style={styles.photoHeaderImg}
+          />
+          <View style={styles.photoHeaderShade} />
+
+          <TouchableOpacity style={[styles.iconBtn, { left: 16 }]} onPress={onClose} hitSlop={10}>
+            <MaterialCommunityIcons name="close" size={22} color="#fff" />
           </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.iconBtn, { right: 16 }]} onPress={pickImage} hitSlop={10}>
+            <MaterialCommunityIcons name="camera-outline" size={22} color="#fff" />
+          </TouchableOpacity>
+
+          <View style={styles.photoHeaderBadge}>
+            <MaterialCommunityIcons name="image-edit-outline" size={16} color={COLORS.primary} />
+            <Text style={styles.photoHeaderBadgeText}>{formData.image ? 'Change photo' : 'Add photo'}</Text>
+          </View>
         </View>
 
-        <ScrollView style={styles.scroll}>
-          <Text style={styles.label}>Meal Name <Text style={styles.required}>*</Text></Text>
-          <TextInput 
-            placeholder="e.g. Spicy Chicken Rice" 
-            style={styles.input}
-            value={formData.name}
-            onChangeText={(text) => setFormData({ ...formData, name: text })}
-          />
-
-          <Text style={styles.label}>Description <Text style={styles.required}>*</Text></Text>
-          <TextInput 
-            placeholder="Describe the meal ingredients and taste" 
-            style={[styles.input, styles.textArea]}
-            multiline
-            numberOfLines={4}
-            value={formData.description}
-            onChangeText={(text) => setFormData({ ...formData, description: text })}
-          />
-
-          <View style={styles.row}>
-            <View style={{ flex: 1, marginRight: 10 }}>
-              <Text style={styles.label}>Price (Rs.) <Text style={styles.required}>*</Text></Text>
-              <TextInput 
-                placeholder="0.00" 
-                style={styles.input}
-                keyboardType="numeric"
-                value={formData.price}
-                onChangeText={(text) => setFormData({ ...formData, price: text })}
+        <ScrollView style={styles.body} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <View style={styles.topRow}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.fieldLabel}>Name</Text>
+              <TextInput
+                placeholder="Meal name"
+                placeholderTextColor={COLORS.textGray}
+                style={styles.titleInput}
+                value={formData.name}
+                onChangeText={(text) => setFormData({ ...formData, name: text })}
               />
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.label}>Quantity <Text style={styles.required}>*</Text></Text>
-              <TextInput 
-                placeholder="Available qty" 
-                style={styles.input}
+            <View style={{ width: 120 }}>
+              <Text style={styles.fieldLabel}>Price</Text>
+              <View style={styles.pricePill}>
+                <Text style={styles.pricePrefix}>Rs.</Text>
+                <TextInput
+                  placeholder="0"
+                  placeholderTextColor={COLORS.textGray}
+                  style={styles.priceInput}
+                  keyboardType="numeric"
+                  value={formData.price}
+                  onChangeText={(text) => setFormData({ ...formData, price: text })}
+                />
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.metaRow}>
+            <View style={styles.qtyRow}>
+              <Text style={styles.metaLabel}>qty</Text>
+              <TextInput
+                placeholder="0"
+                placeholderTextColor={COLORS.textGray}
+                style={styles.qtyInput}
                 keyboardType="numeric"
                 value={formData.quantity}
                 onChangeText={(text) => setFormData({ ...formData, quantity: text })}
               />
             </View>
+            <View style={styles.starsRow} pointerEvents="none">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <MaterialCommunityIcons key={i} name="star" size={18} color={COLORS.primary} />
+              ))}
+            </View>
           </View>
 
-          <Text style={styles.label}>
-            Meal photo <Text style={styles.required}>*</Text>
-          </Text>
-          <TouchableOpacity style={styles.photoPicker} onPress={pickImage}>
-            {formData.image ? (
-              <Image source={{ uri: formData.image }} style={styles.previewImage} />
+          <View style={styles.descCard}>
+            <View style={styles.descHeader}>
+              <MaterialCommunityIcons name="text-box-outline" size={18} color={COLORS.textGray} />
+              <Text style={styles.descTitle}>Description</Text>
+            </View>
+            <TextInput
+              placeholder="Write a short description"
+              placeholderTextColor={COLORS.textGray}
+              style={styles.descInput}
+              multiline
+              value={formData.description}
+              onChangeText={(text) => setFormData({ ...formData, description: text })}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.saveBtn, loading && { opacity: 0.7 }]}
+            onPress={handleSave}
+            disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color="#fff" />
             ) : (
-              <>
-                <MaterialCommunityIcons name="camera-plus-outline" size={32} color={COLORS.primary} />
-                <Text style={styles.photoPickerText}>Add Photo</Text>
-              </>
+              <Text style={styles.saveBtnText}>{meal ? 'Update meal' : 'Add to menu'}</Text>
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={[styles.saveBtn, loading && { opacity: 0.7 }]} 
-            onPress={handleSave}
-            disabled={loading}
-          >
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>{meal ? 'Update Meal' : 'Add to Menu'}</Text>}
-          </TouchableOpacity>
-          <View style={{ height: 40 }} />
+          <View style={{ height: 30 }} />
         </ScrollView>
       </SafeAreaView>
     </Modal>
@@ -192,55 +223,124 @@ export default function MealModal({ visible, onClose, onSave, stallId, meal }: M
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  header: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    padding: 20, 
-    borderBottomWidth: 1, 
-    borderBottomColor: '#F0F0F0' 
+  container: { flex: 1, backgroundColor: COLORS.surface },
+  photoHeader: { width: '100%', aspectRatio: 4 / 3, backgroundColor: COLORS.primarySoft },
+  photoHeaderImg: { width: '100%', height: '100%' },
+  photoHeaderShade: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.12)',
   },
-  title: { fontSize: 20, fontWeight: 'bold', color: COLORS.textDark },
-  scroll: { padding: 20 },
-  label: { fontSize: 14, fontWeight: '600', color: COLORS.textDark, marginBottom: 8, marginTop: 10 },
-  required: { color: '#EE5253' },
-  input: { 
-    borderWidth: 1, 
-    borderColor: '#E1E4E8', 
-    borderRadius: 12, 
-    padding: 15, 
-    fontSize: 16, 
-    backgroundColor: '#F9FAFB' 
+  iconBtn: {
+    position: 'absolute',
+    top: 14,
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.38)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  textArea: { height: 100, textAlignVertical: 'top' },
-  row: { flexDirection: 'row', justifyContent: 'space-between' },
-  photoPicker: { 
-    height: 150, 
-    borderRadius: 12, 
-    borderWidth: 1, 
-    borderColor: '#E1E4E8', 
-    borderStyle: 'dashed', 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    backgroundColor: '#F9FAFB',
-    marginTop: 5,
-    marginBottom: 20,
-    overflow: 'hidden'
+  photoHeaderBadge: {
+    position: 'absolute',
+    left: 16,
+    bottom: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  photoPickerText: { fontSize: 14, color: COLORS.textGray, marginTop: 8 },
-  previewImage: { width: '100%', height: '100%' },
+  photoHeaderBadgeText: { fontSize: 13, fontWeight: '800', color: COLORS.primary },
+
+  body: { flex: 1, paddingHorizontal: 20, paddingTop: 14 },
+  fieldLabel: { fontSize: 12, fontWeight: '800', color: COLORS.textGray, marginBottom: 6, textTransform: 'uppercase' },
+  topRow: { flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
+  titleInput: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 10,
+    fontSize: 16,
+    fontWeight: '800',
+    color: COLORS.textDark,
+    backgroundColor: COLORS.background,
+  },
+  pricePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 10,
+    backgroundColor: COLORS.background,
+  },
+  pricePrefix: { fontSize: 14, fontWeight: '900', color: COLORS.textGray },
+  priceInput: { flex: 1, fontSize: 16, fontWeight: '900', color: COLORS.primary },
+
+  metaRow: { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  metaLabel: { fontSize: 13, fontWeight: '800', color: COLORS.textGray },
+  qtyInput: {
+    minWidth: 90,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 8,
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.textDark,
+    backgroundColor: COLORS.background,
+    textAlign: 'center',
+  },
+  starsRow: { flexDirection: 'row', gap: 4, opacity: 0.9 },
+
+  descCard: {
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 16,
+    backgroundColor: COLORS.background,
+    overflow: 'hidden',
+  },
+  descHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
+  },
+  descTitle: { fontSize: 14, fontWeight: '800', color: COLORS.textDark },
+  descInput: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    minHeight: 110,
+    fontSize: 15,
+    color: COLORS.textGray,
+    lineHeight: 22,
+    textAlignVertical: 'top',
+  },
   saveBtn: { 
     backgroundColor: COLORS.primary, 
     padding: 18, 
-    borderRadius: 12, 
+    borderRadius: 14, 
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 18,
     elevation: 3,
     shadowColor: COLORS.primaryDark,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 10,
   },
-  saveBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  saveBtnText: { color: '#fff', fontWeight: '900', fontSize: 16 },
 });

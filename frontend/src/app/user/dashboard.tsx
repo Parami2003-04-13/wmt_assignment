@@ -1,8 +1,7 @@
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     Image,
     Platform,
     Text as RNText // Renamed for helper
@@ -17,7 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import MealDetailsModal from '../../components/meal-details-modal';
-import api, { clearAuthStorage, getStoredUser } from '../../services/api';
+import api, { getStoredUser } from '../../services/api';
 // Using standard Icons for 100% stability
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -36,7 +35,6 @@ export default function UserDashboard() {
   const insets = useSafeAreaInsets();
   const [userName, setUserName] = useState('');
   const [query, setQuery] = useState('');
-  const [selectedStallId, setSelectedStallId] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -85,44 +83,56 @@ export default function UserDashboard() {
     setDetailsVisible(true);
   };
 
-  const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Ok',
-          onPress: async () => {
-            await clearAuthStorage();
-            router.replace('/login');
-          },
-          style: 'destructive'
-        },
-      ]
-    );
-  };
-
-  const normalizedQuery = query.trim().toLowerCase();
-
   const getMealStallId = (meal: any) => {
     if (!meal) return null;
     if (typeof meal.stall === 'string') return meal.stall;
     return meal.stall?._id || null;
   };
 
-  const filteredStalls = stalls.filter((s: any) => {
-    if (!normalizedQuery) return true;
-    return `${s?.name || ''} ${s?.address || ''}`.toLowerCase().includes(normalizedQuery);
-  });
+  const normalizedQuery = useMemo(() => query.trim().toLowerCase(), [query]);
 
-  const filteredMeals = meals.filter((m: any) => {
-    const stallName = typeof m?.stall === 'object' ? (m?.stall?.name || '') : '';
-    const haystack = `${m?.name || ''} ${m?.description || ''} ${stallName}`.toLowerCase();
-    const matchesQuery = normalizedQuery ? haystack.includes(normalizedQuery) : true;
-    const matchesStall = selectedStallId ? getMealStallId(m) === selectedStallId : true;
-    return matchesQuery && matchesStall;
-  });
+  const stallById = useMemo(() => {
+    const map: Record<string, any> = {};
+    stalls.forEach((s: any) => {
+      if (s?._id != null) map[String(s._id)] = s;
+    });
+    return map;
+  }, [stalls]);
+
+  const approvedStallIds = useMemo(() => new Set(Object.keys(stallById)), [stallById]);
+
+  const mealsFromApprovedStalls = useMemo(
+    () =>
+      meals.filter((m: any) => {
+        const sid = getMealStallId(m);
+        return sid != null && approvedStallIds.has(String(sid));
+      }),
+    [meals, approvedStallIds],
+  );
+
+  const filteredStalls = useMemo(
+    () =>
+      stalls.filter((s: any) => {
+        if (!normalizedQuery) return true;
+        const bundle = `${s?.name || ''} ${s?.address || ''} ${s?.phone || ''} ${s?.description || ''} ${s?.status || ''}`;
+        return bundle.toLowerCase().includes(normalizedQuery);
+      }),
+    [stalls, normalizedQuery],
+  );
+
+  const filteredMeals = useMemo(
+    () =>
+      mealsFromApprovedStalls.filter((m: any) => {
+        if (!normalizedQuery) return true;
+        const sid = getMealStallId(m);
+        const st = sid ? stallById[String(sid)] : null;
+        const populated =
+          typeof m?.stall === 'object' && m.stall ? `${m.stall.name ?? ''} ${m.stall.description ?? ''}` : '';
+        const bundle = `${m?.name ?? ''} ${m?.description ?? ''} ${String(m?.price ?? '')} ${String(m?.quantity ?? '')} ${st?.name ?? ''} ${st?.address ?? ''} ${st?.phone ?? ''} ${populated}`;
+        return bundle.toLowerCase().includes(normalizedQuery);
+      }),
+    [mealsFromApprovedStalls, normalizedQuery, stallById],
+  );
 
   // Helper text component
 
@@ -133,23 +143,14 @@ export default function UserDashboard() {
       {/* Header (teal) */}
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 14) }]}>
         <View style={styles.headerTopRow}>
-          <View style={styles.locationWrap}>
-            <MaterialCommunityIcons name="map-marker-outline" size={18} color="rgba(255,255,255,0.85)" />
-            <View style={{ marginLeft: 8 }}>
-              <Text style={styles.locationLabel}>Your location</Text>
-              <View style={styles.locationValueRow}>
-                <Text style={styles.locationValue}>Campus</Text>
-                <MaterialCommunityIcons name="chevron-down" size={18} color="rgba(255,255,255,0.9)" />
-              </View>
-            </View>
+          <View style={styles.headerTitleBlock}>
+            <Text style={styles.headerGreeting}>{userName ? `Hi, ${userName}` : 'CampusBites'}</Text>
+            <Text style={styles.headerSubtitle}>Search meals & stalls</Text>
           </View>
 
           <View style={styles.headerActions}>
             <TouchableOpacity style={styles.headerIconBtn} accessibilityLabel="Notifications">
               <MaterialCommunityIcons name="bell-outline" size={20} color="rgba(255,255,255,0.92)" />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleLogout} style={styles.avatarBtn} accessibilityLabel="Account">
-              <MaterialCommunityIcons name="account-circle" size={30} color="rgba(255,255,255,0.95)" />
             </TouchableOpacity>
           </View>
         </View>
@@ -159,10 +160,19 @@ export default function UserDashboard() {
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Search for meals, stalls..."
-            placeholderTextColor="rgba(255,255,255,0.7)"
+            placeholder="Search meals, stalls, price, descriptions…"
+            placeholderTextColor="rgba(255,255,255,0.65)"
             style={styles.searchInput}
+            returnKeyType="search"
+            autoCorrect={false}
+            autoCapitalize="none"
+            clearButtonMode={Platform.OS === 'ios' ? 'while-editing' : 'never'}
           />
+          {query.length > 0 && Platform.OS !== 'ios' && (
+            <TouchableOpacity onPress={() => setQuery('')} hitSlop={10} accessibilityLabel="Clear search">
+              <MaterialCommunityIcons name="close-circle" size={20} color="rgba(255,255,255,0.75)" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -224,12 +234,11 @@ export default function UserDashboard() {
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.stallsScroll}>
               {filteredStalls.map((stall: any) => {
-                const isSelected = selectedStallId === stall._id;
                 return (
                   <TouchableOpacity
                     key={stall._id}
-                    style={[styles.stallCard, isSelected && styles.stallCardSelected]}
-                    onPress={() => setSelectedStallId(isSelected ? null : stall._id)}
+                    style={styles.stallCard}
+                    onPress={() => router.push(`/user/stall/${stall._id}`)}
                     activeOpacity={0.85}
                   >
                     <Image
@@ -265,17 +274,7 @@ export default function UserDashboard() {
           <View style={styles.mealsHeader}>
             <View style={{ flex: 1 }}>
               <Text style={styles.sectionTitle}>Today's Specials</Text>
-              {selectedStallId && (
-                <Text style={styles.filterPill} numberOfLines={1}>
-                  Filtered by stall
-                </Text>
-              )}
             </View>
-            {selectedStallId && (
-              <TouchableOpacity onPress={() => setSelectedStallId(null)} accessibilityLabel="Clear stall filter" style={styles.clearFilterBtn}>
-                <MaterialCommunityIcons name="close" size={18} color={PRIMARY} />
-              </TouchableOpacity>
-            )}
           </View>
 
           {loadingMeals ? (
@@ -318,7 +317,7 @@ export default function UserDashboard() {
           <MaterialCommunityIcons name="history" size={24} color={TEXT_GRAY} />
           <Text style={styles.tabLabel}>History</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem}>
+        <TouchableOpacity style={styles.tabItem} onPress={() => router.push('/user/profile')} accessibilityLabel="Profile">
           <MaterialCommunityIcons name="account-outline" size={24} color={TEXT_GRAY} />
           <Text style={styles.tabLabel}>Profile</Text>
         </TouchableOpacity>
@@ -343,41 +342,29 @@ const styles = StyleSheet.create({
   headerTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
-  locationWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  headerTitleBlock: {
+    flex: 1,
+    marginRight: 12,
   },
-  locationLabel: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
+  headerGreeting: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.98)',
+    letterSpacing: -0.2,
   },
-  locationValueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 2,
-  },
-  locationValue: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.95)',
-    marginRight: 2,
+  headerSubtitle: {
+    marginTop: 4,
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.78)',
+    fontWeight: '600',
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   headerIconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  avatarBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
@@ -524,14 +511,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(15,91,87,0.10)',
   },
-  stallCardSelected: {
-    borderColor: 'rgba(15,91,87,0.35)',
-    shadowColor: PRIMARY_DARK,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.14,
-    shadowRadius: 14,
-    elevation: 5,
-  },
   stallImage: {
     width: '100%',
     height: 96,
@@ -627,27 +606,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 25,
     marginBottom: 15,
-  },
-  filterPill: {
-    marginTop: 6,
-    alignSelf: 'flex-start',
-    fontSize: 11,
-    fontWeight: '800',
-    color: PRIMARY,
-    backgroundColor: PRIMARY_SOFT,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-  },
-  clearFilterBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: PRIMARY_SOFT,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(15,91,87,0.18)',
   },
   mealsScroll: {
     marginLeft: -20,
