@@ -2,8 +2,11 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
-// Uses EXPO_PUBLIC_ prefix configured in the root .env file
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:5000/api';
+// EXPO exposes env vars prefixed with EXPO_PUBLIC_ (see frontend/.env)
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL ||
+  process.env.EXPO_PUBLIC_API_URI ||
+  'http://10.0.2.2:5000/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
