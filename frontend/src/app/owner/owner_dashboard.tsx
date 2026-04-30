@@ -1,22 +1,24 @@
-import React, { useEffect, useState } from 'react';
-import { 
-  View, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
-  Image, 
-  Alert, 
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Pressable,
+  Image,
+  Alert,
   StatusBar,
   Text as RNText,
   Platform,
   ActivityIndicator,
   Modal,
   TextInput,
+  RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons'; 
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import LeafletMap from '../../components/leaflet_map';
 import api, { clearAuthStorage, getStoredUser } from '../../services/api';
 import { COLORS } from '../../theme/colors';
@@ -24,12 +26,19 @@ import { COLORS } from '../../theme/colors';
 const COLOR_OPEN = COLORS.success;
 const COLOR_CLOSED = COLORS.danger;
 
-const Text = (props: any) => <RNText {...props} style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]} />;
+const Text = (props: any) => (
+  <RNText
+    {...props}
+    style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]}
+  />
+);
 
 export default function OwnerDashboard() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [userName, setUserName] = useState('');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [stallData, setStallData] = useState({
     name: '',
@@ -56,6 +65,29 @@ export default function OwnerDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [accountMenuVisible, setAccountMenuVisible] = useState(false);
+
+  const approvedCount = useMemo(() => stalls.filter((s) => s.isApproved).length, [stalls]);
+  const pendingCount = useMemo(() => stalls.filter((s) => !s.isApproved).length, [stalls]);
+
+  const fetchMyStalls = useCallback(async (id: string) => {
+    try {
+      const response = await api.get(`/stalls/manager/${id}`);
+      setStalls(response.data);
+    } catch (error) {
+      console.error('Fetch stalls error:', error);
+    }
+  }, []);
+
+  const onRefresh = useCallback(async () => {
+    if (!userId) return;
+    setRefreshing(true);
+    try {
+      await fetchMyStalls(userId);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [userId, fetchMyStalls]);
 
   useEffect(() => {
     let isMounted = true;
@@ -77,20 +109,19 @@ export default function OwnerDashboard() {
       }
     };
     checkRole();
-    return () => { isMounted = false; };
-  }, []);
-
-  const fetchMyStalls = async (id: string) => {
-    try {
-      const response = await api.get(`/stalls/manager/${id}`);
-      setStalls(response.data);
-    } catch (error) {
-      console.error('Fetch stalls error:', error);
-    }
-  };
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchMyStalls, router]);
 
   const handleSaveStall = async () => {
-    if (!stallData.name || !stallData.address || !stallData.phone || !stallData.profilePhoto || !stallData.approvedDocument) {
+    if (
+      !stallData.name ||
+      !stallData.address ||
+      !stallData.phone ||
+      !stallData.profilePhoto ||
+      !stallData.approvedDocument
+    ) {
       Alert.alert('Error', 'Please fill in all required fields and upload the approval document.');
       return;
     }
@@ -101,15 +132,20 @@ export default function OwnerDashboard() {
         ...stallData,
         latitude: region.latitude,
         longitude: region.longitude,
-        managerId: userId
+        managerId: userId,
       });
 
       Alert.alert('Submitted', 'We will verify your stall and notify via email.');
       setModalVisible(false);
       fetchMyStalls(userId);
       setStallData({
-        name: '', address: '', phone: '', description: '',
-        profilePhoto: null, coverPhoto: null, approvedDocument: null
+        name: '',
+        address: '',
+        phone: '',
+        description: '',
+        profilePhoto: null,
+        coverPhoto: null,
+        approvedDocument: null,
       });
     } catch (error: any) {
       Alert.alert('Error', error.response?.data?.message || 'Failed to save stall.');
@@ -122,13 +158,14 @@ export default function OwnerDashboard() {
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
-      aspect: type === 'profile' ? [1, 1] : (type === 'cover' ? [16, 9] : undefined),
+      aspect: type === 'profile' ? [1, 1] : type === 'cover' ? [16, 9] : undefined,
       quality: 1,
     });
 
     if (!result.canceled) {
       if (type === 'profile') setStallData({ ...stallData, profilePhoto: result.assets[0].uri });
-      else if (type === 'cover') setStallData({ ...stallData, coverPhoto: result.assets[0].uri });
+      else if (type === 'cover')
+        setStallData({ ...stallData, coverPhoto: result.assets[0].uri });
       else setStallData({ ...stallData, approvedDocument: result.assets[0].uri });
     }
   };
@@ -149,7 +186,7 @@ export default function OwnerDashboard() {
     try {
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5`,
-        { headers: { 'User-Agent': 'CampusBites-App', 'Accept': 'application/json' } }
+        { headers: { 'User-Agent': 'CampusBites-App', Accept: 'application/json' } }
       );
       const text = await response.text();
       if (response.ok) {
@@ -177,250 +214,412 @@ export default function OwnerDashboard() {
   };
 
   const handleLogout = () => {
+    setAccountMenuVisible(false);
     Alert.alert('Logout', 'Are you sure you want to logout?', [
       { text: 'Cancel', style: 'cancel' },
-      { 
-        text: 'Ok', 
+      {
+        text: 'Logout',
         onPress: async () => {
           await clearAuthStorage();
           router.replace('/login');
         },
-        style: 'destructive'
+        style: 'destructive',
       },
     ]);
   };
 
+  const firstName = userName.trim().split(/\s+/)[0] || userName;
+
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={styles.loadingWrap}>
         <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.loadingText}>Loading your dashboard…</Text>
       </View>
     );
   }
 
+  const showFab = stalls.length > 0 && stalls.some((s) => s.isApproved);
+
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Welcome, {userName}!</Text>
-          <Text style={styles.headerSubtitle}>Stall Owner Dashboard</Text>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primaryDark} />
+
+      <View style={styles.hero}>
+        <View style={styles.heroTopRow}>
+          <View style={styles.heroTextBlock}>
+            <Text style={styles.heroEyebrow}>Partner hub</Text>
+            <Text style={styles.heroTitle}>Hi, {firstName}</Text>
+            <Text style={styles.heroSubtitle}>Manage stalls, status, and new applications</Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => setAccountMenuVisible(true)}
+            style={styles.logoutChip}
+            accessibilityRole="button"
+            accessibilityLabel="Account menu">
+            <MaterialCommunityIcons name="account-circle-outline" size={26} color="#fff" />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={handleLogout} style={styles.profileButton}>
-           <View style={styles.profileIconBg}>
-              <MaterialCommunityIcons name="account" size={24} color="#fff" />
-           </View>
-        </TouchableOpacity>
+
+        {stalls.length > 0 && (
+          <View style={styles.statsRow}>
+            <View style={styles.statCard}>
+              <Text style={styles.statValue}>{stalls.length}</Text>
+              <Text style={styles.statLabel}>Stalls</Text>
+            </View>
+            <View style={[styles.statCard, styles.statCardAccent]}>
+              <MaterialCommunityIcons name="check-decagram-outline" size={18} color={COLORS.primary} />
+              <Text style={styles.statValueSmall}>{approvedCount}</Text>
+              <Text style={styles.statLabel}>Live</Text>
+            </View>
+            <View style={styles.statCard}>
+              <MaterialCommunityIcons name="clock-outline" size={18} color="#C9A227" />
+              <Text style={styles.statValueSmall}>{pendingCount}</Text>
+              <Text style={styles.statLabel}>Review</Text>
+            </View>
+          </View>
+        )}
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.content}>
-          {stalls.length === 0 ? (
-            <View style={{ alignItems: 'center', marginTop: 50 }}>
-               <MaterialCommunityIcons name="store-plus-outline" size={80} color={COLORS.textGray} />
-               <Text style={{ color: COLORS.textGray, marginTop: 15, fontSize: 16 }}>No stalls found. Start your business today!</Text>
-               <TouchableOpacity style={styles.initialAddBtn} onPress={() => setModalVisible(true)}>
-                  <Text style={styles.initialAddBtnText}>Add Your Stall</Text>
-               </TouchableOpacity>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[COLORS.primary]}
+            tintColor={COLORS.primary}
+          />
+        }>
+        {stalls.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIconRing}>
+              <MaterialCommunityIcons name="store-plus-outline" size={44} color={COLORS.primary} />
             </View>
-          ) : stalls.map((stall) => {
-            if (!stall.isApproved) {
-                return (
-                    <View key={stall._id} style={styles.pendingCard}>
-                        <View style={styles.pendingIconBg}>
-                            <MaterialCommunityIcons name="clock-time-eight-outline" size={40} color={COLORS.primary} />
-                        </View>
-                        <Text style={styles.pendingTitle}>Verification in Progress</Text>
-                        <Text style={styles.pendingText}>
-                           We are currently verifying "{stall.name}". You will receive an email once it's approved.
-                        </Text>
-                        <View style={styles.pendingStatusBadge}>
-                            <Text style={styles.pendingStatusText}>STATUS: PENDING</Text>
-                        </View>
-                    </View>
-                );
-            }
+            <Text style={styles.emptyTitle}>No stalls yet</Text>
+            <Text style={styles.emptyBody}>
+              Register your stall, upload proof, and pin your location—we’ll notify you once it’s verified.
+            </Text>
+            <TouchableOpacity style={styles.primaryBtn} onPress={() => setModalVisible(true)}>
+              <MaterialCommunityIcons name="plus-circle-outline" size={22} color="#fff" />
+              <Text style={styles.primaryBtnText}> Register your stall</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.listSection}>
+            <Text style={styles.sectionTitle}>Your stalls</Text>
 
-            return (
-              <TouchableOpacity 
-                key={stall._id} 
-                style={styles.stallCard}
-                onPress={() => router.push(`/owner/${stall._id}` as any)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.stallIconContainer}>
-                   <Image source={{ uri: stall.profilePhoto }} style={styles.stallIcon} />
-                </View>
-                <View style={styles.stallMainInfo}>
-                  <Text style={styles.stallName}>{stall.name}</Text>
-                  <Text style={styles.stallLocation}>{stall.address}</Text>
-                  <View style={styles.statusRow}>
-                     <View style={[styles.statusDot, { backgroundColor: stall.status === 'Open' ? COLOR_OPEN : COLOR_CLOSED }]} />
-                     <Text style={[styles.statusLabel, { color: stall.status === 'Open' ? COLOR_OPEN : COLOR_CLOSED }]}>{stall.status}</Text>
+            {stalls.map((stall) => {
+              if (!stall.isApproved) {
+                return (
+                  <View key={stall._id} style={styles.pendingCard}>
+                    <View style={styles.pendingAccent} />
+                    <View style={styles.pendingInner}>
+                      <View style={styles.pendingBadgeRow}>
+                        <View style={styles.pendingPill}>
+                          <MaterialCommunityIcons name="shield-search" size={16} color="#B8860B" />
+                          <Text style={styles.pendingPillText}> Under review</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.pendingStallName} numberOfLines={1}>
+                        {stall.name}
+                      </Text>
+                      <Text style={styles.pendingBody}>
+                        We’re verifying your details. You’ll get an email when {stall.name} is approved or if we need more
+                        information.
+                      </Text>
+                    </View>
                   </View>
-                </View>
-                <View style={styles.cardActions}>
-                   <View style={styles.editBtn}>
-                      <MaterialCommunityIcons name="chevron-right" size={24} color={COLORS.primary} />
-                   </View>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                );
+              }
+
+              const open = stall.status === 'Open';
+              return (
+                <TouchableOpacity
+                  key={stall._id}
+                  style={styles.stallCard}
+                  onPress={() => router.push(`/owner/${stall._id}` as any)}
+                  activeOpacity={0.75}>
+                  {stall.coverPhoto ? (
+                    <Image source={{ uri: stall.coverPhoto }} style={styles.stallCover} />
+                  ) : (
+                    <View style={[styles.stallCover, styles.stallCoverPlaceholder]} />
+                  )}
+                  <View style={styles.stallCardBody}>
+                    <View style={styles.stallAvatarWrap}>
+                      {stall.profilePhoto ? (
+                        <Image source={{ uri: stall.profilePhoto }} style={styles.stallAvatar} />
+                      ) : (
+                        <View style={[styles.stallAvatar, styles.stallAvatarFallback]}>
+                          <MaterialCommunityIcons name="food" size={26} color={COLORS.primary} />
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.stallInfo}>
+                      <Text style={styles.stallName} numberOfLines={1}>
+                        {stall.name}
+                      </Text>
+                      <View style={styles.stallAddrRow}>
+                        <MaterialCommunityIcons name="map-marker-outline" size={14} color={COLORS.textGray} />
+                        <Text style={styles.stallLocation} numberOfLines={2}>
+                          {stall.address}
+                        </Text>
+                      </View>
+                      <View style={styles.stallFooterRow}>
+                        <View style={[styles.statusPill, { backgroundColor: open ? '#DCF5ED' : '#FDECEC' }]}>
+                          <View
+                            style={[
+                              styles.statusDotSmall,
+                              { backgroundColor: open ? COLOR_OPEN : COLOR_CLOSED },
+                            ]}
+                          />
+                          <Text
+                            style={[
+                              styles.statusPillText,
+                              { color: open ? COLOR_OPEN : COLOR_CLOSED },
+                            ]}>
+                            {stall.status ?? 'Closed'}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                    <MaterialCommunityIcons name="chevron-right" size={24} color="#B2BEC3" />
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+        <View style={{ height: showFab ? 100 : 32 }} />
       </ScrollView>
 
-      {stalls.length > 0 && stalls.some(s => s.isApproved) && (
-          <TouchableOpacity style={styles.fab} onPress={() => setModalVisible(true)}>
-            <MaterialCommunityIcons name="plus" size={32} color="#fff" />
-          </TouchableOpacity>
+      <Modal
+        visible={accountMenuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAccountMenuVisible(false)}>
+        <View style={styles.accountMenuRoot} pointerEvents="box-none">
+          <Pressable style={styles.accountMenuBackdrop} onPress={() => setAccountMenuVisible(false)} />
+          <View
+            style={[
+              styles.accountMenuCard,
+              { top: Math.max(insets.top, 12) + 44, right: Math.max(insets.right, 16) + 4 },
+            ]}
+            pointerEvents="box-none">
+            <Pressable
+              android_ripple={{ color: 'rgba(15,91,87,0.12)' }}
+              style={styles.accountMenuItem}
+              onPress={() => {
+                setAccountMenuVisible(false);
+                router.push('/owner/edit-account' as any);
+              }}>
+              <MaterialCommunityIcons name="account-edit-outline" size={22} color={COLORS.textDark} />
+              <Text style={styles.accountMenuItemText}>Edit account</Text>
+            </Pressable>
+            <View style={styles.accountMenuDivider} />
+            <Pressable
+              android_ripple={{ color: 'rgba(238,82,83,0.12)' }}
+              style={styles.accountMenuItem}
+              onPress={handleLogout}>
+              <MaterialCommunityIcons name="logout-variant" size={22} color={COLORS.danger} />
+              <Text style={[styles.accountMenuItemText, { color: COLORS.danger }]}>Log out</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {showFab && (
+        <TouchableOpacity style={styles.fab} onPress={() => setModalVisible(true)} activeOpacity={0.9}>
+          <MaterialCommunityIcons name="plus" size={28} color="#fff" />
+          <Text style={styles.fabLabel}>New stall</Text>
+        </TouchableOpacity>
       )}
 
-      <Modal visible={modalVisible} animationType="slide">
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add Your Stall</Text>
-            <TouchableOpacity onPress={() => setModalVisible(false)}>
-              <MaterialCommunityIcons name="close" size={28} color={COLORS.textDark} />
+      <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.modalRoot} edges={['top']}>
+          <View style={styles.modalHero}>
+            <View>
+              <Text style={styles.modalEyebrow}>New application</Text>
+              <Text style={styles.modalTitle}>Register a stall</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.modalCloseHit}
+              onPress={() => setModalVisible(false)}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <MaterialCommunityIcons name="close" size={26} color="#fff" />
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={{ padding: 20 }}>
-            <Text style={styles.inputLabel}>Stall Name <Text style={{ color: '#EE5253' }}>*</Text></Text>
-            <TextInput 
-              placeholder="e.g. Campus Bites main" 
+          <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalScrollContent} keyboardShouldPersistTaps="handled">
+            <Text style={styles.sectionLabel}>Basics</Text>
+            <Text style={styles.inputLabel}>
+              Stall name <Text style={styles.req}>*</Text>
+            </Text>
+            <TextInput
+              placeholder="e.g. Campus Bites – Block A"
+              placeholderTextColor={COLORS.textGray}
               style={styles.modalInput}
               onChangeText={(text) => setStallData({ ...stallData, name: text })}
             />
-            <Text style={styles.inputLabel}>Address <Text style={{ color: '#EE5253' }}>*</Text></Text>
-            <TextInput 
-              placeholder="Full location address" 
-              style={styles.modalInput}
+            <Text style={styles.inputLabel}>
+              Address <Text style={styles.req}>*</Text>
+            </Text>
+            <TextInput
+              placeholder="Full street / building name"
+              placeholderTextColor={COLORS.textGray}
+              style={[styles.modalInput, styles.modalInputMulti]}
+              multiline
               onChangeText={(text) => setStallData({ ...stallData, address: text })}
             />
-            <Text style={styles.inputLabel}>Phone Number <Text style={{ color: '#EE5253' }}>*</Text></Text>
-            <TextInput 
-              placeholder="07x xxx xxxx" 
+            <Text style={styles.inputLabel}>
+              Phone <Text style={styles.req}>*</Text>
+            </Text>
+            <TextInput
+              placeholder="07x xxx xxxx"
+              placeholderTextColor={COLORS.textGray}
               style={styles.modalInput}
               keyboardType="phone-pad"
               onChangeText={(text) => setStallData({ ...stallData, phone: text })}
             />
-            
-            <Text style={styles.inputLabel}>Photos</Text>
-            <View style={styles.photoContainer}>
-              <TouchableOpacity style={styles.photoBtn} onPress={() => pickImage('profile')}>
+
+            <Text style={[styles.sectionLabel, styles.sectionLabelSpacer]}>Branding</Text>
+            <View style={styles.photoGrid}>
+              <TouchableOpacity style={styles.photoTile} onPress={() => pickImage('profile')}>
                 {stallData.profilePhoto ? (
-                   <Image source={{ uri: stallData.profilePhoto }} style={styles.photoPreview} />
+                  <Image source={{ uri: stallData.profilePhoto }} style={styles.photoPreviewFull} />
                 ) : (
-                  <>
-                    <MaterialCommunityIcons name="camera" size={24} color={COLORS.primary} />
-                    <Text style={styles.photoBtnText}>Profile Photo *</Text>
-                  </>
+                  <View style={styles.photoPlaceholder}>
+                    <MaterialCommunityIcons name="account-circle-outline" size={28} color={COLORS.primary} />
+                    <Text style={styles.photoPlaceholderText}>Profile photo *</Text>
+                  </View>
                 )}
               </TouchableOpacity>
-              <TouchableOpacity style={styles.photoBtn} onPress={() => pickImage('cover')}>
+              <TouchableOpacity style={styles.photoTile} onPress={() => pickImage('cover')}>
                 {stallData.coverPhoto ? (
-                   <Image source={{ uri: stallData.coverPhoto }} style={styles.photoPreview} />
+                  <Image source={{ uri: stallData.coverPhoto }} style={styles.photoPreviewFull} />
                 ) : (
-                  <>
-                    <MaterialCommunityIcons name="image" size={24} color={COLORS.primary} />
-                    <Text style={styles.photoBtnText}>Cover Photo</Text>
-                  </>
+                  <View style={styles.photoPlaceholder}>
+                    <MaterialCommunityIcons name="panorama-horizontal" size={26} color={COLORS.primary} />
+                    <Text style={styles.photoPlaceholderText}>Cover (optional)</Text>
+                  </View>
                 )}
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.inputLabel}>University Approval Document <Text style={{ color: '#EE5253' }}>*</Text></Text>
-            <TouchableOpacity style={styles.docUploadBtn} onPress={() => pickImage('doc')}>
-                <MaterialCommunityIcons name="file-pdf-box" size={32} color={COLORS.primary} />
-                <Text style={[styles.docUploadBtnText, stallData.approvedDocument && { color: COLORS.textDark }]}>
-                    {stallData.approvedDocument ? "Document Selected ✓" : "Upload Approval Document"}
+            <TouchableOpacity style={styles.docCard} onPress={() => pickImage('doc')}>
+              <View style={styles.docIconBg}>
+                <MaterialCommunityIcons name="file-upload-outline" size={26} color={COLORS.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.docTitle}>
+                  University approval document <Text style={styles.req}>*</Text>
                 </Text>
+                <Text style={styles.docSub}>
+                  {stallData.approvedDocument ? 'Document selected ✓' : 'PDF or clear photo of approval'}
+                </Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={22} color={COLORS.textGray} />
             </TouchableOpacity>
 
-            <TouchableOpacity 
-                style={styles.locationPickerBtn} 
-                onPress={() => {
-                    console.log('Opening Map Picker...');
-                    setMapModalVisible(true);
-                }}
-            >
-                <MaterialCommunityIcons name="map-marker-radius-outline" size={24} color={COLORS.primary} />
-                <View style={{ marginLeft: 12 }}>
-                  <Text style={styles.locationPickerText}>Select location on map</Text>
-                  <Text style={styles.locationPickerSubtext}>{region.latitude.toFixed(4)}, {region.longitude.toFixed(4)}</Text>
-                </View>
+            <TouchableOpacity
+              style={styles.locCard}
+              onPress={() => {
+                setMapModalVisible(true);
+              }}>
+              <View style={styles.locIconBg}>
+                <MaterialCommunityIcons name="map-marker-radius" size={24} color={COLORS.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.locTitle}>Pin on map</Text>
+                <Text style={styles.locCoords}>
+                  {region.latitude.toFixed(5)}, {region.longitude.toFixed(5)}
+                </Text>
+              </View>
+              <Text style={styles.locAction}>Adjust</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.7 }]} onPress={handleSaveStall} disabled={saving}>
-              {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Submit for Verification</Text>}
+            <TouchableOpacity
+              style={[styles.submitBtn, saving && { opacity: 0.7 }]}
+              onPress={handleSaveStall}
+              disabled={saving}>
+              {saving ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <MaterialCommunityIcons name="send-outline" size={22} color="#fff" />
+                  <Text style={styles.submitBtnText}> Submit for verification</Text>
+                </>
+              )}
             </TouchableOpacity>
-            <View style={{ height: 50 }} />
+            <View style={{ height: 40 }} />
           </ScrollView>
 
-          {/* Full Screen Location Picker Modal - Moved INSIDE for better stacking */}
           <Modal visible={mapModalVisible} animationType="fade" onRequestClose={() => setMapModalVisible(false)}>
-            <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
-            <View style={styles.mapPickerHeader}>
+            <SafeAreaView style={styles.mapRoot}>
+              <View style={styles.mapPickerHeader}>
                 <TouchableOpacity onPress={() => setMapModalVisible(false)} style={styles.backBtn}>
-                    <MaterialCommunityIcons name="arrow-left" size={28} color={COLORS.textDark} />
+                  <MaterialCommunityIcons name="arrow-left" size={28} color={COLORS.textDark} />
                 </TouchableOpacity>
                 <View style={styles.searchBarContainer}>
-                    <MaterialCommunityIcons name="magnify" size={20} color={COLORS.textGray} />
-                    <TextInput 
-                    placeholder="Search location..." 
+                  <MaterialCommunityIcons name="magnify" size={20} color={COLORS.textGray} />
+                  <TextInput
+                    placeholder="Search location…"
                     style={styles.searchBarInput}
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                     onSubmitEditing={handleSearch}
                     returnKeyType="search"
-                    />
-                    {isSearching && <ActivityIndicator size="small" color={COLORS.primary} style={{ marginRight: 10 }} />}
+                    placeholderTextColor={COLORS.textGray}
+                  />
+                  {isSearching && (
+                    <ActivityIndicator size="small" color={COLORS.primary} style={{ marginRight: 10 }} />
+                  )}
                 </View>
-            </View>
+              </View>
 
-            {searchResults.length > 0 && (
+              {searchResults.length > 0 && (
                 <View style={styles.searchResultsDropdown}>
-                <ScrollView style={{ maxHeight: 200 }} keyboardShouldPersistTaps="handled">
+                  <ScrollView style={{ maxHeight: 200 }} keyboardShouldPersistTaps="handled">
                     {searchResults.map((item, index) => (
-                        <TouchableOpacity 
-                        key={index} 
+                      <TouchableOpacity
+                        key={index}
                         style={styles.searchResultItem}
-                        onPress={() => handleSelectLocation(item)}
-                        >
+                        onPress={() => handleSelectLocation(item)}>
                         <MaterialCommunityIcons name="map-marker-outline" size={20} color={COLORS.textGray} />
-                        <Text style={styles.searchResultLabel} numberOfLines={1}>{item.display_name}</Text>
-                        </TouchableOpacity>
+                        <Text style={styles.searchResultLabel} numberOfLines={1}>
+                          {item.display_name}
+                        </Text>
+                      </TouchableOpacity>
                     ))}
-                </ScrollView>
+                  </ScrollView>
                 </View>
-            )}
+              )}
 
-            <View style={{ flex: 1 }}>
-                <LeafletMap 
-                latitude={region.latitude} 
-                longitude={region.longitude} 
-                onLocationSelect={(lat: number, lng: number) => setRegion({ ...region, latitude: lat, longitude: lng })} 
+              <View style={{ flex: 1 }}>
+                <LeafletMap
+                  latitude={region.latitude}
+                  longitude={region.longitude}
+                  onLocationSelect={(lat: number, lng: number) =>
+                    setRegion({ ...region, latitude: lat, longitude: lng })
+                  }
                 />
                 <View style={styles.mapCenterPointer} pointerEvents="none">
-                <MaterialCommunityIcons name="map-marker" size={40} color={COLORS.primary} />
+                  <MaterialCommunityIcons name="map-marker" size={40} color={COLORS.primary} />
                 </View>
-            </View>
+              </View>
 
-            <View style={styles.mapPickerFooter}>
+              <View style={styles.mapPickerFooter}>
                 <View style={styles.selectedCoords}>
-                <MaterialCommunityIcons name="crosshairs-gps" size={18} color={COLORS.primary} />
-                <Text style={styles.coordsText}>
+                  <MaterialCommunityIcons name="crosshairs-gps" size={18} color={COLORS.primary} />
+                  <Text style={styles.coordsText}>
                     {region.latitude.toFixed(6)}, {region.longitude.toFixed(6)}
-                </Text>
+                  </Text>
                 </View>
-                <TouchableOpacity 
-                style={styles.setLocBtn} 
-                onPress={() => setMapModalVisible(false)}
-                >
-                <Text style={styles.setLocBtnText}>Set location</Text>
+                <TouchableOpacity style={styles.setLocBtn} onPress={() => setMapModalVisible(false)}>
+                  <Text style={styles.setLocBtnText}>Use this location</Text>
                 </TouchableOpacity>
-            </View>
+              </View>
             </SafeAreaView>
           </Modal>
         </SafeAreaView>
@@ -430,68 +629,368 @@ export default function OwnerDashboard() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F7F8FA' },
-  header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingVertical: 20, backgroundColor: '#fff',
-    borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
+  container: { flex: 1, backgroundColor: COLORS.background },
+
+  loadingWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 32,
   },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', color: COLORS.textDark },
-  headerSubtitle: { fontSize: 13, color: COLORS.textGray, marginTop: 2 },
-  profileButton: { padding: 2 },
-  profileIconBg: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#2D3436', justifyContent: 'center', alignItems: 'center' },
-  scroll: { paddingBottom: 100 },
-  content: { padding: 20 },
-  initialAddBtn: { backgroundColor: COLORS.primary, paddingHorizontal: 30, paddingVertical: 15, borderRadius: 12, marginTop: 25 },
-  initialAddBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  loadingText: { marginTop: 14, fontSize: 15, color: COLORS.textGray, textAlign: 'center' },
+
+  hero: {
+    backgroundColor: COLORS.primaryDark,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 22,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  heroTopRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  heroTextBlock: { flex: 1, paddingRight: 12 },
+  heroEyebrow: {
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  heroTitle: {
+    color: '#fff',
+    fontSize: 26,
+    fontWeight: '800',
+    marginTop: 6,
+    letterSpacing: -0.3,
+  },
+  heroSubtitle: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 14,
+    marginTop: 6,
+    lineHeight: 20,
+    maxWidth: 280,
+  },
+  logoutChip: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  statsRow: {
+    flexDirection: 'row',
+    marginTop: 20,
+    gap: 10,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  statCardAccent: {},
+  statValue: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  statValueSmall: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#fff',
+    marginTop: 4,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.6)',
+    marginTop: 2,
+    fontWeight: '600',
+  },
+
+  scroll: { paddingHorizontal: 20, paddingTop: 20 },
+
+  emptyCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
+    padding: 28,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  emptyIconRing: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: COLORS.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 18,
+  },
+  emptyTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textDark },
+  emptyBody: {
+    fontSize: 14,
+    color: COLORS.textGray,
+    textAlign: 'center',
+    marginTop: 10,
+    lineHeight: 21,
+  },
+  primaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 22,
+    paddingVertical: 14,
+    borderRadius: 14,
+    marginTop: 22,
+    shadowColor: COLORS.primaryDark,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+
+  listSection: { paddingBottom: 8 },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: COLORS.textDark,
+    marginBottom: 14,
+  },
+
   pendingCard: {
-    backgroundColor: '#fff', borderRadius: 20, padding: 35, alignItems: 'center',
-    borderWidth: 1, borderColor: '#FFEAA7', elevation: 2, shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10,
+    flexDirection: 'row',
+    backgroundColor: COLORS.surface,
+    borderRadius: 18,
+    marginBottom: 14,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.warningSoft,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
   },
-  pendingIconBg: { width: 80, height: 80, borderRadius: 40, backgroundColor: COLORS.primarySoft, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  pendingTitle: { fontSize: 20, fontWeight: 'bold', color: COLORS.textDark },
-  pendingText: { fontSize: 14, color: COLORS.textGray, textAlign: 'center', marginTop: 10, lineHeight: 20 },
-  pendingStatusBadge: { backgroundColor: '#FFEAA7', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, marginTop: 20 },
-  pendingStatusText: { fontSize: 12, fontWeight: 'bold', color: '#D6A31E' },
+  pendingAccent: {
+    width: 5,
+    backgroundColor: '#F4C430',
+  },
+  pendingInner: { flex: 1, padding: 16 },
+  pendingBadgeRow: { flexDirection: 'row', marginBottom: 8 },
+  pendingPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.warningSoft,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  pendingPillText: { fontSize: 12, fontWeight: '700', color: '#8B6914' },
+  pendingStallName: { fontSize: 17, fontWeight: '800', color: COLORS.textDark },
+  pendingBody: { fontSize: 14, color: COLORS.textGray, marginTop: 8, lineHeight: 20 },
+
   stallCard: {
-    flexDirection: 'row', backgroundColor: '#fff', borderRadius: 16, padding: 16,
-    marginBottom: 16, alignItems: 'center', elevation: 3,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 10,
+    backgroundColor: COLORS.surface,
+    borderRadius: 18,
+    marginBottom: 14,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    elevation: 3,
   },
-  stallIconContainer: { width: 60, height: 60, borderRadius: 14, backgroundColor: COLORS.primarySoft, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
-  stallIcon: { width: '100%', height: '100%', borderRadius: 14 },
-  stallMainInfo: { flex: 1 },
-  stallName: { fontSize: 17, fontWeight: 'bold', color: COLORS.textDark },
-  stallLocation: { fontSize: 13, color: COLORS.textGray, marginVertical: 4 },
-  statusRow: { flexDirection: 'row', alignItems: 'center' },
-  statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
-  statusLabel: { fontSize: 12, fontWeight: '600' },
-  cardActions: { flexDirection: 'row', gap: 8 },
-  editBtn: { padding: 8, backgroundColor: COLORS.primarySoft, borderRadius: 8 },
+  stallCover: { width: '100%', height: 96 },
+  stallCoverPlaceholder: { backgroundColor: COLORS.primarySoft },
+  stallCardBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  stallAvatarWrap: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  stallAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 14,
+    backgroundColor: COLORS.primarySoft,
+  },
+  stallAvatarFallback: { alignItems: 'center', justifyContent: 'center' },
+  stallInfo: { flex: 1, minWidth: 0 },
+  stallName: { fontSize: 17, fontWeight: '800', color: COLORS.textDark },
+  stallAddrRow: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 6, gap: 4 },
+  stallLocation: { flex: 1, fontSize: 13, color: COLORS.textGray, lineHeight: 18 },
+  stallFooterRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center' },
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    gap: 6,
+  },
+  statusDotSmall: { width: 7, height: 7, borderRadius: 4 },
+  statusPillText: { fontSize: 12, fontWeight: '700' },
+
   fab: {
-    position: 'absolute', bottom: 30, right: 25, width: 60, height: 60,
-    borderRadius: 30, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center',
-    elevation: 5, shadowColor: COLORS.primaryDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10,
+    position: 'absolute',
+    bottom: 28,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderRadius: 999,
+    backgroundColor: COLORS.primary,
+    gap: 8,
+    elevation: 6,
+    shadowColor: COLORS.primaryDark,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
   },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', color: COLORS.textDark },
-  modalInput: { borderWidth: 1, borderColor: '#E1E4E8', borderRadius: 12, padding: 15, marginBottom: 20, fontSize: 16, backgroundColor: '#F9FAFB' },
-  inputLabel: { fontSize: 14, fontWeight: '600', color: COLORS.textDark, marginBottom: 8, marginLeft: 4 },
-  photoContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  photoBtn: { flex: 0.48, height: 100, borderRadius: 12, borderWidth: 1, borderColor: '#E1E4E8', borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' },
-  photoBtnText: { fontSize: 12, fontWeight: '500', color: COLORS.textGray, marginTop: 8 },
-  photoPreview: { width: '100%', height: '100%', borderRadius: 12 },
-  docUploadBtn: { flexDirection: 'row', alignItems: 'center', padding: 20, backgroundColor: '#F9FAFB', borderRadius: 12, borderWidth: 1, borderColor: '#E1E4E8', borderStyle: 'dashed', marginBottom: 20 },
-  docUploadBtnText: { fontSize: 14, color: COLORS.textGray, marginLeft: 15, fontWeight: '500' },
-  locationPickerBtn: {
-    flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: COLORS.primarySoft, borderRadius: 14,
-    borderWidth: 1, borderColor: 'rgba(15, 91, 87, 0.2)', marginBottom: 25
+  fabLabel: { color: '#fff', fontWeight: '700', fontSize: 15 },
+
+  modalRoot: { flex: 1, backgroundColor: COLORS.background },
+  modalHero: {
+    backgroundColor: COLORS.primaryDark,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
-  locationPickerText: { fontSize: 16, fontWeight: '600', color: COLORS.textDark },
-  locationPickerSubtext: { fontSize: 12, color: COLORS.textGray, marginTop: 2 },
-  saveBtn: { backgroundColor: COLORS.primary, padding: 18, borderRadius: 12, alignItems: 'center' },
-  saveBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  modalEyebrow: { color: 'rgba(255,255,255,0.55)', fontSize: 12, fontWeight: '700' },
+  modalTitle: { color: '#fff', fontSize: 22, fontWeight: '800', marginTop: 4 },
+  modalCloseHit: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalScroll: { flex: 1 },
+  modalScrollContent: { paddingHorizontal: 20, paddingTop: 20 },
+  sectionLabel: { fontSize: 13, fontWeight: '800', color: COLORS.textGray, textTransform: 'uppercase', letterSpacing: 0.6 },
+  sectionLabelSpacer: { marginTop: 22, marginBottom: 4 },
+
+  req: { color: COLORS.danger },
+  inputLabel: { fontSize: 13, fontWeight: '700', color: COLORS.textDark, marginBottom: 8, marginTop: 14 },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: Platform.OS === 'ios' ? 14 : 10,
+    fontSize: 16,
+    backgroundColor: COLORS.surface,
+    color: COLORS.textDark,
+  },
+  modalInputMulti: { minHeight: 88, textAlignVertical: 'top', paddingTop: 14 },
+
+  photoGrid: { flexDirection: 'row', gap: 12, marginTop: 12 },
+  photoTile: {
+    flex: 1,
+    height: 118,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+  },
+  photoPreviewFull: { width: '100%', height: '100%' },
+  photoPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB' },
+  photoPlaceholderText: {
+    marginTop: 8,
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textGray,
+    textAlign: 'center',
+    paddingHorizontal: 8,
+  },
+
+  docCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 20,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+    gap: 12,
+  },
+  docIconBg: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: COLORS.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  docTitle: { fontSize: 15, fontWeight: '800', color: COLORS.textDark },
+  docSub: { fontSize: 13, color: COLORS.textGray, marginTop: 4 },
+
+  locCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primarySoft,
+    gap: 12,
+  },
+  locIconBg: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: 'rgba(15,91,87,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  locTitle: { fontSize: 16, fontWeight: '800', color: COLORS.textDark },
+  locCoords: { fontSize: 12, color: COLORS.textGray, marginTop: 4, fontVariant: ['tabular-nums'] },
+  locAction: { fontWeight: '800', fontSize: 14, color: COLORS.primary },
+
+  submitBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    paddingVertical: 16,
+    borderRadius: 16,
+    marginTop: 26,
+    gap: 8,
+  },
+  submitBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
+
+  mapRoot: { flex: 1, backgroundColor: '#fff' },
   mapPickerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -506,42 +1005,48 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F7F8FA',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    height: 45,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 46,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   searchBarInput: {
     flex: 1,
     marginLeft: 10,
     fontSize: 15,
+    color: COLORS.textDark,
   },
   searchResultsDropdown: {
     position: 'absolute',
-    top: 75,
+    top: 76,
     left: 15,
     right: 15,
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 14,
     elevation: 5,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.1,
-    shadowRadius: 10,
+    shadowRadius: 12,
     zIndex: 1000,
     borderWidth: 1,
-    borderColor: '#eee',
+    borderColor: COLORS.border,
+    overflow: 'hidden',
   },
   searchResultItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
   },
   searchResultLabel: {
     marginLeft: 12,
     fontSize: 14,
     color: COLORS.textDark,
+    flex: 1,
   },
   mapCenterPointer: {
     position: 'absolute',
@@ -552,31 +1057,70 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   mapPickerFooter: {
-    padding: 20,
-    backgroundColor: '#fff',
+    padding: 18,
+    backgroundColor: COLORS.surface,
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
+    borderTopColor: COLORS.border,
   },
   selectedCoords: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 14,
     justifyContent: 'center',
   },
   coordsText: {
     marginLeft: 8,
     color: COLORS.textGray,
     fontSize: 13,
+    fontVariant: ['tabular-nums'],
   },
   setLocBtn: {
     backgroundColor: COLORS.primary,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
   },
   setLocBtnText: {
     color: '#fff',
-    fontWeight: 'bold',
+    fontWeight: '800',
     fontSize: 16,
+  },
+
+  accountMenuRoot: { flex: 1 },
+  accountMenuBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15, 20, 25, 0.45)',
+  },
+  accountMenuCard: {
+    position: 'absolute',
+    zIndex: 20,
+    minWidth: 216,
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    overflow: 'hidden',
+  },
+  accountMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  accountMenuDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: COLORS.border,
+    marginLeft: 52,
+  },
+  accountMenuItemText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.textDark,
   },
 });
