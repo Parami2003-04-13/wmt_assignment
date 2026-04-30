@@ -17,10 +17,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LeafletMap from '../../components/leaflet_map';
 import api, { clearAuthStorage, getStoredUser } from '../../services/api';
-
-const ORANGE_PRIMARY = '#FF6F3C'; 
-const TEXT_DARK = '#2D3436';
-const TEXT_GRAY = '#636E72';
+import { COLORS } from '../../theme/colors';
 
 const Text = (props: any) => <RNText {...props} style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]} />;
 
@@ -124,7 +121,7 @@ export default function AdminApprovalDashboard() {
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={ORANGE_PRIMARY} />
+        <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     );
   }
@@ -166,7 +163,7 @@ export default function AdminApprovalDashboard() {
                    <Text style={styles.pendingBadgeText}>PENDING</Text>
                 </View>
               </View>
-              <MaterialCommunityIcons name="chevron-right" size={24} color={TEXT_GRAY} />
+              <MaterialCommunityIcons name="chevron-right" size={24} color={COLORS.textGray} />
             </TouchableOpacity>
           ))}
 
@@ -192,7 +189,7 @@ export default function AdminApprovalDashboard() {
         <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeBtn}>
-              <MaterialCommunityIcons name="close" size={28} color={TEXT_DARK} />
+              <MaterialCommunityIcons name="close" size={28} color={COLORS.textDark} />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Stall Details</Text>
             <View style={{ width: 40 }} />
@@ -214,11 +211,11 @@ export default function AdminApprovalDashboard() {
                 <View style={styles.infoSection}>
                     <Text style={styles.infoLabel}>Owner Information</Text>
                     <View style={styles.infoRow}>
-                        <MaterialCommunityIcons name="account-outline" size={20} color={ORANGE_PRIMARY} />
+                        <MaterialCommunityIcons name="account-outline" size={20} color={COLORS.primary} />
                         <Text style={styles.infoText}>{selectedStall.manager?.name} ({selectedStall.manager?.email})</Text>
                     </View>
                     <View style={styles.infoRow}>
-                        <MaterialCommunityIcons name="card-account-details-outline" size={20} color={ORANGE_PRIMARY} />
+                        <MaterialCommunityIcons name="card-account-details-outline" size={20} color={COLORS.primary} />
                         <Text style={styles.infoText}>NIC: {selectedStall.manager?.nic || 'N/A'}</Text>
                     </View>
                 </View>
@@ -235,7 +232,7 @@ export default function AdminApprovalDashboard() {
                         />
                     </View>
                     <View style={styles.coordsBadge}>
-                        <MaterialCommunityIcons name="crosshairs-gps" size={14} color={ORANGE_PRIMARY} />
+                        <MaterialCommunityIcons name="crosshairs-gps" size={14} color={COLORS.primary} />
                         <Text style={styles.coordsText}>
                             {selectedStall.latitude?.toFixed(6)}, {selectedStall.longitude?.toFixed(6)}
                         </Text>
@@ -246,7 +243,7 @@ export default function AdminApprovalDashboard() {
                     <Text style={styles.infoLabel}>University Approval Document</Text>
                     {selectedStall.approvedDocument ? (
                         <View style={styles.docView}>
-                            <MaterialCommunityIcons name="file-document-outline" size={40} color={ORANGE_PRIMARY} />
+                            <MaterialCommunityIcons name="file-document-outline" size={40} color={COLORS.primary} />
                             <View style={{ flex: 1, marginLeft: 15 }}>
                                 <Text style={styles.docTitle}>Verification_Document.jpg</Text>
                                 <TouchableOpacity style={styles.viewDocLink} onPress={() => setViewerVisible(true)}>
@@ -306,43 +303,43 @@ export default function AdminApprovalDashboard() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F7F8FA' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', color: TEXT_DARK },
-  headerSubtitle: { fontSize: 13, color: TEXT_GRAY, marginTop: 2 },
+  headerTitle: { fontSize: 20, fontWeight: 'bold', color: COLORS.textDark },
+  headerSubtitle: { fontSize: 13, color: COLORS.textGray, marginTop: 2 },
   profileButton: { padding: 2 },
-  profileIconBg: { width: 40, height: 40, borderRadius: 20, backgroundColor: ORANGE_PRIMARY, justifyContent: 'center', alignItems: 'center' },
+  profileIconBg: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
   scroll: { paddingBottom: 50 },
   content: { padding: 20 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: TEXT_DARK, marginBottom: 15, marginLeft: 4 },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: COLORS.textDark, marginBottom: 15, marginLeft: 4 },
   emptyCard: { padding: 30, backgroundColor: '#fff', borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: '#F0F0F0', borderStyle: 'dashed', marginBottom: 20 },
-  emptyText: { color: TEXT_GRAY, fontSize: 14 },
+  emptyText: { color: COLORS.textGray, fontSize: 14 },
   stallCard: { 
     flexDirection: 'row', backgroundColor: '#fff', borderRadius: 16, padding: 15, 
     marginBottom: 12, alignItems: 'center', elevation: 2, shadowColor: '#000', 
     shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 5 
   },
-  stallIconContainer: { width: 50, height: 50, borderRadius: 10, backgroundColor: '#FFF5F2', marginRight: 15, overflow: 'hidden' },
+  stallIconContainer: { width: 50, height: 50, borderRadius: 10, backgroundColor: COLORS.primarySoft, marginRight: 15, overflow: 'hidden' },
   stallIcon: { width: '100%', height: '100%' },
   stallMainInfo: { flex: 1 },
-  stallName: { fontSize: 16, fontWeight: 'bold', color: TEXT_DARK },
-  stallOwner: { fontSize: 12, color: TEXT_GRAY, marginTop: 2 },
+  stallName: { fontSize: 16, fontWeight: 'bold', color: COLORS.textDark },
+  stallOwner: { fontSize: 12, color: COLORS.textGray, marginTop: 2 },
   pendingBadge: { backgroundColor: '#FFEAA7', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginTop: 5 },
   pendingBadgeText: { fontSize: 10, fontWeight: 'bold', color: '#D6A31E' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
   closeBtn: { padding: 5 },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', color: TEXT_DARK },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.textDark },
   detailCover: { width: '100%', height: 200 },
   detailHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 25 },
   detailIcon: { width: 70, height: 70, borderRadius: 15, borderWidth: 3, borderColor: '#fff' },
-  detailName: { fontSize: 22, fontWeight: 'bold', color: TEXT_DARK },
-  detailPhone: { fontSize: 14, color: TEXT_GRAY, marginTop: 2 },
+  detailName: { fontSize: 22, fontWeight: 'bold', color: COLORS.textDark },
+  detailPhone: { fontSize: 14, color: COLORS.textGray, marginTop: 2 },
   infoSection: { marginBottom: 25 },
-  infoLabel: { fontSize: 14, fontWeight: 'bold', color: TEXT_DARK, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  infoLabel: { fontSize: 14, fontWeight: 'bold', color: COLORS.textDark, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
   infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
-  infoText: { fontSize: 15, color: TEXT_GRAY, marginLeft: 10 },
+  infoText: { fontSize: 15, color: COLORS.textGray, marginLeft: 10 },
   docView: { flexDirection: 'row', alignItems: 'center', padding: 15, backgroundColor: '#F9FAFB', borderRadius: 12, borderWidth: 1, borderColor: '#E1E4E8' },
-  docTitle: { fontSize: 14, fontWeight: 'bold', color: TEXT_DARK },
+  docTitle: { fontSize: 14, fontWeight: 'bold', color: COLORS.textDark },
   viewDocLink: { marginTop: 4 },
-  viewDocText: { fontSize: 12, color: ORANGE_PRIMARY, fontWeight: 'bold' },
+  viewDocText: { fontSize: 12, color: COLORS.primary, fontWeight: 'bold' },
   approveBtn: { backgroundColor: '#10AC84', padding: 18, borderRadius: 14, alignItems: 'center' },
   approveBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   rejectBtn: { backgroundColor: '#F8F9FA', padding: 18, borderRadius: 14, alignItems: 'center', flex: 0.4, borderWidth: 2, borderColor: '#EE5253' },
@@ -361,7 +358,7 @@ const styles = StyleSheet.create({
   coordsBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF5F2',
+    backgroundColor: COLORS.primarySoft,
     alignSelf: 'flex-start',
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -370,7 +367,7 @@ const styles = StyleSheet.create({
   },
   coordsText: {
     fontSize: 12,
-    color: ORANGE_PRIMARY,
+    color: COLORS.primary,
     marginLeft: 5,
     fontWeight: '600'
   }

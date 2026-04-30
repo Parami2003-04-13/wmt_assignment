@@ -40,7 +40,7 @@ const sendNotificationEmail = async (to, subject, htmlContent) => {
 const getApproveEmailTemplate = (ownerName, stallName) => {
   return `
     <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-      <h2 style="color: #FF6F3C;">Congratulations, ${ownerName}! 🎉</h2>
+      <h2 style="color: #0F5B57;">Congratulations, ${ownerName}! 🎉</h2>
       <p>Your stall <strong>"${stallName}"</strong> has been officially <strong>APPROVED</strong> for CampusBITES!</p>
       <p>You can now log in to your dashboard and manage your menu, photos, and status.</p>
       <hr style="border: 1px solid #f0f0f0;" />
@@ -64,7 +64,7 @@ const getRejectEmailTemplate = (ownerName, stallName) => {
 const getReviewEmailTemplate = (ownerName, stallName) => {
   return `
     <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-      <h2 style="color: #FF6F3C;">Hello, ${ownerName}</h2>
+      <h2 style="color: #0F5B57;">Hello, ${ownerName}</h2>
       <p>Thank you for registering your stall <strong>"${stallName}"</strong> for CampusBITES!</p>
       <p>Your request is currently <strong>UNDER REVIEW</strong>. Our team will verify your documents and notify you within 24-48 hours.</p>
       <hr style="border: 1px solid #f0f0f0;" />

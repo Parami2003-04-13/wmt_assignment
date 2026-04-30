@@ -15,10 +15,7 @@ import {
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons'; 
 import api, { API_BASE_URL, setAuthToken, setStoredUser } from '../services/api';
-
-const ORANGE_PRIMARY = '#FF6F3C';
-const TEXT_DARK = '#2D3436';
-const TEXT_GRAY = '#636E72';
+import { COLORS } from '../theme/colors';
 
 const Text = (props: any) => <RNText {...props} style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]} />;
 
@@ -148,7 +145,7 @@ export default function LoginScreen() {
           <View style={{ height: 2, backgroundColor: '#E1E4E8', marginVertical: 30, opacity: 0.5 }} />
 
           <TouchableOpacity 
-            style={[styles.signupBtnOutline, { backgroundColor: ORANGE_PRIMARY, borderColor: ORANGE_PRIMARY, marginBottom: 12 }]} 
+            style={[styles.signupBtnOutline, { backgroundColor: COLORS.primary, borderColor: COLORS.primary, marginBottom: 12 }]} 
             onPress={() => router.push('/signup')}
           >
             <Text style={[styles.signupBtnText, { color: '#fff' }]}>Sign Up as Student</Text>
@@ -183,12 +180,12 @@ const styles = StyleSheet.create({
   logoContainer: {
     width: 100,
     height: 100,
-    backgroundColor: ORANGE_PRIMARY,
+    backgroundColor: COLORS.primary,
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
-    shadowColor: ORANGE_PRIMARY,
+    shadowColor: COLORS.primaryDark,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
     shadowRadius: 15,
@@ -202,11 +199,11 @@ const styles = StyleSheet.create({
   appTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: TEXT_DARK,
+    color: COLORS.textDark,
   },
   subtitle: {
     fontSize: 14,
-    color: TEXT_GRAY,
+    color: COLORS.textGray,
     marginTop: 4,
   },
   form: {
@@ -218,7 +215,7 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: TEXT_DARK,
+    color: COLORS.textDark,
     marginBottom: 8,
   },
   inputRow: {
@@ -227,7 +224,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E1E4E8',
+    borderColor: COLORS.border,
     paddingHorizontal: 15,
     height: 56,
   },
@@ -237,17 +234,17 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 15,
-    color: TEXT_DARK,
+    color: COLORS.textDark,
     height: '100%',
   },
   loginBtn: {
-    backgroundColor: ORANGE_PRIMARY,
+    backgroundColor: COLORS.primary,
     height: 56,
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 10,
-    shadowColor: ORANGE_PRIMARY,
+    shadowColor: COLORS.primaryDark,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 10,
@@ -263,7 +260,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   forgotText: {
-    color: ORANGE_PRIMARY,
+    color: COLORS.primary,
     fontWeight: '600',
     fontSize: 14,
   },
@@ -271,12 +268,12 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 14,
     borderWidth: 2,
-    borderColor: ORANGE_PRIMARY,
+    borderColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   signupBtnText: {
-    color: ORANGE_PRIMARY,
+    color: COLORS.primary,
     fontSize: 16,
     fontWeight: 'bold',
   },

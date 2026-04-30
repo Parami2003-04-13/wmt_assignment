@@ -17,14 +17,11 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../../services/api';
 import MealModal from '../../components/meal-modal';
+import { COLORS } from '../../theme/colors';
 
 const { width } = Dimensions.get('window');
-const ORANGE_PRIMARY = '#FF6F3C';
-const ORANGE_LIGHT = '#FFF5F2';
-const TEXT_DARK = '#2D3436';
-const TEXT_GRAY = '#636E72';
-const COLOR_OPEN = '#10AC84';
-const COLOR_CLOSED = '#EE5253';
+const COLOR_OPEN = COLORS.success;
+const COLOR_CLOSED = COLORS.danger;
 
 const Text = (props: any) => <RNText {...props} style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]} />;
 
@@ -99,7 +96,7 @@ export default function StallManagement() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={ORANGE_PRIMARY} />
+        <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     );
   }
@@ -148,11 +145,11 @@ export default function StallManagement() {
             <Text style={styles.stallName}>{stall.name}</Text>
             <View style={styles.detailsList}>
               <View style={styles.detailItem}>
-                <MaterialCommunityIcons name="map-marker-outline" size={16} color={ORANGE_PRIMARY} />
+                <MaterialCommunityIcons name="map-marker-outline" size={16} color={COLORS.primary} />
                 <Text style={styles.detailText} numberOfLines={1}>{stall.address}</Text>
               </View>
               <View style={styles.detailItem}>
-                <MaterialCommunityIcons name="phone-outline" size={16} color={ORANGE_PRIMARY} />
+                <MaterialCommunityIcons name="phone-outline" size={16} color={COLORS.primary} />
                 <Text style={styles.detailText}>{stall.phone}</Text>
               </View>
             </View>
@@ -195,7 +192,7 @@ export default function StallManagement() {
             onPress={handleAddMeal}
           >
             <View style={styles.addIconBg}>
-              <MaterialCommunityIcons name="plus" size={32} color={ORANGE_PRIMARY} />
+              <MaterialCommunityIcons name="plus" size={32} color={COLORS.primary} />
             </View>
             <Text style={styles.addText}>Add Meals</Text>
           </TouchableOpacity>
@@ -207,7 +204,7 @@ export default function StallManagement() {
                 <Image source={{ uri: meal.image || 'https://via.placeholder.com/150' }} style={styles.mealImg} />
                 <View style={styles.mealSideActions}>
                   <TouchableOpacity style={styles.sideEditBtn} onPress={() => handleEditMeal(meal)}>
-                    <MaterialCommunityIcons name="pencil-outline" size={18} color={ORANGE_PRIMARY} />
+                    <MaterialCommunityIcons name="pencil-outline" size={18} color={COLORS.primary} />
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.sideDeleteBtn} onPress={() => handleDeleteMeal(meal._id)}>
                     <MaterialCommunityIcons name="trash-can-outline" size={18} color="#EE5253" />
@@ -345,7 +342,7 @@ const styles = StyleSheet.create({
   stallName: {
     fontSize: 28,
     fontWeight: '800',
-    color: TEXT_DARK,
+    color: COLORS.textDark,
     marginBottom: 6,
   },
   detailsList: {
@@ -357,7 +354,7 @@ const styles = StyleSheet.create({
   },
   detailText: {
     fontSize: 14,
-    color: TEXT_GRAY,
+    color: COLORS.textGray,
     marginLeft: 8,
     fontWeight: '500',
   },
@@ -369,7 +366,7 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: TEXT_GRAY,
+    color: COLORS.textGray,
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: 10,
@@ -423,21 +420,21 @@ const styles = StyleSheet.create({
   menuTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: TEXT_DARK,
+    color: COLORS.textDark,
   },
   menuSubtitle: {
     fontSize: 13,
-    color: TEXT_GRAY,
+    color: COLORS.textGray,
     marginTop: 2,
   },
   viewAllBtn: {
     paddingVertical: 6,
     paddingHorizontal: 12,
-    backgroundColor: ORANGE_LIGHT,
+    backgroundColor: COLORS.primarySoft,
     borderRadius: 8,
   },
   viewAllText: {
-    color: ORANGE_PRIMARY,
+    color: COLORS.primary,
     fontWeight: '700',
     fontSize: 13,
   },
@@ -468,7 +465,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
     elevation: 2,
-    shadowColor: ORANGE_PRIMARY,
+    shadowColor: COLORS.primaryDark,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -476,7 +473,7 @@ const styles = StyleSheet.create({
   addText: {
     fontSize: 15,
     fontWeight: '700',
-    color: TEXT_GRAY,
+    color: COLORS.textGray,
   },
   mealItemCard: {
     width: (width - 50) / 2,
@@ -501,11 +498,11 @@ const styles = StyleSheet.create({
   mealTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: TEXT_DARK,
+    color: COLORS.textDark,
   },
   mealPriceText: {
     fontSize: 14,
-    color: ORANGE_PRIMARY,
+    color: COLORS.primary,
     fontWeight: '800',
   },
   mealImageRow: {
@@ -560,7 +557,7 @@ const styles = StyleSheet.create({
   qtyTagText: {
     fontSize: 10,
     fontWeight: '700',
-    color: TEXT_GRAY,
+    color: COLORS.textGray,
   },
   emptyState: {
     flex: 1,
@@ -569,7 +566,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyStateText: {
-    color: TEXT_GRAY,
+    color: COLORS.textGray,
     fontSize: 14,
     fontStyle: 'italic',
   }
