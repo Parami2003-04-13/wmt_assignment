@@ -11,6 +11,7 @@ import {
   Platform,
   ActivityIndicator,
   Modal,
+  TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons'; 
@@ -30,6 +31,9 @@ export default function AdminApprovalDashboard() {
   const [modalVisible, setModalVisible] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [editPhone, setEditPhone] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [savingContact, setSavingContact] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -52,6 +56,13 @@ export default function AdminApprovalDashboard() {
     checkRole();
     return () => { isMounted = false; };
   }, []);
+
+  useEffect(() => {
+    if (selectedStall) {
+      setEditPhone(String(selectedStall.phone ?? ''));
+      setEditAddress(String(selectedStall.address ?? ''));
+    }
+  }, [selectedStall]);
 
   const fetchAllStalls = async () => {
     try {
@@ -102,6 +113,32 @@ export default function AdminApprovalDashboard() {
   const handleOpenStall = (stall: any) => {
     setSelectedStall(stall);
     setModalVisible(true);
+  };
+
+  const handleSaveContact = async () => {
+    if (!selectedStall) return;
+    const phone = editPhone.trim();
+    const address = editAddress.trim();
+    if (!phone || !address) {
+      Alert.alert('Required', 'Phone and address cannot be empty.');
+      return;
+    }
+
+    setSavingContact(true);
+    try {
+      const { data } = await api.patch(`/stalls/${selectedStall._id}`, {
+        phone,
+        address,
+      });
+      const updated = { ...selectedStall, ...data };
+      setSelectedStall(updated);
+      setStalls((prev) => prev.map((s) => (s._id === updated._id ? { ...s, phone: updated.phone, address: updated.address } : s)));
+      Alert.alert('Saved', 'Phone and address have been updated.');
+    } catch (e: any) {
+      Alert.alert('Save failed', e.response?.data?.message || 'Could not update stall.');
+    } finally {
+      setSavingContact(false);
+    }
   };
 
   const handleLogout = () => {
@@ -204,8 +241,42 @@ export default function AdminApprovalDashboard() {
                     <Image source={{ uri: selectedStall.profilePhoto }} style={styles.detailIcon} />
                     <View style={{ marginLeft: 15, flex: 1 }}>
                         <Text style={styles.detailName}>{selectedStall.name}</Text>
-                        <Text style={styles.detailPhone}>{selectedStall.phone}</Text>
+                        <Text style={styles.detailPhone}>{editPhone.trim() ? editPhone.trim() : '—'}</Text>
                     </View>
+                </View>
+
+                <View style={[styles.infoSection, styles.managerEditCard]}>
+                    <Text style={styles.managerEditTitle}>Contact & location (manager)</Text>
+                    <Text style={styles.managerEditHint}>Add or fix phone and address before approving or for approved stalls.</Text>
+                    <Text style={[styles.managerFieldLabel]}>Phone</Text>
+                    <TextInput
+                        value={editPhone}
+                        onChangeText={setEditPhone}
+                        placeholder="07x xxx xxxx"
+                        keyboardType="phone-pad"
+                        placeholderTextColor={COLORS.textGray}
+                        style={styles.managerInput}
+                    />
+                    <Text style={[styles.managerFieldLabel, { marginTop: 12 }]}>Address</Text>
+                    <TextInput
+                        value={editAddress}
+                        onChangeText={setEditAddress}
+                        placeholder="Full street address"
+                        placeholderTextColor={COLORS.textGray}
+                        multiline
+                        style={[styles.managerInput, styles.managerInputMulti]}
+                    />
+                    <TouchableOpacity
+                      style={[styles.saveContactBtn, savingContact && { opacity: 0.7 }]}
+                      onPress={handleSaveContact}
+                      disabled={savingContact}
+                    >
+                      {savingContact ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <Text style={styles.saveContactBtnText}>Save phone & address</Text>
+                      )}
+                    </TouchableOpacity>
                 </View>
 
                 <View style={styles.infoSection}>
@@ -222,7 +293,7 @@ export default function AdminApprovalDashboard() {
 
                 <View style={styles.infoSection}>
                     <Text style={styles.infoLabel}>Address & Location</Text>
-                    <Text style={styles.infoText}>{selectedStall.address}</Text>
+                    <Text style={styles.infoText}>{editAddress.trim() || selectedStall.address}</Text>
                     
                     <View style={styles.mapPreviewContainer}>
                         <LeafletMap 
@@ -370,5 +441,38 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     marginLeft: 5,
     fontWeight: '600'
-  }
+  },
+  managerEditCard: {
+    backgroundColor: COLORS.primarySoft,
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  managerEditTitle: { fontSize: 15, fontWeight: '800', color: COLORS.textDark, marginBottom: 6 },
+  managerEditHint: { fontSize: 13, color: COLORS.textGray, marginBottom: 14, lineHeight: 18 },
+  managerFieldLabel: { fontSize: 12, fontWeight: '700', color: COLORS.textDark, marginBottom: 6 },
+  managerInput: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 8,
+    fontSize: 15,
+    backgroundColor: COLORS.surface,
+    color: COLORS.textDark,
+  },
+  managerInputMulti: {
+    minHeight: 72,
+    textAlignVertical: 'top',
+    paddingTop: Platform.OS === 'ios' ? 12 : 8,
+  },
+  saveContactBtn: {
+    marginTop: 16,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  saveContactBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
 });

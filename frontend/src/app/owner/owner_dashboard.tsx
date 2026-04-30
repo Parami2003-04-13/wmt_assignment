@@ -412,10 +412,10 @@ export default function OwnerDashboard() {
               style={styles.accountMenuItem}
               onPress={() => {
                 setAccountMenuVisible(false);
-                router.push('/owner/edit-account' as any);
+                router.push('/owner/manage-account' as any);
               }}>
               <MaterialCommunityIcons name="account-edit-outline" size={22} color={COLORS.textDark} />
-              <Text style={styles.accountMenuItemText}>Edit account</Text>
+              <Text style={styles.accountMenuItemText}>Manage account</Text>
             </Pressable>
             <View style={styles.accountMenuDivider} />
             <Pressable
