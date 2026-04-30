@@ -77,13 +77,21 @@ export default function MealModal({ visible, onClose, onSave, stallId, meal }: M
       return;
     }
 
+    const photo = formData.image?.trim();
+    if (!photo) {
+      Alert.alert('Photo required', 'Please add a meal photo before saving.');
+      return;
+    }
+
     setLoading(true);
     try {
       const payload = {
-        ...formData,
+        name: formData.name,
+        description: formData.description,
         price: parseFloat(formData.price),
-        quantity: parseInt(formData.quantity),
-        stallId
+        quantity: parseInt(formData.quantity, 10),
+        image: photo,
+        stallId,
       };
 
       if (meal) {
@@ -155,7 +163,9 @@ export default function MealModal({ visible, onClose, onSave, stallId, meal }: M
             </View>
           </View>
 
-          <Text style={styles.label}>Meal Photo</Text>
+          <Text style={styles.label}>
+            Meal photo <Text style={styles.required}>*</Text>
+          </Text>
           <TouchableOpacity style={styles.photoPicker} onPress={pickImage}>
             {formData.image ? (
               <Image source={{ uri: formData.image }} style={styles.previewImage} />

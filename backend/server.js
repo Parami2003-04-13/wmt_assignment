@@ -6,6 +6,11 @@ const jwt = require('jsonwebtoken');
 const User = require('./models/User');
 const Stall = require('./models/Stall');
 const Meal = require('./models/Meal');
+const {
+  normalizeTimeInput,
+  deriveStatusFromHours,
+  persistAutoStatusForStall,
+} = require('./utils/businessHours');
 const { 
   sendNotificationEmail, 
   getApproveEmailTemplate, 
@@ -295,7 +300,11 @@ app.post('/api/stalls', async (req, res) => {
 // Get Stalls by Manager
 app.get('/api/stalls/manager/:managerId', async (req, res) => {
   try {
-    const stalls = await Stall.find({ manager: req.params.managerId });
+    let stalls = await Stall.find({ manager: req.params.managerId });
+    for (const s of stalls) {
+      await persistAutoStatusForStall(Stall, s);
+    }
+    stalls = await Stall.find({ manager: req.params.managerId });
     res.json(stalls);
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
@@ -305,8 +314,9 @@ app.get('/api/stalls/manager/:managerId', async (req, res) => {
 // Get Stall by ID
 app.get('/api/stalls/:id', async (req, res) => {
   try {
-    const stall = await Stall.findById(req.params.id);
+    let stall = await Stall.findById(req.params.id);
     if (!stall) return res.status(404).json({ message: 'Stall not found' });
+    stall = await persistAutoStatusForStall(Stall, stall);
     res.json(stall);
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
@@ -316,7 +326,11 @@ app.get('/api/stalls/:id', async (req, res) => {
 // Get All Stalls (for Admin)
 app.get('/api/stalls', async (req, res) => {
   try {
-    const stalls = await Stall.find().populate('manager', 'name email nic');
+    let stalls = await Stall.find().populate('manager', 'name email nic');
+    for (const s of stalls) {
+      await persistAutoStatusForStall(Stall, s);
+    }
+    stalls = await Stall.find().populate('manager', 'name email nic');
     res.json(stalls);
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
@@ -326,8 +340,17 @@ app.get('/api/stalls', async (req, res) => {
 // Update Stall Status
 app.patch('/api/stalls/:id/status', async (req, res) => {
   const { status } = req.body;
+  if (status !== 'Open' && status !== 'Closed') {
+    return res.status(400).json({ message: 'Invalid status' });
+  }
+
   try {
-    const stall = await Stall.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    const stall = await Stall.findByIdAndUpdate(
+      req.params.id,
+      { status, hoursAuto: false },
+      { new: true }
+    );
+    if (!stall) return res.status(404).json({ message: 'Stall not found' });
     res.json(stall);
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
@@ -367,16 +390,64 @@ app.patch('/api/stalls/:id', async (req, res) => {
     if (typeof req.body.latitude === 'number' && !Number.isNaN(req.body.latitude)) update.latitude = req.body.latitude;
     if (typeof req.body.longitude === 'number' && !Number.isNaN(req.body.longitude)) update.longitude = req.body.longitude;
 
-    if (Object.keys(update).length === 0) {
+    const hasHoursKeys =
+      Object.prototype.hasOwnProperty.call(req.body, 'openingTime') ||
+      Object.prototype.hasOwnProperty.call(req.body, 'closingTime');
+
+    if (hasHoursKeys) {
+      const rawO = req.body.openingTime;
+      const rawC = req.body.closingTime;
+      const oEmpty =
+        rawO === undefined || rawO === null || (typeof rawO === 'string' && rawO.trim() === '');
+      const cEmpty =
+        rawC === undefined || rawC === null || (typeof rawC === 'string' && rawC.trim() === '');
+
+      if (oEmpty && cEmpty) {
+        update.openingTime = null;
+        update.closingTime = null;
+        update.hoursAuto = false;
+      } else if (oEmpty !== cEmpty) {
+        return res.status(400).json({
+          message: 'Provide both opening and closing time (HH:mm), or leave both blank to remove scheduled hours.',
+        });
+      } else {
+        const nO = normalizeTimeInput(rawO);
+        const nC = normalizeTimeInput(rawC);
+        if (nO === false || nC === false) {
+          return res.status(400).json({
+            message: 'Invalid time format. Use 24-hour HH:mm (for example 09:00 or 21:30).',
+          });
+        }
+        if (!nO || !nC) {
+          return res.status(400).json({
+            message: 'Opening and closing time are required when setting business hours.',
+          });
+        }
+        update.openingTime = nO;
+        update.closingTime = nC;
+        update.hoursAuto = true;
+        const derived = deriveStatusFromHours(nO, nC);
+        if (derived) update.status = derived;
+      }
+    }
+
+    const clean = {};
+    Object.keys(update).forEach((key) => {
+      if (update[key] !== undefined) clean[key] = update[key];
+    });
+
+    if (Object.keys(clean).length === 0) {
       return res.status(400).json({ message: 'No valid fields to update' });
     }
 
-    const stall = await Stall.findByIdAndUpdate(id, { $set: update }, { new: true, runValidators: true }).populate(
+    let stall = await Stall.findByIdAndUpdate(id, { $set: clean }, { new: true, runValidators: true }).populate(
       'manager',
       'name email nic'
     );
 
     if (!stall) return res.status(404).json({ message: 'Stall not found' });
+
+    stall = await persistAutoStatusForStall(Stall, stall);
     res.json(stall);
   } catch (err) {
     console.error('Stall update error:', err);
@@ -412,13 +483,21 @@ app.delete('/api/stalls/:id', async (req, res) => {
 app.post('/api/meals', async (req, res) => {
   const { name, description, price, quantity, image, stallId } = req.body;
 
-  if (!name || !description || !price || !quantity || !stallId) {
+  if (!name || !description || price === undefined || quantity === undefined || !stallId) {
     return res.status(400).json({ message: 'Missing required fields' });
+  }
+  if (!image || !String(image).trim()) {
+    return res.status(400).json({ message: 'Meal photo is required.' });
   }
 
   try {
     const newMeal = new Meal({
-      name, description, price, quantity, image, stall: stallId
+      name,
+      description,
+      price,
+      quantity,
+      image: String(image).trim(),
+      stall: stallId,
     });
     
     await newMeal.save();
@@ -443,8 +522,27 @@ app.get('/api/meals/stall/:stallId', async (req, res) => {
 // Update Meal
 app.patch('/api/meals/:id', async (req, res) => {
   try {
-    const updatedMeal = await Meal.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!updatedMeal) return res.status(404).json({ message: 'Meal not found' });
+    const existing = await Meal.findById(req.params.id);
+    if (!existing) return res.status(404).json({ message: 'Meal not found' });
+
+    const { name, description, price, quantity, image } = req.body;
+    const update = {};
+    if (name !== undefined) update.name = name;
+    if (description !== undefined) update.description = description;
+    if (price !== undefined) update.price = price;
+    if (quantity !== undefined) update.quantity = quantity;
+    if (image !== undefined) update.image = image;
+
+    const nextImage =
+      update.image !== undefined ? String(update.image).trim() : String(existing.image || '').trim();
+    if (!nextImage) {
+      return res.status(400).json({ message: 'Meal photo is required.' });
+    }
+    if (update.image !== undefined) {
+      update.image = nextImage;
+    }
+
+    const updatedMeal = await Meal.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
     res.json(updatedMeal);
   } catch (err) {
     console.error('Update meal error:', err);
