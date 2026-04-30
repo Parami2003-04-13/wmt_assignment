@@ -17,14 +17,19 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import api from '../../services/api';
+import api, { getStoredUser } from '../../services/api';
 import MealModal from '../../components/meal-modal';
 import StallEditModal from '../../components/stall-edit-modal';
+import AddStaffModal from '../../components/add-staff-modal';
 import { COLORS } from '../../theme/colors';
 
 const { width } = Dimensions.get('window');
+const SHEET_PAD = 20;
+/** Inner width minus sheet padding matches two cards + gutters */
 const GRID_GAP = 10;
-const CARD_W = (width - 40 - GRID_GAP) / 2;
+const GRID_INNER_W = width - SHEET_PAD * 2;
+/** Two columns: card + gap + card = inner width */
+const CARD_W = (GRID_INNER_W - GRID_GAP) / 2;
 const COLOR_OPEN = COLORS.success;
 const COLOR_CLOSED = COLORS.danger;
 
@@ -47,7 +52,9 @@ export default function StallManagement() {
   const [mealModalVisible, setMealModalVisible] = useState(false);
   const [selectedMeal, setSelectedMeal] = useState<any>(null);
   const [stallEditVisible, setStallEditVisible] = useState(false);
+  const [addStaffVisible, setAddStaffVisible] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   const stallId = Array.isArray(id) ? id[0] : id;
 
@@ -78,6 +85,30 @@ export default function StallManagement() {
     fetchStallDetails();
     fetchMeals();
   }, [stallId, fetchStallDetails, fetchMeals]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const u = await getStoredUser();
+      if (alive) setCurrentUser(u);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!stallId || !currentUser?.staffStallId) return;
+    if (currentUser.role !== 'stall staff') return;
+    if (String(currentUser.staffStallId) !== String(stallId)) {
+      Alert.alert('Wrong stall', 'Opening the stall assigned to your account.', [
+        {
+          text: 'OK',
+          onPress: () => router.replace(`/owner/${currentUser.staffStallId}`),
+        },
+      ]);
+    }
+  }, [stallId, currentUser, router]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -159,6 +190,20 @@ export default function StallManagement() {
 
   const isOpen = stall.status === 'Open';
 
+  const managerId =
+    typeof stall.manager === 'object' && stall.manager && stall.manager._id != null
+      ? String(stall.manager._id)
+      : stall.manager != null
+        ? String(stall.manager)
+        : '';
+
+  const isStaffViewer =
+    currentUser?.role === 'stall staff' && String(currentUser.staffStallId) === String(stallId);
+  const isStallOwner =
+    currentUser?.role === 'stall owner' &&
+    !!managerId &&
+    String(currentUser.id) === managerId;
+
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
@@ -213,45 +258,59 @@ export default function StallManagement() {
               />
             </View>
             <View style={styles.titleBlock}>
-              <Text style={styles.stallName} numberOfLines={2}>
-                {stall.name}
-              </Text>
-              <TouchableOpacity
-                style={[styles.statusPill, { backgroundColor: isOpen ? '#DCF5ED' : '#FDECEC' }]}
-                onPress={confirmToggleStatus}
-                disabled={statusBusy}
-                activeOpacity={0.85}>
-                {statusBusy ? (
-                  <ActivityIndicator size="small" color={isOpen ? COLOR_OPEN : COLOR_CLOSED} />
-                ) : (
-                  <>
-                    <View
-                      style={[
-                        styles.statusDot,
-                        { backgroundColor: isOpen ? COLOR_OPEN : COLOR_CLOSED },
-                      ]}
-                    />
-                    <Text
-                      style={[
-                        styles.statusPillText,
-                        { color: isOpen ? COLOR_OPEN : COLOR_CLOSED },
-                      ]}>
-                      {isOpen ? 'Open' : 'Closed'}
-                    </Text>
-                    <MaterialCommunityIcons
-                      name="chevron-down"
-                      size={16}
-                      color={isOpen ? COLOR_OPEN : COLOR_CLOSED}
-                    />
-                  </>
+              <View style={styles.titleToolbar}>
+                <View style={styles.titleStack}>
+                  <Text style={styles.stallName} numberOfLines={2}>
+                    {stall.name}
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.statusPill, { backgroundColor: isOpen ? '#DCF5ED' : '#FDECEC' }]}
+                    onPress={confirmToggleStatus}
+                    disabled={statusBusy}
+                    activeOpacity={0.85}>
+                    {statusBusy ? (
+                      <ActivityIndicator size="small" color={isOpen ? COLOR_OPEN : COLOR_CLOSED} />
+                    ) : (
+                      <>
+                        <View
+                          style={[
+                            styles.statusDot,
+                            { backgroundColor: isOpen ? COLOR_OPEN : COLOR_CLOSED },
+                          ]}
+                        />
+                        <Text
+                          style={[
+                            styles.statusPillText,
+                            { color: isOpen ? COLOR_OPEN : COLOR_CLOSED },
+                          ]}>
+                          {isOpen ? 'Open' : 'Closed'}
+                        </Text>
+                        <MaterialCommunityIcons
+                          name="chevron-down"
+                          size={16}
+                          color={isOpen ? COLOR_OPEN : COLOR_CLOSED}
+                        />
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+                {isStallOwner && (
+                  <TouchableOpacity
+                    style={styles.addStaffBtn}
+                    onPress={() => setAddStaffVisible(true)}
+                    activeOpacity={0.85}>
+                    <MaterialCommunityIcons name="account-plus-outline" size={22} color={COLORS.primary} />
+                    <Text style={styles.addStaffBtnLabel}>Add staff</Text>
+                  </TouchableOpacity>
                 )}
-              </TouchableOpacity>
+              </View>
             </View>
           </View>
 
           <Text style={styles.hintTapStatus}>
-            Tap status for manual Open/Closed. With business hours set, scheduling updates automatically whenever you refresh
-            or save details (Asia/Colombo).
+            {isStaffViewer
+              ? 'Staff: you can toggle Open/Closed during service and manage the menu. Payments are handled outside the app (cash, card at the stall).'
+              : 'Tap status for manual Open/Closed. With business hours set, scheduling updates automatically whenever you refresh or save details (Asia/Colombo).'}
           </Text>
 
           {stall.openingTime && stall.closingTime ? (
@@ -288,81 +347,121 @@ export default function StallManagement() {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionEyebrow}>About</Text>
-            <View style={styles.descCard}>
-              <Text style={styles.descText}>
-                {stall.description ||
-                  'No description yet. Tap Edit stall details to tell customers what you serve.'}
-              </Text>
-            </View>
+            {isStaffViewer ? (
+              <>
+                <Text style={styles.sectionEyebrow}>About</Text>
+                <View style={styles.descCard}>
+                  <Text style={styles.descText}>
+                    {stall.description || 'No description provided.'}
+                  </Text>
+                </View>
+                <View style={styles.staffInfoBanner}>
+                  <MaterialCommunityIcons name="shield-account-outline" size={22} color={COLORS.primary} />
+                  <Text style={styles.staffInfoBannerText}>
+                    Staff account: editing description, phone, hours, and stall photos requires the stall owner's login.
+                  </Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={styles.aboutHeader}>
+                  <Text style={[styles.sectionEyebrow, styles.aboutEyebrowNoMb]}>About</Text>
+                  <TouchableOpacity
+                    style={styles.aboutEditBtn}
+                    activeOpacity={0.85}
+                    onPress={() => setStallEditVisible(true)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <MaterialCommunityIcons name="cog-outline" size={18} color={COLORS.primary} />
+                    <Text style={styles.aboutEditBtnText}>Stall settings</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.descCard}>
+                  <Text style={styles.descText}>
+                    {stall.description ||
+                      'No description yet. Open Stall settings to describe what you serve.'}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.stallEditLink}
+                  activeOpacity={0.85}
+                  onPress={() => setStallEditVisible(true)}>
+                  <MaterialCommunityIcons name="store-edit-outline" size={20} color={COLORS.primary} />
+                  <Text style={styles.stallEditLinkText}>Hours, photos, phone & address</Text>
+                  <MaterialCommunityIcons name="chevron-right" size={22} color={COLORS.textGray} />
+                </TouchableOpacity>
+              </>
+            )}
           </View>
-
-          <TouchableOpacity style={styles.secondaryBtn} activeOpacity={0.9} onPress={() => setStallEditVisible(true)}>
-            <MaterialCommunityIcons name="store-edit-outline" size={20} color={COLORS.primary} />
-            <Text style={styles.secondaryBtnText}>Edit stall details</Text>
-          </TouchableOpacity>
 
           <View style={styles.menuSectionHeader}>
             <View>
               <Text style={styles.menuTitle}>Menu</Text>
-              <Text style={styles.menuSubtitle}>{meals.length} items</Text>
+              <Text style={styles.menuSubtitle}>
+                {meals.length} {meals.length === 1 ? 'item' : 'items'}
+                {isStaffViewer ? ' · staff: menu & stock' : ' · tap a card to edit'}
+              </Text>
             </View>
           </View>
 
           <View style={styles.mealsGrid}>
-            <TouchableOpacity style={styles.addCard} onPress={handleAddMeal} activeOpacity={0.9}>
-              <View style={styles.addIconRing}>
-                <MaterialCommunityIcons name="plus" size={28} color={COLORS.primary} />
+            <TouchableOpacity style={styles.addCard} onPress={handleAddMeal} activeOpacity={0.85}>
+              <View style={styles.addImageZone}>
+                <View style={styles.addIconRing}>
+                  <MaterialCommunityIcons name="plus" size={26} color={COLORS.primary} />
+                </View>
               </View>
-              <Text style={styles.addLabel}>Add meal</Text>
+              <View style={styles.addCardFooter}>
+                <Text style={styles.addLabel}>Add meal</Text>
+              </View>
             </TouchableOpacity>
 
             {meals.map((meal) => (
               <View key={meal._id} style={styles.mealCard}>
-                <TouchableOpacity activeOpacity={0.9} onPress={() => handleEditMeal(meal)}>
-                  <View style={styles.mealImageWrap}>
-                    <Image
-                      source={{
-                        uri: meal.image || 'https://via.placeholder.com/150',
-                      }}
-                      style={styles.mealImg}
-                    />
-                    <View style={styles.mealActions}>
-                      <Pressable
-                        style={styles.mealActBtn}
-                        onPress={() => handleEditMeal(meal)}
-                        hitSlop={8}>
-                        <MaterialCommunityIcons name="pencil" size={16} color={COLORS.primary} />
-                      </Pressable>
-                      <Pressable
-                        style={styles.mealActBtn}
-                        onPress={() => handleDeleteMeal(meal._id)}
-                        hitSlop={8}>
-                        <MaterialCommunityIcons name="trash-can-outline" size={16} color={COLORS.danger} />
-                      </Pressable>
+                <Pressable style={styles.mealImagePress} onPress={() => handleEditMeal(meal)}>
+                  <Image
+                    source={{
+                      uri: meal.image || 'https://via.placeholder.com/150',
+                    }}
+                    style={styles.mealImg}
+                  />
+                </Pressable>
+                <View style={styles.mealBody}>
+                  <Text style={styles.mealTitle} numberOfLines={2}>
+                    {meal.name}
+                  </Text>
+                  <View style={styles.mealFooter}>
+                    <Text style={styles.mealPrice}>Rs. {meal.price}</Text>
+                    <View style={styles.qtyPill}>
+                      <Text style={styles.qtyPillText}>{meal.quantity} left</Text>
                     </View>
                   </View>
-                  <View style={styles.mealBody}>
-                    <Text style={styles.mealTitle} numberOfLines={2}>
-                      {meal.name}
-                    </Text>
-                    <View style={styles.mealFooter}>
-                      <Text style={styles.mealPrice}>Rs. {meal.price}</Text>
-                      <View style={styles.qtyPill}>
-                        <Text style={styles.qtyPillText}>{meal.quantity} left</Text>
-                      </View>
-                    </View>
+                  <View style={styles.mealActionBar}>
+                    <TouchableOpacity
+                      style={styles.mealActionItem}
+                      onPress={() => handleEditMeal(meal)}
+                      activeOpacity={0.85}>
+                      <MaterialCommunityIcons name="pencil-outline" size={18} color={COLORS.primary} />
+                      <Text style={styles.mealActionEditText}>Edit</Text>
+                    </TouchableOpacity>
+                    <View style={styles.mealActionDivider} />
+                    <TouchableOpacity
+                      style={styles.mealActionItem}
+                      onPress={() => handleDeleteMeal(meal._id)}
+                      activeOpacity={0.85}>
+                      <MaterialCommunityIcons name="trash-can-outline" size={18} color={COLORS.danger} />
+                      <Text style={styles.mealActionDeleteText}>Delete</Text>
+                    </TouchableOpacity>
                   </View>
-                </TouchableOpacity>
+                </View>
               </View>
             ))}
           </View>
 
           {meals.length === 0 && (
             <View style={styles.emptyWrap}>
-              <MaterialCommunityIcons name="food-outline" size={48} color={COLORS.border} />
-              <Text style={styles.emptyTitle}>No meals yet</Text>
-              <Text style={styles.emptySub}>Add your first item to appear on CampusBites.</Text>
+              <MaterialCommunityIcons name="food-outline" size={44} color={COLORS.border} />
+              <Text style={styles.emptyTitle}>Nothing listed yet</Text>
+              <Text style={styles.emptySub}>Use “Add meal” in the grid to create your first item.</Text>
             </View>
           )}
 
@@ -392,9 +491,18 @@ export default function StallManagement() {
                 description: stall.description ?? '',
                 openingTime: stall.openingTime ?? '',
                 closingTime: stall.closingTime ?? '',
+                profilePhoto: stall.profilePhoto ?? '',
+                coverPhoto: stall.coverPhoto ?? '',
               }
             : null
         }
+      />
+
+      <AddStaffModal
+        visible={addStaffVisible}
+        stallId={stallId ?? null}
+        onClose={() => setAddStaffVisible(false)}
+        onChanged={() => {}}
       />
     </View>
   );
@@ -457,7 +565,33 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
 
-  profileRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  profileRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
+  titleToolbar: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    width: '100%',
+  },
+  titleStack: { flex: 1, minWidth: 0 },
+  addStaffBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primarySoft,
+    maxWidth: 92,
+    minWidth: 80,
+    gap: 4,
+  },
+  addStaffBtnLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: COLORS.primary,
+    textAlign: 'center',
+  },
   avatarRing: {
     width: 88,
     height: 88,
@@ -554,6 +688,30 @@ const styles = StyleSheet.create({
   },
 
   section: { marginBottom: 16 },
+  aboutHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 8,
+  },
+  aboutEyebrowNoMb: { marginBottom: 0 },
+  aboutEditBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: COLORS.primarySoft,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  aboutEditBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
   sectionEyebrow: {
     fontSize: 11,
     fontWeight: '800',
@@ -561,6 +719,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
     marginBottom: 8,
+    flexShrink: 0,
   },
   descCard: {
     padding: 16,
@@ -570,30 +729,38 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   descText: { fontSize: 15, color: COLORS.textGray, lineHeight: 22 },
-
-  secondaryBtn: {
+  stallEditLink: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     gap: 10,
-    height: 52,
+    marginTop: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+  },
+  stallEditLinkText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.textDark,
+  },
+  staffInfoBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: 12,
+    padding: 12,
     borderRadius: 14,
-    borderWidth: 2,
-    borderColor: COLORS.primary,
     backgroundColor: COLORS.primarySoft,
-    marginBottom: 22,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  secondaryBtnText: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: COLORS.primary,
-  },
+  staffInfoBannerText: { flex: 1, fontSize: 13, color: COLORS.textDark, lineHeight: 19, fontWeight: '600' },
 
   menuSectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
-    marginBottom: 14,
+    marginBottom: 12,
   },
   menuTitle: { fontSize: 20, fontWeight: '900', color: COLORS.textDark },
   menuSubtitle: { marginTop: 4, fontSize: 13, color: COLORS.textGray },
@@ -601,74 +768,90 @@ const styles = StyleSheet.create({
   mealsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: -GRID_GAP / 2,
+    gap: GRID_GAP,
   },
   addCard: {
     width: CARD_W,
-    margin: GRID_GAP / 2,
-    aspectRatio: 0.88,
-    borderRadius: 18,
+    borderRadius: 16,
     borderWidth: 2,
     borderStyle: 'dashed',
     borderColor: COLORS.border,
     backgroundColor: COLORS.background,
+    overflow: 'hidden',
+  },
+  addImageZone: {
+    aspectRatio: 1,
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    backgroundColor: COLORS.surface,
+  },
+  addCardFooter: {
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.border,
+    backgroundColor: COLORS.surface,
   },
   addIconRing: {
-    width: 54,
-    height: 54,
-    borderRadius: 18,
-    backgroundColor: COLORS.surface,
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: COLORS.background,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: COLORS.primarySoft,
   },
-  addLabel: { fontSize: 14, fontWeight: '800', color: COLORS.textGray },
+  addLabel: { fontSize: 13, fontWeight: '800', color: COLORS.primary },
 
   mealCard: {
     width: CARD_W,
-    margin: GRID_GAP / 2,
-    borderRadius: 18,
+    borderRadius: 16,
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  mealImageWrap: { position: 'relative', height: 118, backgroundColor: COLORS.background },
-  mealImg: { width: '100%', height: '100%' },
-  mealActions: {
-    position: 'absolute',
-    right: 8,
-    top: 8,
-    gap: 8,
-    flexDirection: 'column',
-  },
-  mealActBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.94)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  mealBody: { padding: 12 },
-  mealTitle: { fontSize: 14, fontWeight: '800', color: COLORS.textDark, minHeight: 38 },
+  mealImagePress: { width: '100%', aspectRatio: 1, backgroundColor: COLORS.background },
+  mealImg: { width: '100%', height: '100%', resizeMode: 'cover' as const },
+  mealBody: { paddingHorizontal: 10, paddingTop: 10, paddingBottom: 8 },
+  mealTitle: { fontSize: 14, fontWeight: '800', color: COLORS.textDark, minHeight: 36, lineHeight: 18 },
   mealFooter: {
-    marginTop: 10,
+    marginTop: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  mealActionBar: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.border,
+    marginHorizontal: -10,
+    marginBottom: -8,
+  },
+  mealActionDivider: {
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: COLORS.border,
+  },
+  mealActionItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+  },
+  mealActionEditText: { fontSize: 13, fontWeight: '800', color: COLORS.primary },
+  mealActionDeleteText: { fontSize: 13, fontWeight: '800', color: COLORS.danger },
   mealPrice: { fontSize: 14, fontWeight: '900', color: COLORS.primary },
   qtyPill: {
     backgroundColor: COLORS.background,

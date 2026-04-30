@@ -15,8 +15,14 @@ const UserSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['user', 'stall owner', 'stall manager', 'admin'],
+    enum: ['user', 'stall owner', 'stall manager', 'stall staff', 'admin'],
     default: 'user'
+  },
+  /** Stall this user may operate (menus, manual open/closed). Owners use stall.manager instead. */
+  staffStallId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Stall',
+    default: null,
   },
   name: {
     type: String,
