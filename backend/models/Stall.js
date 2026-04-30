@@ -13,6 +13,10 @@ const StallSchema = new mongoose.Schema({
   approvedDocument: { type: String }, // URL or Path to the document
   isApproved: { type: Boolean, default: false },
   status: { type: String, enum: ['Open', 'Closed'], default: 'Open' },
+  /** 24h "HH:mm" in Asia/Colombo (server); both set + hoursAuto → status derives from clock */
+  openingTime: { type: String, default: null },
+  closingTime: { type: String, default: null },
+  hoursAuto: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
 
