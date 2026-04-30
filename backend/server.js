@@ -123,6 +123,7 @@ app.post('/api/auth/login', async (req, res) => {
         email: user.email,
         role: user.role,
         name: user.name,
+        ...(user.phone ? { phone: user.phone } : {}),
         ...(user.staffStallId ? { staffStallId: user.staffStallId.toString() } : {}),
       },
     });
@@ -221,12 +222,22 @@ app.patch('/api/users/:id', async (req, res) => {
       if (nicTrim !== undefined) updateFields.nic = nicTrim;
     }
 
+    if (Object.prototype.hasOwnProperty.call(req.body, 'phone')) {
+      const p = req.body.phone;
+      if (p === null || p === '') {
+        updateFields.phone = null;
+      } else if (typeof p === 'string') {
+        const t = p.trim();
+        updateFields.phone = t === '' ? null : t;
+      }
+    }
+
     if (Object.keys(updateFields).length === 0) {
       return res.status(400).json({ message: 'Nothing to update' });
     }
 
     const user = await User.findByIdAndUpdate(id, { $set: updateFields }, { new: true, runValidators: true }).select(
-      '_id email role name firstName lastName nic'
+      '_id email role name firstName lastName nic phone'
     );
 
     if (!user) {
@@ -242,6 +253,7 @@ app.patch('/api/users/:id', async (req, res) => {
         firstName: user.firstName,
         lastName: user.lastName,
         nic: user.nic,
+        phone: user.phone || null,
       },
     });
   } catch (err) {
