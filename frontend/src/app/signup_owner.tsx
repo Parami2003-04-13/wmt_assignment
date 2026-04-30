@@ -15,10 +15,7 @@ import {
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons'; 
 import api from '../services/api';
-
-const ORANGE_PRIMARY = '#FF6F3C';
-const TEXT_DARK = '#2D3436';
-const TEXT_GRAY = '#636E72';
+import { COLORS } from '../theme/colors';
 
 const Text = (props: any) => <RNText {...props} style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]} />;
 
@@ -74,7 +71,7 @@ export default function SignupOwnerScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
             <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-                <MaterialCommunityIcons name="arrow-left" size={24} color={TEXT_DARK} />
+                <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.textDark} />
             </TouchableOpacity>
           <Text style={styles.appTitle}>Stall Owner Signup</Text>
           <Text style={styles.subtitle}>Join CampusBites as a partner</Text>
@@ -158,20 +155,20 @@ const styles = StyleSheet.create({
   scrollContent: { padding: 25, paddingVertical: 50 },
   header: { marginBottom: 30 },
   backBtn: { marginBottom: 20 },
-  appTitle: { fontSize: 26, fontWeight: 'bold', color: TEXT_DARK },
-  subtitle: { fontSize: 14, color: TEXT_GRAY, marginTop: 4 },
+  appTitle: { fontSize: 26, fontWeight: 'bold', color: COLORS.textDark },
+  subtitle: { fontSize: 14, color: COLORS.textGray, marginTop: 4 },
   form: {},
   row: { flexDirection: 'row' },
   inputWrapper: { marginBottom: 20 },
-  inputLabel: { fontSize: 13, fontWeight: '600', color: TEXT_DARK, marginBottom: 8 },
+  inputLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textDark, marginBottom: 8 },
   inputRow: {
     backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E1E4E8',
-    paddingHorizontal: 15, height: 50, fontSize: 15, color: TEXT_DARK
+    paddingHorizontal: 15, height: 50, fontSize: 15, color: COLORS.textDark
   },
   signupBtn: {
-    backgroundColor: ORANGE_PRIMARY, height: 56, borderRadius: 14,
+    backgroundColor: COLORS.primary, height: 56, borderRadius: 14,
     justifyContent: 'center', alignItems: 'center', marginTop: 10,
-    shadowColor: ORANGE_PRIMARY, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 5,
+    shadowColor: COLORS.primaryDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 5,
   },
   signupBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
 });

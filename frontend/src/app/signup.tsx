@@ -15,10 +15,7 @@ import {
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons'; 
 import api from '../services/api';
-
-const ORANGE_PRIMARY = '#FF6F3C';
-const TEXT_DARK = '#2D3436';
-const TEXT_GRAY = '#636E72';
+import { COLORS } from '../theme/colors';
 
 const Text = (props: any) => <RNText {...props} style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]} />;
 
@@ -85,7 +82,7 @@ export default function SignupScreen() {
       >
         <View style={styles.header}>
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-            <MaterialCommunityIcons name="arrow-left" size={28} color={TEXT_DARK} />
+            <MaterialCommunityIcons name="arrow-left" size={28} color={COLORS.textDark} />
           </TouchableOpacity>
           <View style={styles.logoContainer}>
              <Image 
@@ -221,12 +218,12 @@ const styles = StyleSheet.create({
   logoContainer: {
     width: 80,
     height: 80,
-    backgroundColor: ORANGE_PRIMARY,
+    backgroundColor: COLORS.primary,
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
-    shadowColor: ORANGE_PRIMARY,
+    shadowColor: COLORS.primaryDark,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
@@ -240,11 +237,11 @@ const styles = StyleSheet.create({
   appTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: TEXT_DARK,
+    color: COLORS.textDark,
   },
   subtitle: {
     fontSize: 14,
-    color: TEXT_GRAY,
+    color: COLORS.textGray,
     marginTop: 4,
   },
   form: {
@@ -256,7 +253,7 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: TEXT_DARK,
+    color: COLORS.textDark,
     marginBottom: 8,
   },
   inputRow: {
@@ -275,23 +272,23 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 15,
-    color: TEXT_DARK,
+    color: COLORS.textDark,
     height: '100%',
   },
   hintText: {
     fontSize: 11,
-    color: TEXT_GRAY,
+    color: COLORS.textGray,
     marginTop: 4,
     marginLeft: 4,
   },
   signupBtn: {
-    backgroundColor: ORANGE_PRIMARY,
+    backgroundColor: COLORS.primary,
     height: 56,
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 15,
-    shadowColor: ORANGE_PRIMARY,
+    shadowColor: COLORS.primaryDark,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 10,
@@ -308,11 +305,11 @@ const styles = StyleSheet.create({
     marginTop: 25,
   },
   footerText: {
-    color: TEXT_GRAY,
+    color: COLORS.textGray,
     fontSize: 14,
   },
   loginLink: {
-    color: ORANGE_PRIMARY,
+    color: COLORS.primary,
     fontWeight: 'bold',
     fontSize: 14,
   },

@@ -1,20 +1,21 @@
-import React from 'react';
-import { 
-  Modal, 
-  View, 
-  StyleSheet, 
-  Text as RNText, 
-  TouchableOpacity, 
-  Image, 
-  ScrollView, 
-  Platform,
-  SafeAreaView,
-  Dimensions
-} from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import React from 'react';
+import {
+    Dimensions,
+    Image,
+    Modal,
+    Platform,
+    Text as RNText,
+    ScrollView,
+    StyleSheet,
+    TouchableOpacity,
+    View
+} from 'react-native';
 
 const { width } = Dimensions.get('window');
-const ORANGE_PRIMARY = '#FF6F3C';
+const PRIMARY = '#0F5B57';
+const PRIMARY_DARK = '#0B3F3C';
+const PRIMARY_SOFT = '#E7F3F2';
 const TEXT_DARK = '#2D3436';
 const TEXT_GRAY = '#636E72';
 
@@ -51,7 +52,7 @@ export default function MealDetailsModal({ visible, onClose, meal }: MealDetails
               </View>
 
               <View style={styles.qtyBadge}>
-                <MaterialCommunityIcons name="tag-outline" size={14} color={ORANGE_PRIMARY} />
+                <MaterialCommunityIcons name="tag-outline" size={14} color={PRIMARY} />
                 <Text style={styles.qtyText}>{meal.quantity} available</Text>
               </View>
 
@@ -111,29 +112,29 @@ const styles = StyleSheet.create({
     marginBottom: 8
   },
   name: { fontSize: 22, fontWeight: 'bold', color: TEXT_DARK, flex: 1, marginRight: 10 },
-  price: { fontSize: 20, fontWeight: '800', color: ORANGE_PRIMARY },
+  price: { fontSize: 20, fontWeight: '800', color: PRIMARY },
   qtyBadge: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    backgroundColor: '#FFF5F2', 
+    backgroundColor: PRIMARY_SOFT, 
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
     marginBottom: 20
   },
-  qtyText: { fontSize: 13, color: ORANGE_PRIMARY, fontWeight: '700', marginLeft: 6 },
+  qtyText: { fontSize: 13, color: PRIMARY, fontWeight: '700', marginLeft: 6 },
   sectionTitle: { fontSize: 16, fontWeight: 'bold', color: TEXT_DARK, marginBottom: 10 },
   description: { fontSize: 15, color: TEXT_GRAY, lineHeight: 22, marginBottom: 30 },
   orderBtn: { 
-    backgroundColor: ORANGE_PRIMARY, 
+    backgroundColor: PRIMARY, 
     flexDirection: 'row', 
     justifyContent: 'center', 
     alignItems: 'center', 
     padding: 18, 
     borderRadius: 16,
     elevation: 3,
-    shadowColor: ORANGE_PRIMARY,
+    shadowColor: PRIMARY_DARK,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 10,

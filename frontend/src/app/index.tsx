@@ -3,8 +3,7 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Text } from '@ant-design/react-native';
 import { getStoredToken, getStoredUser } from '../services/api';
-
-const ORANGE_PRIMARY = '#FF8C00';
+import { COLORS } from '../theme/colors';
 
 export default function Initializer() {
   const router = useRouter();
@@ -42,7 +41,7 @@ export default function Initializer() {
   return (
     <View style={styles.container}>
       <Text style={styles.appTitle}>CampusBites</Text>
-      <ActivityIndicator size="large" color={ORANGE_PRIMARY} />
+      <ActivityIndicator size="large" color={COLORS.primary} />
       <Text style={styles.loadingText}>Loading your experience...</Text>
     </View>
   );
@@ -58,7 +57,7 @@ const styles = StyleSheet.create({
   appTitle: {
     fontSize: 42,
     fontWeight: 'bold',
-    color: ORANGE_PRIMARY,
+    color: COLORS.primary,
     marginBottom: 20,
   },
   loadingText: {

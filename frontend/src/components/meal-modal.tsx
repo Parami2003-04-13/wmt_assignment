@@ -16,10 +16,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../services/api';
-
-const ORANGE_PRIMARY = '#FF6F3C';
-const TEXT_DARK = '#2D3436';
-const TEXT_GRAY = '#636E72';
+import { COLORS } from '../theme/colors';
 
 const Text = (props: any) => <RNText {...props} style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]} />;
 
@@ -112,7 +109,7 @@ export default function MealModal({ visible, onClose, onSave, stallId, meal }: M
         <View style={styles.header}>
           <Text style={styles.title}>{meal ? 'Edit Meal' : 'Add New Meal'}</Text>
           <TouchableOpacity onPress={onClose}>
-            <MaterialCommunityIcons name="close" size={28} color={TEXT_DARK} />
+            <MaterialCommunityIcons name="close" size={28} color={COLORS.textDark} />
           </TouchableOpacity>
         </View>
 
@@ -164,7 +161,7 @@ export default function MealModal({ visible, onClose, onSave, stallId, meal }: M
               <Image source={{ uri: formData.image }} style={styles.previewImage} />
             ) : (
               <>
-                <MaterialCommunityIcons name="camera-plus-outline" size={32} color={ORANGE_PRIMARY} />
+                <MaterialCommunityIcons name="camera-plus-outline" size={32} color={COLORS.primary} />
                 <Text style={styles.photoPickerText}>Add Photo</Text>
               </>
             )}
@@ -194,9 +191,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, 
     borderBottomColor: '#F0F0F0' 
   },
-  title: { fontSize: 20, fontWeight: 'bold', color: TEXT_DARK },
+  title: { fontSize: 20, fontWeight: 'bold', color: COLORS.textDark },
   scroll: { padding: 20 },
-  label: { fontSize: 14, fontWeight: '600', color: TEXT_DARK, marginBottom: 8, marginTop: 10 },
+  label: { fontSize: 14, fontWeight: '600', color: COLORS.textDark, marginBottom: 8, marginTop: 10 },
   required: { color: '#EE5253' },
   input: { 
     borderWidth: 1, 
@@ -221,16 +218,16 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     overflow: 'hidden'
   },
-  photoPickerText: { fontSize: 14, color: TEXT_GRAY, marginTop: 8 },
+  photoPickerText: { fontSize: 14, color: COLORS.textGray, marginTop: 8 },
   previewImage: { width: '100%', height: '100%' },
   saveBtn: { 
-    backgroundColor: ORANGE_PRIMARY, 
+    backgroundColor: COLORS.primary, 
     padding: 18, 
     borderRadius: 12, 
     alignItems: 'center',
     marginTop: 20,
     elevation: 3,
-    shadowColor: ORANGE_PRIMARY,
+    shadowColor: COLORS.primaryDark,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 10,

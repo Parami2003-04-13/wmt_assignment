@@ -19,12 +19,10 @@ import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LeafletMap from '../../components/leaflet_map';
 import api, { clearAuthStorage, getStoredUser } from '../../services/api';
+import { COLORS } from '../../theme/colors';
 
-const ORANGE_PRIMARY = '#FF6F3C'; 
-const TEXT_DARK = '#2D3436';
-const TEXT_GRAY = '#636E72';
-const COLOR_OPEN = '#10AC84';
-const COLOR_CLOSED = '#EE5253';
+const COLOR_OPEN = COLORS.success;
+const COLOR_CLOSED = COLORS.danger;
 
 const Text = (props: any) => <RNText {...props} style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]} />;
 
@@ -195,7 +193,7 @@ export default function OwnerDashboard() {
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={ORANGE_PRIMARY} />
+        <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     );
   }
@@ -219,8 +217,8 @@ export default function OwnerDashboard() {
         <View style={styles.content}>
           {stalls.length === 0 ? (
             <View style={{ alignItems: 'center', marginTop: 50 }}>
-               <MaterialCommunityIcons name="store-plus-outline" size={80} color={TEXT_GRAY} />
-               <Text style={{ color: TEXT_GRAY, marginTop: 15, fontSize: 16 }}>No stalls found. Start your business today!</Text>
+               <MaterialCommunityIcons name="store-plus-outline" size={80} color={COLORS.textGray} />
+               <Text style={{ color: COLORS.textGray, marginTop: 15, fontSize: 16 }}>No stalls found. Start your business today!</Text>
                <TouchableOpacity style={styles.initialAddBtn} onPress={() => setModalVisible(true)}>
                   <Text style={styles.initialAddBtnText}>Add Your Stall</Text>
                </TouchableOpacity>
@@ -230,7 +228,7 @@ export default function OwnerDashboard() {
                 return (
                     <View key={stall._id} style={styles.pendingCard}>
                         <View style={styles.pendingIconBg}>
-                            <MaterialCommunityIcons name="clock-time-eight-outline" size={40} color={ORANGE_PRIMARY} />
+                            <MaterialCommunityIcons name="clock-time-eight-outline" size={40} color={COLORS.primary} />
                         </View>
                         <Text style={styles.pendingTitle}>Verification in Progress</Text>
                         <Text style={styles.pendingText}>
@@ -263,7 +261,7 @@ export default function OwnerDashboard() {
                 </View>
                 <View style={styles.cardActions}>
                    <View style={styles.editBtn}>
-                      <MaterialCommunityIcons name="chevron-right" size={24} color={ORANGE_PRIMARY} />
+                      <MaterialCommunityIcons name="chevron-right" size={24} color={COLORS.primary} />
                    </View>
                 </View>
               </TouchableOpacity>
@@ -283,7 +281,7 @@ export default function OwnerDashboard() {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Add Your Stall</Text>
             <TouchableOpacity onPress={() => setModalVisible(false)}>
-              <MaterialCommunityIcons name="close" size={28} color={TEXT_DARK} />
+              <MaterialCommunityIcons name="close" size={28} color={COLORS.textDark} />
             </TouchableOpacity>
           </View>
 
@@ -315,7 +313,7 @@ export default function OwnerDashboard() {
                    <Image source={{ uri: stallData.profilePhoto }} style={styles.photoPreview} />
                 ) : (
                   <>
-                    <MaterialCommunityIcons name="camera" size={24} color={ORANGE_PRIMARY} />
+                    <MaterialCommunityIcons name="camera" size={24} color={COLORS.primary} />
                     <Text style={styles.photoBtnText}>Profile Photo *</Text>
                   </>
                 )}
@@ -325,7 +323,7 @@ export default function OwnerDashboard() {
                    <Image source={{ uri: stallData.coverPhoto }} style={styles.photoPreview} />
                 ) : (
                   <>
-                    <MaterialCommunityIcons name="image" size={24} color={ORANGE_PRIMARY} />
+                    <MaterialCommunityIcons name="image" size={24} color={COLORS.primary} />
                     <Text style={styles.photoBtnText}>Cover Photo</Text>
                   </>
                 )}
@@ -334,8 +332,8 @@ export default function OwnerDashboard() {
 
             <Text style={styles.inputLabel}>University Approval Document <Text style={{ color: '#EE5253' }}>*</Text></Text>
             <TouchableOpacity style={styles.docUploadBtn} onPress={() => pickImage('doc')}>
-                <MaterialCommunityIcons name="file-pdf-box" size={32} color={ORANGE_PRIMARY} />
-                <Text style={[styles.docUploadBtnText, stallData.approvedDocument && { color: TEXT_DARK }]}>
+                <MaterialCommunityIcons name="file-pdf-box" size={32} color={COLORS.primary} />
+                <Text style={[styles.docUploadBtnText, stallData.approvedDocument && { color: COLORS.textDark }]}>
                     {stallData.approvedDocument ? "Document Selected ✓" : "Upload Approval Document"}
                 </Text>
             </TouchableOpacity>
@@ -347,7 +345,7 @@ export default function OwnerDashboard() {
                     setMapModalVisible(true);
                 }}
             >
-                <MaterialCommunityIcons name="map-marker-radius-outline" size={24} color={ORANGE_PRIMARY} />
+                <MaterialCommunityIcons name="map-marker-radius-outline" size={24} color={COLORS.primary} />
                 <View style={{ marginLeft: 12 }}>
                   <Text style={styles.locationPickerText}>Select location on map</Text>
                   <Text style={styles.locationPickerSubtext}>{region.latitude.toFixed(4)}, {region.longitude.toFixed(4)}</Text>
@@ -365,10 +363,10 @@ export default function OwnerDashboard() {
             <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
             <View style={styles.mapPickerHeader}>
                 <TouchableOpacity onPress={() => setMapModalVisible(false)} style={styles.backBtn}>
-                    <MaterialCommunityIcons name="arrow-left" size={28} color={TEXT_DARK} />
+                    <MaterialCommunityIcons name="arrow-left" size={28} color={COLORS.textDark} />
                 </TouchableOpacity>
                 <View style={styles.searchBarContainer}>
-                    <MaterialCommunityIcons name="magnify" size={20} color={TEXT_GRAY} />
+                    <MaterialCommunityIcons name="magnify" size={20} color={COLORS.textGray} />
                     <TextInput 
                     placeholder="Search location..." 
                     style={styles.searchBarInput}
@@ -377,7 +375,7 @@ export default function OwnerDashboard() {
                     onSubmitEditing={handleSearch}
                     returnKeyType="search"
                     />
-                    {isSearching && <ActivityIndicator size="small" color={ORANGE_PRIMARY} style={{ marginRight: 10 }} />}
+                    {isSearching && <ActivityIndicator size="small" color={COLORS.primary} style={{ marginRight: 10 }} />}
                 </View>
             </View>
 
@@ -390,7 +388,7 @@ export default function OwnerDashboard() {
                         style={styles.searchResultItem}
                         onPress={() => handleSelectLocation(item)}
                         >
-                        <MaterialCommunityIcons name="map-marker-outline" size={20} color={TEXT_GRAY} />
+                        <MaterialCommunityIcons name="map-marker-outline" size={20} color={COLORS.textGray} />
                         <Text style={styles.searchResultLabel} numberOfLines={1}>{item.display_name}</Text>
                         </TouchableOpacity>
                     ))}
@@ -405,13 +403,13 @@ export default function OwnerDashboard() {
                 onLocationSelect={(lat: number, lng: number) => setRegion({ ...region, latitude: lat, longitude: lng })} 
                 />
                 <View style={styles.mapCenterPointer} pointerEvents="none">
-                <MaterialCommunityIcons name="map-marker" size={40} color={ORANGE_PRIMARY} />
+                <MaterialCommunityIcons name="map-marker" size={40} color={COLORS.primary} />
                 </View>
             </View>
 
             <View style={styles.mapPickerFooter}>
                 <View style={styles.selectedCoords}>
-                <MaterialCommunityIcons name="crosshairs-gps" size={18} color={ORANGE_PRIMARY} />
+                <MaterialCommunityIcons name="crosshairs-gps" size={18} color={COLORS.primary} />
                 <Text style={styles.coordsText}>
                     {region.latitude.toFixed(6)}, {region.longitude.toFixed(6)}
                 </Text>
@@ -438,22 +436,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 20, backgroundColor: '#fff',
     borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
   },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', color: TEXT_DARK },
-  headerSubtitle: { fontSize: 13, color: TEXT_GRAY, marginTop: 2 },
+  headerTitle: { fontSize: 20, fontWeight: 'bold', color: COLORS.textDark },
+  headerSubtitle: { fontSize: 13, color: COLORS.textGray, marginTop: 2 },
   profileButton: { padding: 2 },
   profileIconBg: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#2D3436', justifyContent: 'center', alignItems: 'center' },
   scroll: { paddingBottom: 100 },
   content: { padding: 20 },
-  initialAddBtn: { backgroundColor: ORANGE_PRIMARY, paddingHorizontal: 30, paddingVertical: 15, borderRadius: 12, marginTop: 25 },
+  initialAddBtn: { backgroundColor: COLORS.primary, paddingHorizontal: 30, paddingVertical: 15, borderRadius: 12, marginTop: 25 },
   initialAddBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   pendingCard: {
     backgroundColor: '#fff', borderRadius: 20, padding: 35, alignItems: 'center',
     borderWidth: 1, borderColor: '#FFEAA7', elevation: 2, shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10,
   },
-  pendingIconBg: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#FFF5F2', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  pendingTitle: { fontSize: 20, fontWeight: 'bold', color: TEXT_DARK },
-  pendingText: { fontSize: 14, color: TEXT_GRAY, textAlign: 'center', marginTop: 10, lineHeight: 20 },
+  pendingIconBg: { width: 80, height: 80, borderRadius: 40, backgroundColor: COLORS.primarySoft, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  pendingTitle: { fontSize: 20, fontWeight: 'bold', color: COLORS.textDark },
+  pendingText: { fontSize: 14, color: COLORS.textGray, textAlign: 'center', marginTop: 10, lineHeight: 20 },
   pendingStatusBadge: { backgroundColor: '#FFEAA7', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, marginTop: 20 },
   pendingStatusText: { fontSize: 12, fontWeight: 'bold', color: '#D6A31E' },
   stallCard: {
@@ -461,38 +459,38 @@ const styles = StyleSheet.create({
     marginBottom: 16, alignItems: 'center', elevation: 3,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 10,
   },
-  stallIconContainer: { width: 60, height: 60, borderRadius: 14, backgroundColor: '#FFF5F2', justifyContent: 'center', alignItems: 'center', marginRight: 15 },
+  stallIconContainer: { width: 60, height: 60, borderRadius: 14, backgroundColor: COLORS.primarySoft, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
   stallIcon: { width: '100%', height: '100%', borderRadius: 14 },
   stallMainInfo: { flex: 1 },
-  stallName: { fontSize: 17, fontWeight: 'bold', color: TEXT_DARK },
-  stallLocation: { fontSize: 13, color: TEXT_GRAY, marginVertical: 4 },
+  stallName: { fontSize: 17, fontWeight: 'bold', color: COLORS.textDark },
+  stallLocation: { fontSize: 13, color: COLORS.textGray, marginVertical: 4 },
   statusRow: { flexDirection: 'row', alignItems: 'center' },
   statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
   statusLabel: { fontSize: 12, fontWeight: '600' },
   cardActions: { flexDirection: 'row', gap: 8 },
-  editBtn: { padding: 8, backgroundColor: '#FFF5F2', borderRadius: 8 },
+  editBtn: { padding: 8, backgroundColor: COLORS.primarySoft, borderRadius: 8 },
   fab: {
     position: 'absolute', bottom: 30, right: 25, width: 60, height: 60,
-    borderRadius: 30, backgroundColor: ORANGE_PRIMARY, justifyContent: 'center', alignItems: 'center',
-    elevation: 5, shadowColor: ORANGE_PRIMARY, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10,
+    borderRadius: 30, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center',
+    elevation: 5, shadowColor: COLORS.primaryDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10,
   },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', color: TEXT_DARK },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', color: COLORS.textDark },
   modalInput: { borderWidth: 1, borderColor: '#E1E4E8', borderRadius: 12, padding: 15, marginBottom: 20, fontSize: 16, backgroundColor: '#F9FAFB' },
-  inputLabel: { fontSize: 14, fontWeight: '600', color: TEXT_DARK, marginBottom: 8, marginLeft: 4 },
+  inputLabel: { fontSize: 14, fontWeight: '600', color: COLORS.textDark, marginBottom: 8, marginLeft: 4 },
   photoContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
   photoBtn: { flex: 0.48, height: 100, borderRadius: 12, borderWidth: 1, borderColor: '#E1E4E8', borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' },
-  photoBtnText: { fontSize: 12, fontWeight: '500', color: TEXT_GRAY, marginTop: 8 },
+  photoBtnText: { fontSize: 12, fontWeight: '500', color: COLORS.textGray, marginTop: 8 },
   photoPreview: { width: '100%', height: '100%', borderRadius: 12 },
   docUploadBtn: { flexDirection: 'row', alignItems: 'center', padding: 20, backgroundColor: '#F9FAFB', borderRadius: 12, borderWidth: 1, borderColor: '#E1E4E8', borderStyle: 'dashed', marginBottom: 20 },
-  docUploadBtnText: { fontSize: 14, color: TEXT_GRAY, marginLeft: 15, fontWeight: '500' },
+  docUploadBtnText: { fontSize: 14, color: COLORS.textGray, marginLeft: 15, fontWeight: '500' },
   locationPickerBtn: {
-    flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: '#FFF5F2', borderRadius: 14,
-    borderWidth: 1, borderColor: 'rgba(255, 111, 60, 0.2)', marginBottom: 25
+    flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: COLORS.primarySoft, borderRadius: 14,
+    borderWidth: 1, borderColor: 'rgba(15, 91, 87, 0.2)', marginBottom: 25
   },
-  locationPickerText: { fontSize: 16, fontWeight: '600', color: TEXT_DARK },
-  locationPickerSubtext: { fontSize: 12, color: TEXT_GRAY, marginTop: 2 },
-  saveBtn: { backgroundColor: ORANGE_PRIMARY, padding: 18, borderRadius: 12, alignItems: 'center' },
+  locationPickerText: { fontSize: 16, fontWeight: '600', color: COLORS.textDark },
+  locationPickerSubtext: { fontSize: 12, color: COLORS.textGray, marginTop: 2 },
+  saveBtn: { backgroundColor: COLORS.primary, padding: 18, borderRadius: 12, alignItems: 'center' },
   saveBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   mapPickerHeader: {
     flexDirection: 'row',
@@ -543,7 +541,7 @@ const styles = StyleSheet.create({
   searchResultLabel: {
     marginLeft: 12,
     fontSize: 14,
-    color: TEXT_DARK,
+    color: COLORS.textDark,
   },
   mapCenterPointer: {
     position: 'absolute',
@@ -567,11 +565,11 @@ const styles = StyleSheet.create({
   },
   coordsText: {
     marginLeft: 8,
-    color: TEXT_GRAY,
+    color: COLORS.textGray,
     fontSize: 13,
   },
   setLocBtn: {
-    backgroundColor: ORANGE_PRIMARY,
+    backgroundColor: COLORS.primary,
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
