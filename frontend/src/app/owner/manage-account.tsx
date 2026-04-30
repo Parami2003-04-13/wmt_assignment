@@ -15,7 +15,7 @@ import {
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import api, { getStoredUser, setStoredUser } from '../../services/api';
+import api, { clearAuthStorage, getStoredUser, setStoredUser } from '../../services/api';
 import { COLORS } from '../../theme/colors';
 
 const Text = (props: any) => (
@@ -25,10 +25,11 @@ const Text = (props: any) => (
   />
 );
 
-export default function OwnerEditAccount() {
+export default function OwnerManageAccount() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [userId, setUserId] = useState('');
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -89,6 +90,46 @@ export default function OwnerEditAccount() {
     }
   };
 
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete account',
+      'This removes your CampusBites partner account permanently, including all stalls you registered and their menu items.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () =>
+            Alert.alert(
+              'Are you sure?',
+              'There is no way to undo this. Your login will stop working immediately.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete my account',
+                  style: 'destructive',
+                  onPress: confirmDeleteAccount,
+                },
+              ]
+            ),
+        },
+      ]
+    );
+  };
+
+  const confirmDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      await api.delete(`/users/${userId}`);
+      await clearAuthStorage();
+      router.replace('/login');
+    } catch (e: any) {
+      Alert.alert('Delete failed', e.response?.data?.message || 'Could not delete account. Try again.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.loading}>
@@ -104,7 +145,7 @@ export default function OwnerEditAccount() {
         <TouchableOpacity style={styles.backHit} onPress={() => router.back()} hitSlop={12}>
           <MaterialCommunityIcons name="arrow-left" size={26} color={COLORS.textDark} />
         </TouchableOpacity>
-        <Text style={styles.topTitle}>Edit account</Text>
+        <Text style={styles.topTitle}>Manage account</Text>
         <View style={{ width: 44 }} />
       </View>
 
@@ -137,12 +178,26 @@ export default function OwnerEditAccount() {
             style={[styles.saveBtn, saving && { opacity: 0.7 }]}
             onPress={handleSave}
             disabled={saving}>
-            {saving ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.saveBtnText}>Save changes</Text>
-            )}
+            {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save changes</Text>}
           </TouchableOpacity>
+
+          <View style={styles.dangerSection}>
+            <Text style={styles.dangerTitle}>Danger zone</Text>
+            <Text style={styles.dangerBody}>Deleting removes your stalls and menus from CampusBites. This cannot be undone.</Text>
+            <TouchableOpacity
+              style={[styles.deleteBtn, (deleting || saving) && { opacity: 0.65 }]}
+              onPress={handleDeleteAccount}
+              disabled={deleting || saving}>
+              {deleting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <MaterialCommunityIcons name="account-remove-outline" size={22} color="#fff" />
+                  <Text style={styles.deleteBtnText}>Delete account</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -164,7 +219,7 @@ const styles = StyleSheet.create({
   },
   backHit: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
   topTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textDark },
-  scroll: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 40 },
+  scroll: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 48 },
   label: { fontSize: 13, fontWeight: '700', color: COLORS.textGray },
   labelSp: { marginTop: 20 },
   input: {
@@ -186,6 +241,42 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 14,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
   },
   saveBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
+
+  dangerSection: {
+    marginTop: 40,
+    padding: 18,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F5C6C6',
+    backgroundColor: '#FFF5F5',
+  },
+  dangerTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.danger,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  dangerBody: {
+    marginTop: 8,
+    fontSize: 14,
+    color: COLORS.textGray,
+    lineHeight: 20,
+  },
+  deleteBtn: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: COLORS.danger,
+  },
+  deleteBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
 });

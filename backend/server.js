@@ -224,6 +224,26 @@ app.patch('/api/users/:id', async (req, res) => {
   }
 });
 
+app.delete('/api/users/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid user id' });
+    }
+
+    const stallDocs = await Stall.find({ manager: id }).select('_id');
+    const stallIds = stallDocs.map((s) => s._id);
+    await Meal.deleteMany({ stall: { $in: stallIds } });
+    await Stall.deleteMany({ manager: id });
+    await User.findByIdAndDelete(id);
+
+    res.json({ message: 'Account and related stall data deleted' });
+  } catch (err) {
+    console.error('User delete error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // --- Stall Routes ---
 
 // Create Stall
@@ -331,6 +351,43 @@ app.patch('/api/stalls/:id/approve', async (req, res) => {
   }
 });
 
+// Update stall details (e.g. stall manager corrects phone / address before or after approval)
+app.patch('/api/stalls/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid stall id' });
+    }
+
+    const update = {};
+    if (typeof req.body.name === 'string' && req.body.name.trim()) update.name = req.body.name.trim();
+    if (typeof req.body.address === 'string' && req.body.address.trim()) update.address = req.body.address.trim();
+    if (typeof req.body.phone === 'string' && req.body.phone.trim()) update.phone = req.body.phone.trim();
+    if (typeof req.body.description === 'string') update.description = req.body.description;
+    if (typeof req.body.latitude === 'number' && !Number.isNaN(req.body.latitude)) update.latitude = req.body.latitude;
+    if (typeof req.body.longitude === 'number' && !Number.isNaN(req.body.longitude)) update.longitude = req.body.longitude;
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ message: 'No valid fields to update' });
+    }
+
+    const stall = await Stall.findByIdAndUpdate(id, { $set: update }, { new: true, runValidators: true }).populate(
+      'manager',
+      'name email nic'
+    );
+
+    if (!stall) return res.status(404).json({ message: 'Stall not found' });
+    res.json(stall);
+  } catch (err) {
+    console.error('Stall update error:', err);
+    if (err.name === 'ValidationError' && err.errors) {
+      const first = Object.values(err.errors)[0];
+      return res.status(400).json({ message: typeof first?.message === 'string' ? first.message : 'Invalid data.' });
+    }
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Delete Stall (Reject)
 app.delete('/api/stalls/:id', async (req, res) => {
   try {
@@ -341,6 +398,7 @@ app.delete('/api/stalls/:id', async (req, res) => {
       sendEmailInBackground(stall.manager.email, `Registration Rejected: ${stall.name}`, emailContent);
     }
 
+    await Meal.deleteMany({ stall: req.params.id });
     await Stall.findByIdAndDelete(req.params.id);
     res.json({ message: 'Stall deleted successfully' });
   } catch (err) {
