@@ -295,6 +295,12 @@ app.delete('/api/users/:id', async (req, res) => {
   }
 });
 
+// Import Review Routes
+const reviewRoutes = require('./routes/reviewRoutes');
+
+// Use Review Routes
+app.use('/api/reviews', reviewRoutes);
+
 // --- Stall Routes ---
 
 // Create Stall
