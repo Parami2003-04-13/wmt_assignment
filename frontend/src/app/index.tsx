@@ -1,10 +1,9 @@
 import React, { useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
 import { Text } from '@ant-design/react-native';
-
-const ORANGE_PRIMARY = '#FF8C00';
+import { getStoredToken, getStoredUser } from '../services/api';
+import { COLORS } from '../theme/colors';
 
 export default function Initializer() {
   const router = useRouter();
@@ -12,25 +11,23 @@ export default function Initializer() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const token = await SecureStore.getItemAsync('token');
-        const userStr = await SecureStore.getItemAsync('user');
+        const token = await getStoredToken();
+        const user = await getStoredUser();
 
-        if (!token || !userStr) {
-          // No token, redirect to login after a small delay
-          setTimeout(() => router.replace('/login'), 1500);
+        if (!token || !user) {
+          router.replace('/login');
           return;
         }
 
-        const user = JSON.parse(userStr);
-        
-        // Brief delay for splash effect
-        setTimeout(() => {
-          if (user.role === 'stall manager') {
-            router.replace('/admin/stall_manager_dashboard');
-          } else {
-            router.replace('/user/dashboard');
-          }
-        }, 1500);
+        if (user.role === 'stall manager') {
+          router.replace('/admin/admin_approval_dashboard');
+        } else if (user.role === 'stall owner') {
+          router.replace('/owner/owner_dashboard');
+        } else if (user.role === 'stall staff' && user.staffStallId) {
+          router.replace(`/owner/${user.staffStallId}`);
+        } else {
+          router.replace('/user/dashboard');
+        }
 
       } catch (e) {
         console.error('Auth check error', e);
@@ -44,7 +41,7 @@ export default function Initializer() {
   return (
     <View style={styles.container}>
       <Text style={styles.appTitle}>CampusBites</Text>
-      <ActivityIndicator size="large" color={ORANGE_PRIMARY} />
+      <ActivityIndicator size="large" color={COLORS.primary} />
       <Text style={styles.loadingText}>Loading your experience...</Text>
     </View>
   );
@@ -60,7 +57,7 @@ const styles = StyleSheet.create({
   appTitle: {
     fontSize: 42,
     fontWeight: 'bold',
-    color: ORANGE_PRIMARY,
+    color: COLORS.primary,
     marginBottom: 20,
   },
   loadingText: {

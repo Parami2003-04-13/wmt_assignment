@@ -14,6 +14,7 @@
     "@ant-design/icons-react-native": "^2.3.2",
     "@ant-design/react-native": "^5.4.3",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/datetimepicker": "^8.6.0",
     "@react-navigation/bottom-tabs": "^7.15.5",
     "@react-navigation/elements": "^2.9.10",
     "@react-navigation/native": "^7.1.33",
@@ -46,11 +47,13 @@
     "react-native-safe-area-context": "~5.6.2",
     "react-native-screens": "~4.23.0",
     "react-native-web": "~0.21.0",
-    "react-native-webview": "^13.16.1",
+    "react-native-webview": "^13.16.0",
     "react-native-worklets": "0.7.2"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "55.0.1-canary-20260328-2049187",
     "typescript": "~5.9.2"
   },
   "private": true

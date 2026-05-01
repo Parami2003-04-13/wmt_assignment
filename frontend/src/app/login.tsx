@@ -14,12 +14,8 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons'; 
-import api, { setAuthToken } from '../services/api';
-import * as SecureStore from 'expo-secure-store';
-
-const ORANGE_PRIMARY = '#FF6F3C';
-const TEXT_DARK = '#2D3436';
-const TEXT_GRAY = '#636E72';
+import api, { API_BASE_URL, clearAuthStorage, setAuthToken, setStoredUser } from '../services/api';
+import { COLORS } from '../theme/colors';
 
 const Text = (props: any) => <RNText {...props} style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]} />;
 
@@ -40,20 +36,43 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      const response = await api.post('/auth/login', { email, password });
+      const response = await api.post('/auth/login', {
+        email: email.trim().toLowerCase(),
+        password
+      });
       const { token, user } = response.data;
       await setAuthToken(token);
-      await SecureStore.setItemAsync('user', JSON.stringify(user));
+      await setStoredUser(user);
       
       if (user.role === 'stall manager') {
         router.replace('/admin/admin_approval_dashboard');
       } else if (user.role === 'stall owner') {
         router.replace('/owner/owner_dashboard');
+      } else if (user.role === 'stall staff') {
+        const sid = user.staffStallId;
+        if (sid) {
+          router.replace(`/owner/${sid}`);
+        } else {
+          await clearAuthStorage();
+          Alert.alert('Staff account', 'Your account is not linked to a stall. Ask the owner to add you again.');
+          router.replace('/login');
+        }
       } else {
         router.replace('/user/dashboard');
       }
     } catch (error: any) {
-      Alert.alert('Login Failed', error.response?.data?.message || 'Check your internet or credentials.');
+      const message = error.response?.data?.message
+        || (error.request ? `Cannot reach backend at ${API_BASE_URL}. Open this URL from your phone/browser to check the connection.` : error.message)
+        || 'Check your internet or credentials.';
+
+      console.error('Login failed:', {
+        baseURL: API_BASE_URL,
+        code: error.code,
+        message: error.message,
+        status: error.response?.status,
+        response: error.response?.data,
+      });
+      Alert.alert('Login Failed', message);
     } finally {
       setLoading(false);
     }
@@ -135,7 +154,7 @@ export default function LoginScreen() {
           <View style={{ height: 2, backgroundColor: '#E1E4E8', marginVertical: 30, opacity: 0.5 }} />
 
           <TouchableOpacity 
-            style={[styles.signupBtnOutline, { backgroundColor: ORANGE_PRIMARY, borderColor: ORANGE_PRIMARY, marginBottom: 12 }]} 
+            style={[styles.signupBtnOutline, { backgroundColor: COLORS.primary, borderColor: COLORS.primary, marginBottom: 12 }]} 
             onPress={() => router.push('/signup')}
           >
             <Text style={[styles.signupBtnText, { color: '#fff' }]}>Sign Up as Student</Text>
@@ -170,12 +189,12 @@ const styles = StyleSheet.create({
   logoContainer: {
     width: 100,
     height: 100,
-    backgroundColor: ORANGE_PRIMARY,
+    backgroundColor: COLORS.primary,
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
-    shadowColor: ORANGE_PRIMARY,
+    shadowColor: COLORS.primaryDark,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
     shadowRadius: 15,
@@ -189,11 +208,11 @@ const styles = StyleSheet.create({
   appTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: TEXT_DARK,
+    color: COLORS.textDark,
   },
   subtitle: {
     fontSize: 14,
-    color: TEXT_GRAY,
+    color: COLORS.textGray,
     marginTop: 4,
   },
   form: {
@@ -205,7 +224,7 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: TEXT_DARK,
+    color: COLORS.textDark,
     marginBottom: 8,
   },
   inputRow: {
@@ -214,7 +233,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E1E4E8',
+    borderColor: COLORS.border,
     paddingHorizontal: 15,
     height: 56,
   },
@@ -224,17 +243,17 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 15,
-    color: TEXT_DARK,
+    color: COLORS.textDark,
     height: '100%',
   },
   loginBtn: {
-    backgroundColor: ORANGE_PRIMARY,
+    backgroundColor: COLORS.primary,
     height: 56,
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 10,
-    shadowColor: ORANGE_PRIMARY,
+    shadowColor: COLORS.primaryDark,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 10,
@@ -250,7 +269,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   forgotText: {
-    color: ORANGE_PRIMARY,
+    color: COLORS.primary,
     fontWeight: '600',
     fontSize: 14,
   },
@@ -258,12 +277,12 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 14,
     borderWidth: 2,
-    borderColor: ORANGE_PRIMARY,
+    borderColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   signupBtnText: {
-    color: ORANGE_PRIMARY,
+    color: COLORS.primary,
     fontSize: 16,
     fontWeight: 'bold',
   },
