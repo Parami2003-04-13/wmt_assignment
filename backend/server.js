@@ -1021,7 +1021,12 @@ app.get('/api/tickets/unread-count/staff/:stallId', async (req, res) => {
 // Vercel serverless invokes this file as a module — do not bind a listener there.
 module.exports = app;
 if (!process.env.VERCEL && require.main === module) {
-  app.listen(PORT, '0.0.0.0', () => {
+  app.listen(PORT, '0.0.0.0', async () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
+    try {
+      await connectDB();
+    } catch (err) {
+      console.error('Initial database connection failed:', err);
+    }
   });
 }

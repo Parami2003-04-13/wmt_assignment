@@ -77,10 +77,23 @@ export default function MealDetailsModal({ visible, onClose, meal }: MealDetails
               <Text style={styles.sectionTitle}>Description</Text>
               <Text style={styles.description}>{meal.description}</Text>
 
-              <TouchableOpacity style={styles.orderBtn} onPress={handleAddToCart}>
-                <MaterialCommunityIcons name="cart-outline" size={22} color="#fff" />
-                <Text style={styles.orderBtnText}>Add to cart</Text>
-              </TouchableOpacity>
+              <View style={styles.actionRow}>
+                <TouchableOpacity style={styles.orderBtn} onPress={handleAddToCart}>
+                  <MaterialCommunityIcons name="cart-outline" size={22} color="#fff" />
+                  <Text style={styles.orderBtnText}>Add to cart</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={styles.reviewBtn} 
+                  onPress={() => {
+                    onClose();
+                    router.push({ pathname: '/user/add-review', params: { mealId: meal._id } });
+                  }}
+                > 
+                  <MaterialCommunityIcons name="star-outline" size={22} color={PRIMARY} />
+                  <Text style={styles.reviewBtnText}>Add Review</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </ScrollView>
         </View>
@@ -156,12 +169,18 @@ const styles = StyleSheet.create({
   qtyText: { fontSize: 13, color: PRIMARY, fontWeight: '700', marginLeft: 6 },
   sectionTitle: { fontSize: 16, fontWeight: 'bold', color: TEXT_DARK, marginBottom: 10 },
   description: { fontSize: 15, color: TEXT_GRAY, lineHeight: 22, marginBottom: 30 },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   orderBtn: {
+    flex: 1,
     backgroundColor: PRIMARY,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 18,
+    padding: 16,
     borderRadius: 16,
     elevation: 3,
     shadowColor: PRIMARY_DARK,
@@ -170,4 +189,21 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
   },
   orderBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16, marginLeft: 10 },
+  reviewBtn: {
+    flex: 1,
+    backgroundColor: PRIMARY_SOFT,
+    flexDirection: 'row',
+    padding: 16,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: PRIMARY,
+  },
+  reviewBtnText: {
+    color: PRIMARY,
+    fontWeight: 'bold',
+    fontSize: 16,
+    marginLeft: 8,
+  },
 });

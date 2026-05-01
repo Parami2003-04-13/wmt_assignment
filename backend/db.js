@@ -22,13 +22,17 @@ async function connectDB() {
   if (!cached.promise) {
     cached.promise = mongoose
       .connect(mongoUri, {
+        
         bufferCommands: false,
         maxPoolSize: 10,
         serverSelectionTimeoutMS: 15000,
         socketTimeoutMS: 45000,
         family: 4,
       })
-      .then(() => mongoose.connection)
+      .then(() => {
+        console.log('Connected to MongoDB');
+        return mongoose.connection;
+      })
       .catch((err) => {
         cached.promise = null;
         throw err;
