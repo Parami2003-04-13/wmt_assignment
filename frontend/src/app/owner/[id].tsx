@@ -21,6 +21,7 @@ import api, { clearAuthStorage, getStoredUser } from '../../services/api';
 import MealModal from '../../components/meal-modal';
 import StallEditModal from '../../components/stall-edit-modal';
 import AddStaffModal from '../../components/add-staff-modal';
+import StaffTicketModal from '../../components/staff-ticket-modal';
 import { COLORS } from '../../theme/colors';
 
 const { width } = Dimensions.get('window');
@@ -53,7 +54,9 @@ export default function StallManagement() {
   const [selectedMeal, setSelectedMeal] = useState<any>(null);
   const [stallEditVisible, setStallEditVisible] = useState(false);
   const [addStaffVisible, setAddStaffVisible] = useState(false);
+  const [ticketModalVisible, setTicketModalVisible] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
+  const [unreadTickets, setUnreadTickets] = useState(0);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   const stallId = Array.isArray(id) ? id[0] : id;
@@ -80,11 +83,22 @@ export default function StallManagement() {
     }
   }, [stallId]);
 
+  const fetchUnread = useCallback(async () => {
+    if (!stallId) return;
+    try {
+      const response = await api.get(`/tickets/unread-count/staff/${stallId}`);
+      setUnreadTickets(response.data.count);
+    } catch (err) {
+      console.error('Fetch unread error');
+    }
+  }, [stallId]);
+
   useEffect(() => {
     setLoading(true);
     fetchStallDetails();
     fetchMeals();
-  }, [stallId, fetchStallDetails, fetchMeals]);
+    fetchUnread();
+  }, [stallId, fetchStallDetails, fetchMeals, fetchUnread]);
 
   useEffect(() => {
     let alive = true;
@@ -416,13 +430,26 @@ export default function StallManagement() {
                 <MaterialCommunityIcons name="receipt-text-outline" size={18} color={COLORS.primary} />
                 <Text style={styles.menuActionText}>Orders</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.menuActionBtn}
-                activeOpacity={0.85}
-                onPress={() => Alert.alert('Coming soon', 'Support chat will be available in a future update.')}>
-                <MaterialCommunityIcons name="lifebuoy" size={18} color={COLORS.primary} />
-                <Text style={styles.menuActionText}>Support</Text>
-              </TouchableOpacity>
+              {isStaffViewer && (
+                <TouchableOpacity
+                  style={styles.menuActionBtn}
+                  activeOpacity={0.85}
+                  onPress={async () => {
+                    setTicketModalVisible(true);
+                    if (unreadTickets > 0) {
+                      try {
+                        await api.put(`/tickets/mark-seen/staff/${stallId}`);
+                        setUnreadTickets(0);
+                      } catch (e) {}
+                    }
+                  }}>
+                  <View style={{ position: 'relative' }}>
+                    <MaterialCommunityIcons name="message-reply-text-outline" size={18} color={COLORS.primary} />
+                    {unreadTickets > 0 && <View style={styles.unreadDot} />}
+                  </View>
+                  <Text style={styles.menuActionText}>Reply</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
 
@@ -510,13 +537,13 @@ export default function StallManagement() {
         initial={
           stall
             ? {
-                phone: stall.phone ?? '',
-                description: stall.description ?? '',
-                openingTime: stall.openingTime ?? '',
-                closingTime: stall.closingTime ?? '',
-                profilePhoto: stall.profilePhoto ?? '',
-                coverPhoto: stall.coverPhoto ?? '',
-              }
+              phone: stall.phone ?? '',
+              description: stall.description ?? '',
+              openingTime: stall.openingTime ?? '',
+              closingTime: stall.closingTime ?? '',
+              profilePhoto: stall.profilePhoto ?? '',
+              coverPhoto: stall.coverPhoto ?? '',
+            }
             : null
         }
       />
@@ -525,7 +552,12 @@ export default function StallManagement() {
         visible={addStaffVisible}
         stallId={stallId ?? null}
         onClose={() => setAddStaffVisible(false)}
-        onChanged={() => {}}
+        onChanged={() => { }}
+      />
+      <StaffTicketModal
+        visible={ticketModalVisible}
+        onClose={() => setTicketModalVisible(false)}
+        stallId={stallId as string}
       />
     </View>
   );
@@ -781,13 +813,15 @@ const styles = StyleSheet.create({
 
   menuSectionHeader: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
+    alignItems: 'flex-start',
     marginBottom: 12,
+    gap: 12,
   },
   menuTitle: { fontSize: 20, fontWeight: '900', color: COLORS.textDark },
   menuSubtitle: { marginTop: 4, fontSize: 13, color: COLORS.textGray },
-  menuActions: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  menuActions: { flexDirection: 'row', gap: 10, alignItems: 'center', flexWrap: 'wrap' },
   menuActionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -800,6 +834,17 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   menuActionText: { fontSize: 13, fontWeight: '800', color: COLORS.primary },
+  unreadDot: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.danger,
+    borderWidth: 1.5,
+    borderColor: '#fff',
+  },
 
   mealsGrid: {
     flexDirection: 'row',
