@@ -35,6 +35,7 @@ export default function MealModal({ visible, onClose, onSave, stallId, meal }: M
     description: '',
     price: '',
     quantity: '',
+    category: '',
     image: null as string | null,
   });
 
@@ -45,6 +46,7 @@ export default function MealModal({ visible, onClose, onSave, stallId, meal }: M
         description: meal.description,
         price: meal.price.toString(),
         quantity: meal.quantity.toString(),
+        category: meal.category || '',
         image: meal.image || null,
       });
     } else {
@@ -53,6 +55,7 @@ export default function MealModal({ visible, onClose, onSave, stallId, meal }: M
         description: '',
         price: '',
         quantity: '',
+        category: '',
         image: null,
       });
     }
@@ -77,8 +80,8 @@ export default function MealModal({ visible, onClose, onSave, stallId, meal }: M
   };
 
   const handleSave = async () => {
-    if (!formData.name || !formData.description || !formData.price || !formData.quantity) {
-      Alert.alert('Error', 'Please fill in all mandatory fields.');
+    if (!formData.name || !formData.description || !formData.price || !formData.quantity || !formData.category) {
+      Alert.alert('Error', 'Please fill in all mandatory fields, including category.');
       return;
     }
 
@@ -95,6 +98,7 @@ export default function MealModal({ visible, onClose, onSave, stallId, meal }: M
         description: formData.description,
         price: parseFloat(formData.price),
         quantity: parseInt(formData.quantity, 10),
+        category: formData.category,
         image: photo,
         stallId,
       };
@@ -187,6 +191,21 @@ export default function MealModal({ visible, onClose, onSave, stallId, meal }: M
                 <MaterialCommunityIcons key={i} name="star" size={18} color={COLORS.primary} />
               ))}
             </View>
+          </View>
+
+          <View style={styles.categoryRow}>
+            <Text style={styles.fieldLabel}>Category</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
+              {['Breakfast', 'Lunch', 'Snacks', 'Drinks'].map((cat) => (
+                <TouchableOpacity
+                  key={cat}
+                  style={[styles.categoryChip, formData.category === cat && styles.categoryChipActive]}
+                  onPress={() => setFormData({ ...formData, category: cat })}
+                >
+                  <Text style={[styles.categoryChipText, formData.category === cat && styles.categoryChipTextActive]}>{cat}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
 
           <View style={styles.descCard}>
@@ -301,6 +320,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   starsRow: { flexDirection: 'row', gap: 4, opacity: 0.9 },
+
+  categoryRow: { marginTop: 14 },
+  categoryScroll: { marginLeft: -20, paddingLeft: 20 },
+  categoryChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, marginRight: 10, backgroundColor: COLORS.surface },
+  categoryChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  categoryChipText: { fontSize: 13, fontWeight: '700', color: COLORS.textGray },
+  categoryChipTextActive: { color: '#fff' },
 
   descCard: {
     marginTop: 14,

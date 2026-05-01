@@ -5,6 +5,7 @@ const MealSchema = new mongoose.Schema({
   description: { type: String, required: true },
   price: { type: Number, required: true },
   quantity: { type: Number, required: true },
+  category: { type: String, enum: ['Breakfast', 'Lunch', 'Snacks', 'Drinks'], required: false },
   image: { type: String, required: false }, // Enforced required in POST/PATCH handlers (legacy rows may be empty)
   stall: { type: mongoose.Schema.Types.ObjectId, ref: 'Stall', required: true },
   createdAt: { type: Date, default: Date.now }
