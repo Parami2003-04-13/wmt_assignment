@@ -38,6 +38,7 @@ export default function UserStallDetails() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedMeal, setSelectedMeal] = useState<any>(null);
   const [mealVisible, setMealVisible] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const fetchAll = useCallback(async () => {
     if (!stallId) return;
@@ -83,10 +84,13 @@ export default function UserStallDetails() {
   const profileUri = stall?.profilePhoto || 'https://via.placeholder.com/150';
 
   const sortedMeals = useMemo(() => {
-    const m = [...meals];
+    let m = [...meals];
+    if (selectedCategory) {
+      m = m.filter(meal => meal.category === selectedCategory);
+    }
     m.sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || '')));
     return m;
-  }, [meals]);
+  }, [meals, selectedCategory]);
 
   const openMeal = (meal: any) => {
     setSelectedMeal(meal);
@@ -172,6 +176,21 @@ export default function UserStallDetails() {
               <Text style={styles.menuSubtitle}>{sortedMeals.length} offered</Text>
             </View>
           </View>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoriesScroll}>
+            {['Breakfast', 'Lunch', 'Snacks', 'Drinks'].map((cat) => {
+              const isActive = selectedCategory === cat;
+              return (
+                <Pressable
+                  key={cat}
+                  style={[styles.categoryChip, isActive && styles.categoryChipActive]}
+                  onPress={() => setSelectedCategory(isActive ? null : cat)}
+                >
+                  <Text style={[styles.categoryText, isActive && styles.categoryTextActive]}>{cat}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
 
           <View style={styles.mealsList}>
             {sortedMeals.map((meal) => (
@@ -272,6 +291,13 @@ const styles = StyleSheet.create({
   menuHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 10 },
   menuTitle: { fontSize: 20, fontWeight: '900', color: COLORS.textDark },
   menuSubtitle: { marginTop: 4, fontSize: 13, color: COLORS.textGray },
+  
+  categoriesScroll: { marginBottom: 16, marginLeft: -20, paddingLeft: 20 },
+  categoryChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, marginRight: 10, backgroundColor: COLORS.surface },
+  categoryChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  categoryText: { fontSize: 13, fontWeight: '700', color: COLORS.textGray },
+  categoryTextActive: { color: '#fff' },
+
   mealsList: { gap: 10 },
 
   mealRow: {

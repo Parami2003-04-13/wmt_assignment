@@ -35,6 +35,7 @@ export default function UserDashboard() {
   const insets = useSafeAreaInsets();
   const [userName, setUserName] = useState('');
   const [query, setQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -123,6 +124,7 @@ export default function UserDashboard() {
   const filteredMeals = useMemo(
     () =>
       mealsFromApprovedStalls.filter((m: any) => {
+        if (selectedCategory && m.category !== selectedCategory) return false;
         if (!normalizedQuery) return true;
         const sid = getMealStallId(m);
         const st = sid ? stallById[String(sid)] : null;
@@ -131,7 +133,7 @@ export default function UserDashboard() {
         const bundle = `${m?.name ?? ''} ${m?.description ?? ''} ${String(m?.price ?? '')} ${String(m?.quantity ?? '')} ${st?.name ?? ''} ${st?.address ?? ''} ${st?.phone ?? ''} ${populated}`;
         return bundle.toLowerCase().includes(normalizedQuery);
       }),
-    [mealsFromApprovedStalls, normalizedQuery, stallById],
+    [mealsFromApprovedStalls, normalizedQuery, stallById, selectedCategory],
   );
 
   // Helper text component
@@ -210,15 +212,22 @@ export default function UserDashboard() {
               { label: 'Lunch', icon: 'food-outline' },
               { label: 'Snacks', icon: 'cookie-outline' },
               { label: 'Drinks', icon: 'cup-outline' },
-            ].map((c) => (
-              <TouchableOpacity key={c.label} style={styles.categoryChip} accessibilityLabel={c.label}>
-                <View style={styles.categoryIcon}>
-                  <MaterialCommunityIcons name={c.icon as any} size={18} color={PRIMARY} />
-                </View>
-                <Text style={styles.categoryText}>{c.label}</Text>
-                <MaterialCommunityIcons name="chevron-right" size={18} color={TEXT_GRAY} />
-              </TouchableOpacity>
-            ))}
+            ].map((c) => {
+              const isActive = selectedCategory === c.label;
+              return (
+                <TouchableOpacity 
+                  key={c.label} 
+                  style={[styles.categoryChip, isActive && styles.categoryChipActive]} 
+                  onPress={() => setSelectedCategory(isActive ? null : c.label)}
+                  accessibilityLabel={c.label}
+                >
+                  <View style={[styles.categoryIcon, isActive && styles.categoryIconActive]}>
+                    <MaterialCommunityIcons name={c.icon as any} size={18} color={isActive ? '#fff' : PRIMARY} />
+                  </View>
+                  <Text style={[styles.categoryText, isActive && styles.categoryTextActive]}>{c.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
 
           {/* Popular stalls (real from DB) */}
@@ -482,6 +491,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(15,91,87,0.10)',
   },
+  categoryChipActive: {
+    backgroundColor: PRIMARY,
+    borderColor: PRIMARY,
+  },
   categoryIcon: {
     width: 34,
     height: 34,
@@ -491,11 +504,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 10,
   },
+  categoryIconActive: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
   categoryText: {
     fontSize: 13,
     fontWeight: '800',
     color: TEXT_DARK,
-    marginRight: 10,
+  },
+  categoryTextActive: {
+    color: '#fff',
   },
   stallsScroll: {
     marginLeft: -20,
@@ -612,7 +630,7 @@ const styles = StyleSheet.create({
     paddingLeft: 20,
   },
   mealCard: {
-    width: 160,
+    width: 260,
     backgroundColor: SURFACE,
     borderRadius: 16,
     marginRight: 15,
@@ -623,13 +641,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 10,
     marginBottom: 10,
+    flexDirection: 'row',
   },
   mealImage: {
-    width: '100%',
+    width: 90,
     height: 100,
   },
   mealInfo: {
+    flex: 1,
     padding: 12,
+    justifyContent: 'center',
   },
   mealName: {
     fontSize: 14,
