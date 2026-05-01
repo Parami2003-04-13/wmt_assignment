@@ -19,6 +19,7 @@ import MealDetailsModal from '../../components/meal-details-modal';
 import api, { getStoredUser } from '../../services/api';
 // Using standard Icons for 100% stability
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useCart } from '../../context/CartContext';
 
 const PRIMARY = '#0F5B57';
 const PRIMARY_DARK = '#0B3F3C';
@@ -35,7 +36,12 @@ export default function UserDashboard() {
   const insets = useSafeAreaInsets();
   const [userName, setUserName] = useState('');
   const [query, setQuery] = useState('');
+<<<<<<< Meal1
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+=======
+  const { cartItems } = useCart();
+  const cartItemCount = cartItems.reduce((total, item) => total + item.quantity, 0);
+>>>>>>> master
 
   useEffect(() => {
     let isMounted = true;
@@ -325,6 +331,17 @@ export default function UserDashboard() {
         <TouchableOpacity style={styles.tabItem}>
           <MaterialCommunityIcons name="history" size={24} color={TEXT_GRAY} />
           <Text style={styles.tabLabel}>History</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tabItem} onPress={() => router.push('/user/cart')} accessibilityLabel="Cart">
+          <View>
+            <MaterialCommunityIcons name="cart-outline" size={24} color={TEXT_GRAY} />
+            {cartItemCount > 0 && (
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>{cartItemCount}</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.tabLabel}>Cart</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tabItem} onPress={() => router.push('/user/profile')} accessibilityLabel="Profile">
           <MaterialCommunityIcons name="account-outline" size={24} color={TEXT_GRAY} />
@@ -617,6 +634,24 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: '600',
     color: TEXT_GRAY,
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    backgroundColor: '#FF4757',
+    borderRadius: 10,
+    width: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: SURFACE,
+  },
+  cartBadgeText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: 'bold',
   },
   mealsHeader: {
     flexDirection: 'row',

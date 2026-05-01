@@ -40,6 +40,7 @@ async function stallCanManageMeals(stallId, actingUserId, actingRole, staffStall
 }
 
 const Meal = require('./models/Meal');
+const { connectDB } = require('./db');
 const {
   normalizeTimeInput,
   deriveStatusFromHours,
@@ -83,12 +84,29 @@ const mongoUri = process.env.MONGO_URI;
 
 if (!mongoUri) {
   console.error('MONGO_URI is not defined in .env');
-  process.exit(1);
+  // Avoid process.exit on Vercel — it marks every invocation as FUNCTION_INVOCATION_FAILED.
+  if (!process.env.VERCEL) {
+    process.exit(1);
+  }
 }
 
-mongoose.connect(mongoUri)
-  .then(() => console.log('Successfully connected to MongoDB Atlas!'))
-  .catch((err) => console.error('Error connecting to MongoDB:', err));
+// Await connect per request — avoids flaky parallel connects & stale pools on serverless (Vercel).
+app.use(async (req, res, next) => {
+  const url = req.originalUrl || '';
+  if (url === '/api/health' || url.startsWith('/api/health?')) {
+    return next();
+  }
+  if (!url.startsWith('/api')) {
+    return next();
+  }
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error('Database connection error:', err);
+    res.status(503).json({ message: 'Database temporarily unavailable' });
+  }
+});
 
 // --- Auth Routes ---
 
@@ -294,6 +312,12 @@ app.delete('/api/users/:id', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
+// Import Review Routes
+const reviewRoutes = require('./routes/reviewRoutes');
+
+// Use Review Routes
+app.use('/api/reviews', reviewRoutes);
 
 // --- Stall Routes ---
 
@@ -802,6 +826,202 @@ app.get('/api/meals', async (req, res) => {
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on http://0.0.0.0:${PORT}`);
+const Ticket = require('./models/Ticket');
+
+app.post('/api/tickets', async (req, res) => {
+  const { stallId, title, description, screenshot } = req.body;
+  if (!stallId || !title || !description || description.length < 10) {
+    return res.status(400).json({ message: 'Title and description (min 10 chars) are required.' });
+  }
+  try {
+    const auth = await authUserFromRequest(req);
+    if (!auth) return res.status(401).json({ message: 'Unauthorized' });
+
+    const newTicket = new Ticket({
+      stall: stallId,
+      user: auth._id,
+      title,
+      description,
+      screenshot: screenshot || '',
+      staffHasSeenTicket: false,
+      userHasSeenReply: true
+    });
+    await newTicket.save();
+    res.status(201).json(newTicket);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
 });
+
+app.get('/api/tickets/user/:stallId', async (req, res) => {
+  try {
+    const auth = await authUserFromRequest(req);
+    if (!auth) return res.status(401).json({ message: 'Unauthorized' });
+
+    const tickets = await Ticket.find({ stall: req.params.stallId, user: auth._id }).sort({ createdAt: -1 });
+    res.json(tickets);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+app.put('/api/tickets/:id', async (req, res) => {
+  try {
+    const auth = await authUserFromRequest(req);
+    if (!auth) return res.status(401).json({ message: 'Unauthorized' });
+
+    const ticket = await Ticket.findById(req.params.id);
+    if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+    if (ticket.user.toString() !== auth._id.toString()) return res.status(403).json({ message: 'Not your ticket' });
+    if (ticket.reply) return res.status(400).json({ message: 'Cannot update a ticket that has a reply' });
+
+    const { title, description, screenshot } = req.body;
+    let edited = false;
+    if (title && title !== ticket.title) { ticket.title = title; edited = true; }
+    if (description && description.length >= 10 && description !== ticket.description) { ticket.description = description; edited = true; }
+    if (screenshot !== undefined && screenshot !== ticket.screenshot) { ticket.screenshot = screenshot; edited = true; }
+    
+    if (edited) {
+      ticket.userEditedAt = new Date();
+      ticket.staffHasSeenTicket = false;
+    }
+
+    await ticket.save();
+    res.json(ticket);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+app.delete('/api/tickets/:id', async (req, res) => {
+  try {
+    const auth = await authUserFromRequest(req);
+    if (!auth) return res.status(401).json({ message: 'Unauthorized' });
+
+    const ticket = await Ticket.findById(req.params.id);
+    if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+    if (ticket.user.toString() !== auth._id.toString()) return res.status(403).json({ message: 'Not your ticket' });
+    if (ticket.reply) return res.status(400).json({ message: 'Cannot delete a ticket that has a reply' });
+
+    await Ticket.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Deleted' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+app.get('/api/tickets/stall/:stallId', async (req, res) => {
+  try {
+    const auth = await authUserFromRequest(req);
+    if (!auth) return res.status(401).json({ message: 'Unauthorized' });
+
+    const tickets = await Ticket.find({ stall: req.params.stallId }).populate('user', 'name email').sort({ createdAt: -1 });
+    res.json(tickets);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+app.put('/api/tickets/:id/reply', async (req, res) => {
+  try {
+    const { reply } = req.body;
+    const auth = await authUserFromRequest(req);
+    if (!auth) return res.status(401).json({ message: 'Unauthorized' });
+
+    const ticket = await Ticket.findById(req.params.id);
+    if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+
+    const isEditing = ticket.reply && ticket.reply !== reply;
+    ticket.reply = reply;
+    ticket.status = reply ? 'Solved' : 'Pending';
+    
+    if (!reply) {
+      ticket.repliedAt = null;
+      ticket.replyEditedAt = null;
+      ticket.userHasSeenReply = true;
+    } else if (isEditing) {
+      ticket.replyEditedAt = new Date();
+      ticket.userHasSeenReply = false;
+    } else if (!ticket.repliedAt) {
+      ticket.repliedAt = new Date();
+      ticket.userHasSeenReply = false;
+    }
+
+    await ticket.save();
+    res.json(ticket);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Mark tickets as seen by user
+app.put('/api/tickets/mark-seen/user/:stallId', async (req, res) => {
+  try {
+    const auth = await authUserFromRequest(req);
+    if (!auth) return res.status(401).json({ message: 'Unauthorized' });
+
+    await Ticket.updateMany(
+      { stall: req.params.stallId, user: auth._id, userHasSeenReply: false },
+      { $set: { userHasSeenReply: true } }
+    );
+    res.json({ message: 'Marked as seen' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Mark tickets as seen by staff
+app.put('/api/tickets/mark-seen/staff/:stallId', async (req, res) => {
+  try {
+    const auth = await authUserFromRequest(req);
+    if (!auth) return res.status(401).json({ message: 'Unauthorized' });
+
+    await Ticket.updateMany(
+      { stall: req.params.stallId, staffHasSeenTicket: false },
+      { $set: { staffHasSeenTicket: true } }
+    );
+    res.json({ message: 'Marked as seen' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get unread counts
+app.get('/api/tickets/unread-count/user/:stallId', async (req, res) => {
+  try {
+    const auth = await authUserFromRequest(req);
+    if (!auth) return res.status(401).json({ message: 'Unauthorized' });
+
+    const count = await Ticket.countDocuments({ 
+      stall: req.params.stallId, 
+      user: auth._id, 
+      userHasSeenReply: false 
+    });
+    res.json({ count });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+app.get('/api/tickets/unread-count/staff/:stallId', async (req, res) => {
+  try {
+    const auth = await authUserFromRequest(req);
+    if (!auth) return res.status(401).json({ message: 'Unauthorized' });
+
+    const count = await Ticket.countDocuments({ 
+      stall: req.params.stallId, 
+      staffHasSeenTicket: false 
+    });
+    res.json({ count });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Vercel serverless invokes this file as a module — do not bind a listener there.
+module.exports = app;
+if (!process.env.VERCEL && require.main === module) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on http://0.0.0.0:${PORT}`);
+  });
+}
