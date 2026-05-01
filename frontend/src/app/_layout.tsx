@@ -6,6 +6,7 @@ import { Provider } from '@ant-design/react-native';
 // Added locale imports
 import enUS from '@ant-design/react-native/lib/locale-provider/en_US';
 import { COLORS } from '../theme/colors';
+import { CartProvider } from '../context/CartContext';
 
 const theme = {
   brand_primary: COLORS.primary,
@@ -19,9 +20,11 @@ export default function RootLayout() {
   
   return (
     <Provider theme={theme} locale={enUS}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Slot />
-      </ThemeProvider>
+      <CartProvider>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <Slot />
+        </ThemeProvider>
+      </CartProvider>
     </Provider>
   );
 }

@@ -1,16 +1,18 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React from 'react';
 import {
-    Dimensions,
-    Image,
-    Modal,
-    Platform,
-    Text as RNText,
-    ScrollView,
-    StyleSheet,
-    TouchableOpacity,
-    View
+  Dimensions,
+  Image,
+  Modal,
+  Platform,
+  Text as RNText,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  View
 } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useCart } from '../context/CartContext';
 
 const { width } = Dimensions.get('window');
 const PRIMARY = '#0F5B57';
@@ -28,7 +30,16 @@ interface MealDetailsModalProps {
 }
 
 export default function MealDetailsModal({ visible, onClose, meal }: MealDetailsModalProps) {
+  const router = useRouter();
+  const { addToCart } = useCart();
+
   if (!meal) return null;
+
+  const handleAddToCart = () => {
+    addToCart(meal);
+    onClose();
+    router.push('/user/cart');
+  };
 
   return (
     <Modal visible={visible} animationType="fade" transparent>
@@ -36,9 +47,9 @@ export default function MealDetailsModal({ visible, onClose, meal }: MealDetails
         <View style={styles.content}>
           <ScrollView showsVerticalScrollIndicator={false}>
             <View style={styles.imageContainer}>
-              <Image 
-                source={{ uri: meal.image || 'https://via.placeholder.com/300?text=No+Image' }} 
-                style={styles.image} 
+              <Image
+                source={{ uri: meal.image || 'https://via.placeholder.com/300?text=No+Image' }}
+                style={styles.image}
               />
               <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
                 <MaterialCommunityIcons name="close" size={24} color="#fff" />
@@ -66,9 +77,9 @@ export default function MealDetailsModal({ visible, onClose, meal }: MealDetails
               <Text style={styles.sectionTitle}>Description</Text>
               <Text style={styles.description}>{meal.description}</Text>
 
-              <TouchableOpacity style={styles.orderBtn}>
+              <TouchableOpacity style={styles.orderBtn} onPress={handleAddToCart}>
                 <MaterialCommunityIcons name="cart-outline" size={22} color="#fff" />
-                <Text style={styles.orderBtnText}>Order Now</Text>
+                <Text style={styles.orderBtnText}>Add to cart</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -79,18 +90,18 @@ export default function MealDetailsModal({ visible, onClose, meal }: MealDetails
 }
 
 const styles = StyleSheet.create({
-  overlay: { 
-    flex: 1, 
-    backgroundColor: 'rgba(0,0,0,0.5)', 
-    justifyContent: 'center', 
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
     alignItems: 'center',
     padding: 20
   },
-  content: { 
-    width: '100%', 
-    maxHeight: '85%', 
-    backgroundColor: '#fff', 
-    borderRadius: 24, 
+  content: {
+    width: '100%',
+    maxHeight: '85%',
+    backgroundColor: '#fff',
+    borderRadius: 24,
     overflow: 'hidden',
     elevation: 10,
     shadowColor: '#000',
@@ -112,9 +123,9 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   body: { padding: 24 },
-  headerRow: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 8
   },
@@ -132,10 +143,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     flex: 1,
   },
-  qtyBadge: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    backgroundColor: PRIMARY_SOFT, 
+  qtyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: PRIMARY_SOFT,
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
     paddingVertical: 5,
@@ -145,12 +156,12 @@ const styles = StyleSheet.create({
   qtyText: { fontSize: 13, color: PRIMARY, fontWeight: '700', marginLeft: 6 },
   sectionTitle: { fontSize: 16, fontWeight: 'bold', color: TEXT_DARK, marginBottom: 10 },
   description: { fontSize: 15, color: TEXT_GRAY, lineHeight: 22, marginBottom: 30 },
-  orderBtn: { 
-    backgroundColor: PRIMARY, 
-    flexDirection: 'row', 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    padding: 18, 
+  orderBtn: {
+    backgroundColor: PRIMARY,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 18,
     borderRadius: 16,
     elevation: 3,
     shadowColor: PRIMARY_DARK,
