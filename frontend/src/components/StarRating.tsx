@@ -5,10 +5,18 @@ import { MaterialIcons } from '@expo/vector-icons';
 interface StarRatingProps {
   maxStars?: number;
   rating: number;
-  onRatingChange: (rating: number) => void;
+  onRatingChange?: (rating: number) => void;
+  size?: number;
+  readonly?: boolean;
 }
 
-const StarRating: React.FC<StarRatingProps> = ({ maxStars = 5, rating, onRatingChange }) => {
+const StarRating: React.FC<StarRatingProps> = ({ 
+  maxStars = 5, 
+  rating, 
+  onRatingChange,
+  size = 32,
+  readonly = false
+}) => {
   return (
     <View style={styles.starContainer}>
       {[...Array(maxStars)].map((_, index) => {
@@ -16,11 +24,13 @@ const StarRating: React.FC<StarRatingProps> = ({ maxStars = 5, rating, onRatingC
         return (
           <TouchableOpacity 
             key={starNumber} 
-            onPress={() => onRatingChange(starNumber)}
+            onPress={() => !readonly && onRatingChange?.(starNumber)}
+            disabled={readonly}
+            activeOpacity={readonly ? 1 : 0.7}
           >
             <MaterialIcons
               name={starNumber <= rating ? "star" : "star-border"}
-              size={32}
+              size={size}
               color={starNumber <= rating ? "#FFD700" : "#BDC3C7"}
             />
           </TouchableOpacity>

@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Dimensions,
   Image,
@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useCart } from '../context/CartContext';
+import api from '../services/api';
 
 const { width } = Dimensions.get('window');
 const PRIMARY = '#0F5B57';
@@ -32,6 +33,16 @@ interface MealDetailsModalProps {
 export default function MealDetailsModal({ visible, onClose, meal }: MealDetailsModalProps) {
   const router = useRouter();
   const { addToCart } = useCart();
+  // fetch review stats from api
+  const [stats, setStats] = useState<{ averageRating: number; reviewCount: number }>({ averageRating: 0, reviewCount: 0 });
+
+  useEffect(() => {
+    if (visible && meal?._id) {
+      api.get(`/reviews/stats/${meal._id}`)
+        .then(res => setStats(res.data))
+        .catch(err => console.error('Error fetching meal stats:', err));
+    }
+  }, [visible, meal?._id]);
 
   if (!meal) return null;
 
@@ -60,6 +71,12 @@ export default function MealDetailsModal({ visible, onClose, meal }: MealDetails
               <View style={styles.headerRow}>
                 <Text style={styles.name}>{meal.name}</Text>
                 <Text style={styles.price}>Rs. {meal.price}</Text>
+              </View>
+
+              <View style={styles.ratingRow}>
+                <MaterialCommunityIcons name="star" size={16} color="#FFD700" />
+                <Text style={styles.ratingValue}>{stats.averageRating}</Text>
+                <Text style={styles.reviewCount}>({stats.reviewCount} {stats.reviewCount === 1 ? 'review' : 'reviews'})</Text>
               </View>
 
               {meal?.stall?.name && (
@@ -144,6 +161,21 @@ const styles = StyleSheet.create({
   },
   name: { fontSize: 22, fontWeight: 'bold', color: TEXT_DARK, flex: 1, marginRight: 10 },
   price: { fontSize: 20, fontWeight: '800', color: PRIMARY },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 4,
+  },
+  ratingValue: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: TEXT_DARK,
+  },
+  reviewCount: {
+    fontSize: 13,
+    color: TEXT_GRAY,
+  },
   stallRow: {
     flexDirection: 'row',
     alignItems: 'center',
