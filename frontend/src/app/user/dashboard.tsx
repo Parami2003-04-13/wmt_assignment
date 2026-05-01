@@ -36,12 +36,9 @@ export default function UserDashboard() {
   const insets = useSafeAreaInsets();
   const [userName, setUserName] = useState('');
   const [query, setQuery] = useState('');
-<<<<<<< Meal1
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-=======
   const { cartItems } = useCart();
   const cartItemCount = cartItems.reduce((total, item) => total + item.quantity, 0);
->>>>>>> master
 
   useEffect(() => {
     let isMounted = true;
