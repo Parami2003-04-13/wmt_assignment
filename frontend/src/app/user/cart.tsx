@@ -32,15 +32,7 @@ export default function CartScreen() {
 
   const handleCheckout = () => {
     if (cartItems.length === 0) return;
-    Alert.alert('Checkout Successful', 'Your order has been placed!', [
-      {
-        text: 'OK',
-        onPress: () => {
-          clearCart();
-          router.replace('/user/dashboard');
-        },
-      },
-    ]);
+    router.push('/user/order/checkout');
   };
 
   return (
