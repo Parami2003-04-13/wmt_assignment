@@ -84,7 +84,10 @@ const mongoUri = process.env.MONGO_URI;
 
 if (!mongoUri) {
   console.error('MONGO_URI is not defined in .env');
-  process.exit(1);
+  // Avoid process.exit on Vercel — it marks every invocation as FUNCTION_INVOCATION_FAILED.
+  if (!process.env.VERCEL) {
+    process.exit(1);
+  }
 }
 
 // Await connect per request — avoids flaky parallel connects & stale pools on serverless (Vercel).
@@ -1015,6 +1018,10 @@ app.get('/api/tickets/unread-count/staff/:stallId', async (req, res) => {
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on http://0.0.0.0:${PORT}`);
-});
+// Vercel serverless invokes this file as a module — do not bind a listener there.
+module.exports = app;
+if (!process.env.VERCEL && require.main === module) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on http://0.0.0.0:${PORT}`);
+  });
+}
