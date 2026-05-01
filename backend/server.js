@@ -40,6 +40,7 @@ async function stallCanManageMeals(stallId, actingUserId, actingRole, staffStall
 }
 
 const Meal = require('./models/Meal');
+const { connectDB } = require('./db');
 const {
   normalizeTimeInput,
   deriveStatusFromHours,
@@ -86,9 +87,23 @@ if (!mongoUri) {
   process.exit(1);
 }
 
-mongoose.connect(mongoUri)
-  .then(() => console.log('Successfully connected to MongoDB Atlas!'))
-  .catch((err) => console.error('Error connecting to MongoDB:', err));
+// Await connect per request — avoids flaky parallel connects & stale pools on serverless (Vercel).
+app.use(async (req, res, next) => {
+  const url = req.originalUrl || '';
+  if (url === '/api/health' || url.startsWith('/api/health?')) {
+    return next();
+  }
+  if (!url.startsWith('/api')) {
+    return next();
+  }
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error('Database connection error:', err);
+    res.status(503).json({ message: 'Database temporarily unavailable' });
+  }
+});
 
 // --- Auth Routes ---
 
