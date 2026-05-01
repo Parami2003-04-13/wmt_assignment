@@ -44,13 +44,12 @@ export default function CartScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <MaterialCommunityIcons name="arrow-left" size={24} color={TEXT_DARK} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Your Cart</Text>
-        <View style={{ width: 24 }} /> {/* Placeholder for alignment */}
+        <View style={{ width: 24 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -85,7 +84,6 @@ export default function CartScreen() {
         )}
       </ScrollView>
 
-      {/* Footer */}
       {cartItems.length > 0 && (
         <View style={styles.footer}>
           <View style={styles.totalRow}>

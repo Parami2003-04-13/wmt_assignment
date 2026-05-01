@@ -40,6 +40,7 @@ export default function UserStallDetails() {
   const [selectedMeal, setSelectedMeal] = useState<any>(null);
   const [mealVisible, setMealVisible] = useState(false);
   const [ticketVisible, setTicketVisible] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [unreadTickets, setUnreadTickets] = useState(0);
 
   const fetchAll = useCallback(async () => {
