@@ -510,13 +510,13 @@ export default function StallManagement() {
         initial={
           stall
             ? {
-                phone: stall.phone ?? '',
-                description: stall.description ?? '',
-                openingTime: stall.openingTime ?? '',
-                closingTime: stall.closingTime ?? '',
-                profilePhoto: stall.profilePhoto ?? '',
-                coverPhoto: stall.coverPhoto ?? '',
-              }
+              phone: stall.phone ?? '',
+              description: stall.description ?? '',
+              openingTime: stall.openingTime ?? '',
+              closingTime: stall.closingTime ?? '',
+              profilePhoto: stall.profilePhoto ?? '',
+              coverPhoto: stall.coverPhoto ?? '',
+            }
             : null
         }
       />
@@ -525,7 +525,7 @@ export default function StallManagement() {
         visible={addStaffVisible}
         stallId={stallId ?? null}
         onClose={() => setAddStaffVisible(false)}
-        onChanged={() => {}}
+        onChanged={() => { }}
       />
     </View>
   );
