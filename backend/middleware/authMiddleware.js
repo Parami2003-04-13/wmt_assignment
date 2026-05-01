@@ -1,24 +1,42 @@
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
+const User = require('../models/User');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
 
-function protect(req, res, next) {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || typeof authHeader !== 'string' || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ message: 'Not authorized — no bearer token' });
+const protect = async (req, res, next) => {
+    let token;
+
+    if (
+        req.headers.authorization &&
+        req.headers.authorization.startsWith('Bearer ')
+    ) {
+        try {
+            // Get token from header
+            token = req.headers.authorization.split(' ')[1];
+
+            // Verify token
+            const decoded = jwt.verify(token, JWT_SECRET);
+
+            if (!decoded || !mongoose.Types.ObjectId.isValid(decoded.id)) {
+                return res.status(401).json({ message: 'Not authorized, invalid token' });
+            }
+
+            // Get user from the token
+            req.user = await User.findById(decoded.id).select('-password');
+
+            if (!req.user) {
+                return res.status(401).json({ message: 'Not authorized, user not found' });
+            }
+
+            next();
+        } catch (error) {
+            console.error('Auth error:', error);
+            res.status(401).json({ message: 'Not authorized' });
+        }
+    } else {
+        res.status(401).json({ message: 'Not authorized, no token' });
     }
-    const token = authHeader.slice('Bearer '.length).trim();
-    const payload = jwt.verify(token, JWT_SECRET);
-    const id = payload.id != null ? String(payload.id) : null;
-    if (!id) {
-      return res.status(401).json({ message: 'Not authorized — invalid token' });
-    }
-    req.user = { id, role: payload.role };
-    next();
-  } catch {
-    res.status(401).json({ message: 'Not authorized — token rejected' });
-  }
-}
+};
 
 module.exports = { protect };
