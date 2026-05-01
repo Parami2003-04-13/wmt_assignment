@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import api from '../../../services/api';
 import MealDetailsModal from '../../../components/meal-details-modal';
+import UserTicketModal from '../../../components/user-ticket-modal';
 import { COLORS } from '../../../theme/colors';
 
 const Text = (props: any) => (
@@ -38,12 +39,19 @@ export default function UserStallDetails() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedMeal, setSelectedMeal] = useState<any>(null);
   const [mealVisible, setMealVisible] = useState(false);
+  const [ticketVisible, setTicketVisible] = useState(false);
+  const [unreadTickets, setUnreadTickets] = useState(0);
 
   const fetchAll = useCallback(async () => {
     if (!stallId) return;
-    const [stallRes, mealsRes] = await Promise.all([api.get(`/stalls/${stallId}`), api.get(`/meals/stall/${stallId}`)]);
+    const [stallRes, mealsRes, unreadRes] = await Promise.all([
+      api.get(`/stalls/${stallId}`), 
+      api.get(`/meals/stall/${stallId}`),
+      api.get(`/tickets/unread-count/user/${stallId}`)
+    ]);
     setStall(stallRes.data);
     setMeals(Array.isArray(mealsRes.data) ? mealsRes.data : []);
+    setUnreadTickets(unreadRes.data.count);
   }, [stallId]);
 
   useEffect(() => {
@@ -119,6 +127,23 @@ export default function UserStallDetails() {
 
           <Pressable style={[styles.roundIconBtn, { top: coverTop, left: 16 }]} onPress={() => router.back()} hitSlop={12}>
             <MaterialCommunityIcons name="arrow-left" size={24} color="#fff" />
+          </Pressable>
+
+          <Pressable 
+            style={[styles.roundIconBtn, { top: coverTop, right: 16 }]} 
+            onPress={async () => {
+              setTicketVisible(true);
+              if (unreadTickets > 0) {
+                try {
+                  await api.put(`/tickets/mark-seen/user/${stallId}`);
+                  setUnreadTickets(0);
+                } catch (e) {}
+              }
+            }} 
+            hitSlop={12}
+          >
+            <MaterialCommunityIcons name="headset" size={24} color="#fff" />
+            {unreadTickets > 0 && <View style={styles.redDot} />}
           </Pressable>
         </View>
 
@@ -209,6 +234,7 @@ export default function UserStallDetails() {
       </ScrollView>
 
       <MealDetailsModal visible={mealVisible} onClose={() => setMealVisible(false)} meal={selectedMeal} />
+      <UserTicketModal visible={ticketVisible} onClose={() => setTicketVisible(false)} stallId={stallId as string} />
     </View>
   );
 }
@@ -295,5 +321,16 @@ const styles = StyleSheet.create({
   emptyWrap: { alignItems: 'center', paddingVertical: 24, paddingHorizontal: 20 },
   emptyTitle: { marginTop: 12, fontSize: 16, fontWeight: '800', color: COLORS.textDark },
   emptySub: { marginTop: 6, fontSize: 14, color: COLORS.textGray, textAlign: 'center', lineHeight: 20 },
+  redDot: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: COLORS.danger,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
 });
 
