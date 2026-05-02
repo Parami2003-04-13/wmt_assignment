@@ -394,7 +394,7 @@ export default function UserDashboard() {
             <View style={{ flex: 1, paddingRight: 14 }}>
               <Text style={styles.heroKicker}>Your solution, one tap away!</Text>
               <Text style={styles.heroTitle}>Find today’s best meals</Text>
-              <Text style={styles.heroSub}>Recommended specials near you</Text>
+              
             </View>
 
             <View style={styles.heroArt}>
