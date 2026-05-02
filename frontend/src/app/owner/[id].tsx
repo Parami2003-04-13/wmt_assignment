@@ -134,8 +134,17 @@ export default function StallManagement() {
   }, [fetchStallDetails, fetchMeals, fetchUnread]);
 
   const handleStaffLogout = async () => {
-    await clearAuthStorage();
-    router.replace('/login');
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        onPress: async () => {
+          await clearAuthStorage();
+          router.replace('/login');
+        },
+        style: 'destructive',
+      },
+    ]);
   };
 
   const handleDeleteMeal = (mealId: string) => {
