@@ -176,7 +176,7 @@ export default function AdminApprovalDashboard() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.primaryDark} />
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primaryDark} translucent={false} />
 
       <View style={styles.hero}>
         <View style={styles.heroTopRow}>

@@ -16,6 +16,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import api from '../services/api';
 import { COLORS } from '../theme/colors';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const formatSLTime = (dateString: string | null | undefined) => {
   if (!dateString) return '';
@@ -35,7 +36,7 @@ type Props = {
   stallId: string;
 };
 
-export default function StaffTicketModal({ visible, onClose, stallId }: Props) {
+export default function StaffSupportTicketModal({ visible, onClose, stallId }: Props) {
   const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -44,11 +45,16 @@ export default function StaffTicketModal({ visible, onClose, stallId }: Props) {
   const [replyText, setReplyText] = useState('');
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
 
+  // Filter states
+  const [filterDate, setFilterDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
   const loadTickets = async () => {
     if (!stallId) return;
     setLoading(true);
     try {
-      const { data } = await api.get(`/tickets/stall/${stallId}`);
+      const dateParam = filterDate ? `?date=${filterDate.toISOString()}` : '';
+      const { data } = await api.get(`/support-tickets/stall/${stallId}${dateParam}`);
       setTickets(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
@@ -62,7 +68,7 @@ export default function StaffTicketModal({ visible, onClose, stallId }: Props) {
       loadTickets();
       cancelReply();
     }
-  }, [visible, stallId]);
+  }, [visible, stallId, filterDate]);
 
   const cancelReply = () => {
     setReplyingTo(null);
@@ -70,14 +76,21 @@ export default function StaffTicketModal({ visible, onClose, stallId }: Props) {
   };
 
   const handleSaveReply = async () => {
-    if (!replyText.trim()) return Alert.alert('Validation', 'Reply cannot be empty');
+    if (replyText.trim().length < 10) return Alert.alert('Validation', 'Reply must be at least 10 characters');
 
     try {
-      await api.put(`/tickets/${replyingTo._id}/reply`, { reply: replyText });
+      await api.put(`/support-tickets/${replyingTo._id}/reply`, { reply: replyText });
       cancelReply();
       loadTickets();
     } catch (err: any) {
       Alert.alert('Error', err.response?.data?.message || 'Failed to save reply');
+    }
+  };
+
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      setFilterDate(selectedDate);
     }
   };
 
@@ -92,6 +105,37 @@ export default function StaffTicketModal({ visible, onClose, stallId }: Props) {
                 <MaterialCommunityIcons name="close" size={24} color={COLORS.textDark} />
               </TouchableOpacity>
             </View>
+
+            {!replyingTo && (
+              <View style={styles.filterRow}>
+                <TouchableOpacity 
+                  style={styles.filterBtn} 
+                  onPress={() => setShowDatePicker(true)}
+                >
+                  <MaterialCommunityIcons name="calendar" size={20} color={COLORS.primary} />
+                  <Text style={styles.filterBtnText}>
+                    {filterDate ? filterDate.toLocaleDateString() : 'Filter by Date'}
+                  </Text>
+                </TouchableOpacity>
+                {filterDate && (
+                  <TouchableOpacity 
+                    onPress={() => setFilterDate(null)}
+                    style={styles.clearBtn}
+                  >
+                    <MaterialCommunityIcons name="close-circle" size={20} color={COLORS.textGray} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={filterDate || new Date()}
+                mode="date"
+                display="default"
+                onChange={onDateChange}
+              />
+            )}
 
             <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
               {replyingTo ? (
@@ -136,7 +180,11 @@ export default function StaffTicketModal({ visible, onClose, stallId }: Props) {
                   {loading ? (
                     <ActivityIndicator color={COLORS.primary} style={{ marginTop: 20 }} />
                   ) : tickets.length === 0 ? (
-                    <Text style={styles.empty}>No tickets from customers yet.</Text>
+                    <Text style={styles.empty}>
+                      {filterDate 
+                        ? `No tickets found for ${filterDate.toLocaleDateString()}` 
+                        : 'No tickets from customers yet.'}
+                    </Text>
                   ) : (
                     tickets.map(t => (
                       <TouchableOpacity 
@@ -169,9 +217,14 @@ export default function StaffTicketModal({ visible, onClose, stallId }: Props) {
                         </View>
                         <View style={styles.cardFooter}>
                           {(t.repliedAt || t.replyEditedAt) && (
-                            <Text style={styles.replyDateText}>
-                              {t.replyEditedAt ? `Replied (Edited): ${formatSLTime(t.replyEditedAt)}` : `Replied: ${formatSLTime(t.repliedAt)}`}
-                            </Text>
+                            <View style={{ alignItems: 'flex-end' }}>
+                              <Text style={styles.replyDateText}>
+                                {t.replyEditedAt ? `Replied (Edited): ${formatSLTime(t.replyEditedAt)}` : `Replied: ${formatSLTime(t.repliedAt)}`}
+                              </Text>
+                              {t.repliedBy?.name && (
+                                <Text style={styles.repliedByText}>By: {t.repliedBy.name}</Text>
+                              )}
+                            </View>
                           )}
                         </View>
                       </TouchableOpacity>
@@ -231,8 +284,34 @@ const styles = StyleSheet.create({
   cardFooter: { marginTop: 8, alignItems: 'flex-end' },
   footerDate: { fontSize: 11, color: COLORS.textGray, fontWeight: '600' },
   replyDateText: { fontSize: 11, color: COLORS.primary, fontWeight: '600' },
+  repliedByText: { fontSize: 10, color: COLORS.primary, fontWeight: '700', fontStyle: 'italic' },
   listImg: { width: '100%', height: 150, borderRadius: 12, marginTop: 10, backgroundColor: COLORS.primarySoft },
   fullScreenOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' },
   fullScreenClose: { position: 'absolute', top: 40, right: 20, zIndex: 10, padding: 10 },
   fullScreenImage: { width: '100%', height: '80%' },
+  filterRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginBottom: 16, 
+    gap: 8 
+  },
+  filterBtn: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 8, 
+    backgroundColor: COLORS.primarySoft, 
+    paddingHorizontal: 12, 
+    paddingVertical: 8, 
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '20'
+  },
+  filterBtnText: { 
+    fontSize: 14, 
+    fontWeight: '600', 
+    color: COLORS.primary 
+  },
+  clearBtn: {
+    padding: 4
+  }
 });

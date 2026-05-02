@@ -8,15 +8,20 @@ import {
   Image,
   Platform,
   Alert,
-  Switch,
+  ActivityIndicator,
+  TextInput,
 } from 'react-native';
+
+import * as ImagePicker from 'expo-image-picker';
+
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCart } from '../../../context/CartContext';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import * as ImagePicker from 'expo-image-picker';
+
 import dayjs from 'dayjs';
+import api, { getStoredUser } from '../../../services/api';
 
 const PRIMARY = '#0F5B57';
 const TEXT_DARK = '#2D3436';
@@ -36,9 +41,48 @@ export default function CheckoutScreen() {
 
   const [pickupTime, setPickupTime] = useState(new Date(Date.now() + 25 * 60000)); // Default +25 mins
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [isStudentDiscount, setIsStudentDiscount] = useState(false);
-  const [studentIdImage, setStudentIdImage] = useState<string | null>(null);
   const [timeError, setTimeError] = useState<string | null>(null);
+
+  const [paymentMethod, setPaymentMethod] = useState<'Pay at Stall' | 'Card' | 'Bank Transfer'>('Pay at Stall');
+  const [stallBankDetails, setStallBankDetails] = useState<any>(null);
+  const [bankSlip, setBankSlip] = useState<string | null>(null);
+  const [cardDetails, setCardDetails] = useState({
+    number: '',
+    expiry: '',
+    cvv: '',
+    holderName: '',
+  });
+
+  const [loading, setLoading] = useState(false);
+
+  React.useEffect(() => {
+    if (cartItems.length > 0) {
+      const stallId = cartItems[0].meal.stall._id || cartItems[0].meal.stall;
+      fetchStallDetails(stallId);
+    }
+  }, [cartItems]);
+
+  const fetchStallDetails = async (stallId: string) => {
+    try {
+      const res = await api.get(`stalls/${stallId}`);
+      setStallBankDetails(res.data);
+    } catch (err) {
+      console.error('Fetch stall details error:', err);
+    }
+  };
+
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.7,
+      base64: true,
+    });
+
+    if (!result.canceled && result.assets[0].base64) {
+      setBankSlip(`data:image/jpeg;base64,${result.assets[0].base64}`);
+    }
+  };
 
   const validateTime = (selectedTime: Date) => {
     const minTime = dayjs().add(20, 'minute');
@@ -58,41 +102,111 @@ export default function CheckoutScreen() {
     }
   };
 
-  const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
-    });
 
-    if (!result.canceled) {
-      setStudentIdImage(result.assets[0].uri);
-    }
-  };
 
-  const handlePlaceOrder = () => {
+  const finalTotal = cartTotal;
+
+
+
+  const handlePlaceOrder = async () => {
     if (!validateTime(pickupTime)) {
       Alert.alert('Invalid Time', 'Please select a pickup time at least 20 minutes from now.');
       return;
     }
 
-    if (isStudentDiscount && !studentIdImage) {
-      Alert.alert('Student ID Required', 'Please upload your Student ID card to claim the discount.');
+    setLoading(true);
+
+    if (paymentMethod === 'Card') {
+      const rawNumber = cardDetails.number.replace(/\s/g, '');
+      if (!rawNumber || rawNumber.length !== 16) {
+        Alert.alert('Invalid Card', 'Card number must be 16 digits.');
+        setLoading(false);
+        return;
+      }
+      if (!cardDetails.expiry || !/^\d{2}\/\d{2}$/.test(cardDetails.expiry)) {
+        Alert.alert('Invalid Expiry', 'Expiry date must be in MM/YY format.');
+        setLoading(false);
+        return;
+      }
+      const [month] = cardDetails.expiry.split('/').map(Number);
+      if (month < 1 || month > 12) {
+        Alert.alert('Invalid Expiry', 'Month must be between 01 and 12.');
+        setLoading(false);
+        return;
+      }
+      if (!cardDetails.cvv || (cardDetails.cvv.length !== 3 && cardDetails.cvv.length !== 4)) {
+        Alert.alert('Invalid CVV', 'CVV must be 3 or 4 digits.');
+        setLoading(false);
+        return;
+      }
+      if (!cardDetails.holderName || cardDetails.holderName.trim().length < 3) {
+        Alert.alert('Invalid Name', 'Please enter the card holder name.');
+        setLoading(false);
+        return;
+      }
+    }
+
+    if (paymentMethod === 'Bank Transfer' && !bankSlip) {
+      Alert.alert('Missing Slip', 'Please upload your bank transfer slip.');
+      setLoading(false);
       return;
     }
 
-    // In a real app, we would call an API here
-    Alert.alert('Success', 'Order initialized successfully!', [
-      {
-        text: 'OK',
-        onPress: () => {
-          clearCart();
-          router.replace('/user/dashboard');
-        },
-      },
-    ]);
+    if (paymentMethod === 'Card') {
+      try {
+        // Simulate Online Payment Processing
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        console.log('Online payment successful');
+      } catch (err) {
+        console.error('Payment simulation error:', err);
+        setLoading(false);
+        return;
+      }
+    }
+
+    try {
+      const user = await getStoredUser();
+      if (!user || !user.id) {
+        Alert.alert('Error', 'User session expired. Please login again.');
+        router.replace('/login');
+        return;
+      }
+
+      const orderData = {
+        userId: user.id,
+        stallId: cartItems[0].meal.stall._id || cartItems[0].meal.stall,
+        items: cartItems.map(item => ({
+          meal: item.meal._id,
+          name: item.meal.name,
+          quantity: item.quantity,
+          price: item.meal.price
+        })),
+        totalAmount: finalTotal,
+        pickupTime: pickupTime.toISOString(),
+        paymentMethod,
+        paymentSlip: paymentMethod === 'Bank Transfer' ? bankSlip : undefined,
+        cardHolderName: paymentMethod === 'Card' ? cardDetails.holderName : undefined,
+        cardLastFour: paymentMethod === 'Card' ? cardDetails.number.replace(/\s/g, '').slice(-4) : undefined,
+      };
+
+      const response = await api.post('orders', orderData);
+
+      const newOrder = response.data;
+
+      clearCart();
+      router.replace({
+        pathname: '/user/order/success',
+        params: { orderId: newOrder.orderId }
+      });
+
+    } catch (error: any) {
+      console.error('Failed to place order:', error);
+      Alert.alert('Order Failed', error.response?.data?.message || 'Something went wrong while placing your order.');
+    } finally {
+      setLoading(false);
+    }
   };
+
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
@@ -117,15 +231,17 @@ export default function CheckoutScreen() {
           <View style={styles.divider} />
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Grand Total</Text>
-            <Text style={styles.totalAmount}>Rs. {cartTotal}</Text>
+            <Text style={styles.totalAmount}>Rs. {finalTotal}</Text>
           </View>
+
+
         </View>
 
         {/* Pickup Time */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Pickup Time</Text>
-          <TouchableOpacity 
-            style={[styles.timeSelector, timeError ? styles.errorBorder : null]} 
+          <TouchableOpacity
+            style={[styles.timeSelector, timeError ? styles.errorBorder : null]}
             onPress={() => setShowTimePicker(true)}
           >
             <MaterialCommunityIcons name="clock-outline" size={24} color={PRIMARY} />
@@ -136,7 +252,7 @@ export default function CheckoutScreen() {
           </TouchableOpacity>
           {timeError && <Text style={styles.errorText}>{timeError}</Text>}
           <Text style={styles.hintText}>* Pickup time must be at least 20 minutes from now.</Text>
-          
+
           {showTimePicker && (
             <DateTimePicker
               value={pickupTime}
@@ -149,46 +265,157 @@ export default function CheckoutScreen() {
           )}
         </View>
 
-        {/* Student Discount */}
+        {/* Payment Method */}
         <View style={styles.section}>
-          <View style={styles.discountRow}>
-            <View>
-              <Text style={styles.sectionTitle}>Student Discount</Text>
-              <Text style={styles.discountSubtitle}>Upload ID for 10% off (pending verification)</Text>
-            </View>
-            <Switch
-              value={isStudentDiscount}
-              onValueChange={(value) => setIsStudentDiscount(value)}
-              trackColor={{ false: '#CBD5E1', true: PRIMARY }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
+          <Text style={styles.sectionTitle}>Payment Method</Text>
+          <Text style={styles.nonRefundableHint}>* All payments are non-refundable once placed.</Text>
 
-          {isStudentDiscount && (
-            <View style={styles.uploadContainer}>
+          <TouchableOpacity
+            style={[styles.paymentOption, paymentMethod === 'Pay at Stall' ? styles.paymentSelected : null]}
+            onPress={() => setPaymentMethod('Pay at Stall')}
+          >
+            <MaterialCommunityIcons
+              name={paymentMethod === 'Pay at Stall' ? "radiobox-marked" : "radiobox-blank"}
+              size={24}
+              color={paymentMethod === 'Pay at Stall' ? PRIMARY : TEXT_GRAY}
+            />
+            <View style={styles.paymentInfo}>
+              <Text style={styles.paymentName}>Pay at Stall</Text>
+              <Text style={styles.paymentDesc}>Pay with cash or card when you pickup</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.paymentOption, paymentMethod === 'Card' ? styles.paymentSelected : null]}
+            onPress={() => setPaymentMethod('Card')}
+          >
+            <MaterialCommunityIcons
+              name={paymentMethod === 'Card' ? "radiobox-marked" : "radiobox-blank"}
+              size={24}
+              color={paymentMethod === 'Card' ? PRIMARY : TEXT_GRAY}
+            />
+            <View style={styles.paymentInfo}>
+              <Text style={styles.paymentName}>Pay with Card</Text>
+              <Text style={styles.paymentDesc}>Secure online payment via card</Text>
+            </View>
+          </TouchableOpacity>
+
+          {paymentMethod === 'Card' && (
+            <View style={styles.subSection}>
+              <TextInput
+                style={styles.input}
+                placeholder="Card Holder Name"
+                value={cardDetails.holderName}
+                onChangeText={(t) => setCardDetails({ ...cardDetails, holderName: t })}
+              />
+
+              <TextInput
+                style={[styles.input, { marginTop: 10 }]}
+                placeholder="XXXX XXXX XXXX XXXX"
+                keyboardType="numeric"
+                maxLength={19}
+                value={cardDetails.number}
+                onChangeText={(t) => {
+                  const cleaned = t.replace(/[^0-9]/g, '');
+                  const formatted = cleaned.match(/.{1,4}/g)?.join(' ') || cleaned;
+                  setCardDetails({ ...cardDetails, number: formatted });
+                }}
+              />
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  placeholder="MM/YY"
+                  keyboardType="numeric"
+                  maxLength={5}
+                  value={cardDetails.expiry}
+                  onChangeText={(t) => {
+                    let cleaned = t.replace(/[^0-9]/g, '');
+                    if (cleaned.length >= 2) {
+                      const month = parseInt(cleaned.substring(0, 2));
+                      if (month > 12) cleaned = '12' + cleaned.substring(2);
+                      if (month === 0 && cleaned.length === 2) cleaned = '01';
+                    }
+                    let formatted = cleaned;
+                    if (cleaned.length > 2) {
+                      formatted = cleaned.substring(0, 2) + '/' + cleaned.substring(2, 4);
+                    }
+                    setCardDetails({ ...cardDetails, expiry: formatted });
+                  }}
+                />
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  placeholder="CVV (3-4 digits)"
+                  keyboardType="numeric"
+                  maxLength={4}
+                  secureTextEntry
+                  value={cardDetails.cvv}
+                  onChangeText={(t) => setCardDetails({ ...cardDetails, cvv: t.replace(/[^0-9]/g, '') })}
+                />
+              </View>
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={[styles.paymentOption, paymentMethod === 'Bank Transfer' ? styles.paymentSelected : null]}
+            onPress={() => setPaymentMethod('Bank Transfer')}
+          >
+            <MaterialCommunityIcons
+              name={paymentMethod === 'Bank Transfer' ? "radiobox-marked" : "radiobox-blank"}
+              size={24}
+              color={paymentMethod === 'Bank Transfer' ? PRIMARY : TEXT_GRAY}
+            />
+            <View style={styles.paymentInfo}>
+              <Text style={styles.paymentName}>Bank Transfer</Text>
+              <Text style={styles.paymentDesc}>Transfer to stall account and upload slip</Text>
+            </View>
+          </TouchableOpacity>
+
+          {paymentMethod === 'Bank Transfer' && stallBankDetails && (
+            <View style={styles.subSection}>
+              <View style={styles.bankInfoBox}>
+                <Text style={styles.bankInfoTitle}>Stall Bank Details</Text>
+                <Text style={styles.bankInfoText}>Bank: {stallBankDetails.bankName || 'N/A'}</Text>
+                <Text style={styles.bankInfoText}>Branch: {stallBankDetails.branchName || 'N/A'}</Text>
+                <Text style={styles.bankInfoText}>Acc Name: {stallBankDetails.accountName || 'N/A'}</Text>
+                <Text style={styles.bankInfoText}>Acc No: {stallBankDetails.accountNumber || 'N/A'}</Text>
+                <Text style={[styles.bankInfoText, { fontWeight: 'bold', marginTop: 5 }]}>Amount: Rs. {finalTotal}</Text>
+              </View>
+
               <TouchableOpacity style={styles.uploadBtn} onPress={pickImage}>
-                {studentIdImage ? (
-                  <Image source={{ uri: studentIdImage }} style={styles.uploadedImage} />
+                {bankSlip ? (
+                  <Image source={{ uri: bankSlip }} style={styles.uploadedImage} />
                 ) : (
                   <>
-                    <MaterialCommunityIcons name="camera-plus-outline" size={32} color={PRIMARY} />
-                    <Text style={styles.uploadText}>Upload Student ID Card</Text>
+                    <MaterialCommunityIcons name="upload" size={32} color={PRIMARY} />
+                    <Text style={styles.uploadText}>Upload Payment Slip</Text>
                   </>
                 )}
               </TouchableOpacity>
-              {studentIdImage && (
-                <TouchableOpacity onPress={() => setStudentIdImage(null)} style={styles.removeImageBtn}>
-                  <Text style={styles.removeImageText}>Remove & Re-upload</Text>
+              {bankSlip && (
+                <TouchableOpacity onPress={() => setBankSlip(null)} style={styles.removeBtn}>
+                  <Text style={styles.removeText}>Remove Slip</Text>
                 </TouchableOpacity>
               )}
             </View>
           )}
+
         </View>
+
+
+
       </ScrollView>
 
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.placeOrderBtn} onPress={handlePlaceOrder}>
-          <Text style={styles.placeOrderBtnText}>Place Order</Text>
+        <TouchableOpacity
+          style={[styles.placeOrderBtn, loading ? styles.disabledBtn : null]}
+          onPress={handlePlaceOrder}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.placeOrderBtnText}>Place Order</Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -299,6 +526,32 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontStyle: 'italic',
   },
+  paymentOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  paymentSelected: {
+    borderColor: PRIMARY,
+    backgroundColor: '#F0F9F9',
+  },
+  paymentInfo: {
+    marginLeft: 12,
+  },
+  paymentName: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: TEXT_DARK,
+  },
+  paymentDesc: {
+    fontSize: 12,
+    color: TEXT_GRAY,
+    marginTop: 2,
+  },
   discountRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -309,31 +562,6 @@ const styles = StyleSheet.create({
     color: TEXT_GRAY,
     marginTop: -8,
     marginBottom: 10,
-  },
-  uploadContainer: {
-    marginTop: 16,
-    alignItems: 'center',
-  },
-  uploadBtn: {
-    width: '100%',
-    height: 150,
-    borderWidth: 2,
-    borderColor: PRIMARY,
-    borderStyle: 'dashed',
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F0F9F9',
-    overflow: 'hidden',
-  },
-  uploadText: {
-    color: PRIMARY,
-    fontWeight: '600',
-    marginTop: 8,
-  },
-  uploadedImage: {
-    width: '100%',
-    height: '100%',
   },
   removeImageBtn: {
     marginTop: 10,
@@ -355,10 +583,93 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
+    height: 56,
+    justifyContent: 'center',
+  },
+  disabledBtn: {
+    opacity: 0.7,
   },
   placeOrderBtnText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  subSection: {
+    marginTop: 10,
+    paddingLeft: 36,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 10,
+    fontSize: 15,
+  },
+  bankInfoBox: {
+    backgroundColor: '#F7FAFC',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 10,
+  },
+  bankInfoTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: TEXT_DARK,
+    marginBottom: 5,
+  },
+  bankInfoText: {
+    fontSize: 13,
+    color: TEXT_GRAY,
+    marginBottom: 2,
+  },
+  uploadBtn: {
+    height: 120,
+    borderWidth: 1,
+    borderColor: PRIMARY,
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F0F9F9',
+    overflow: 'hidden',
+  },
+  uploadText: {
+    color: PRIMARY,
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 5,
+  },
+  uploadedImage: {
+    width: '100%',
+    height: '100%',
+  },
+  removeBtn: {
+    marginTop: 5,
+    alignItems: 'center',
+  },
+  removeText: {
+    color: DANGER,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  nonRefundableHint: {
+    fontSize: 12,
+    color: DANGER,
+    marginBottom: 10,
+    fontWeight: '600',
+  },
+  cardLogos: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  logoLabel: {
+    fontSize: 12,
+    color: TEXT_GRAY,
+    marginLeft: 10,
+    fontWeight: '600',
   },
 });

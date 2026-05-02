@@ -17,6 +17,11 @@ const StallSchema = new mongoose.Schema({
   openingTime: { type: String, default: null },
   closingTime: { type: String, default: null },
   hoursAuto: { type: Boolean, default: false },
+  // Bank Details
+  bankName: { type: String, default: '' },
+  accountNumber: { type: String, default: '' },
+  accountName: { type: String, default: '' },
+  branchName: { type: String, default: '' },
   createdAt: { type: Date, default: Date.now }
 });
 

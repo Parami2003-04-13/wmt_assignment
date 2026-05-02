@@ -8,6 +8,7 @@ import {
   Image,
   Platform,
   Alert,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -27,7 +28,7 @@ const Text = (props: any) => (
 
 export default function CartScreen() {
   const router = useRouter();
-  const { cartItems, removeFromCart, clearCart, cartTotal } = useCart();
+  const { cartItems, removeFromCart, clearCart, updateQuantity, cartTotal } = useCart();
 
   const handleCheckout = () => {
     if (cartItems.length === 0) return;
@@ -36,6 +37,7 @@ export default function CartScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" backgroundColor={BG} translucent={false} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <MaterialCommunityIcons name="arrow-left" size={24} color={TEXT_DARK} />
@@ -63,7 +65,22 @@ export default function CartScreen() {
                 <Text style={styles.itemStall} numberOfLines={1}>
                   {item.meal.stall?.name || 'Stall'}
                 </Text>
-                <Text style={styles.itemPrice}>Rs. {item.meal.price} x {item.quantity}</Text>
+                <View style={styles.quantityContainer}>
+                  <TouchableOpacity 
+                    onPress={() => updateQuantity(item.meal._id, item.quantity - 1)}
+                    style={styles.qtyBtn}
+                  >
+                    <MaterialCommunityIcons name="minus" size={16} color={PRIMARY} />
+                  </TouchableOpacity>
+                  <Text style={styles.qtyText}>{item.quantity}</Text>
+                  <TouchableOpacity 
+                    onPress={() => updateQuantity(item.meal._id, item.quantity + 1)}
+                    style={styles.qtyBtn}
+                    disabled={item.quantity >= (item.meal.quantity || 99)}
+                  >
+                    <MaterialCommunityIcons name="plus" size={16} color={PRIMARY} />
+                  </TouchableOpacity>
+                </View>
               </View>
               <View style={styles.itemActions}>
                 <Text style={styles.itemTotal}>Rs. {item.meal.price * item.quantity}</Text>
@@ -182,6 +199,28 @@ const styles = StyleSheet.create({
     color: PRIMARY,
     fontWeight: '600',
     marginTop: 6,
+  },
+  quantityContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    padding: 4,
+  },
+  qtyBtn: {
+    padding: 4,
+    backgroundColor: '#fff',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  qtyText: {
+    paddingHorizontal: 12,
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: TEXT_DARK,
   },
   itemActions: {
     alignItems: 'flex-end',

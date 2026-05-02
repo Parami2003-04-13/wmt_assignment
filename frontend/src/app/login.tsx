@@ -10,6 +10,7 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  StatusBar,
   Text as RNText // Renamed for helper
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -80,6 +81,7 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F8F9FA" translucent={false} />
       <ScrollView 
         contentContainerStyle={styles.scrollContent} 
         showsVerticalScrollIndicator={false}

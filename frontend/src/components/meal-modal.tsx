@@ -1,24 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Modal, 
-  View, 
-  StyleSheet, 
-  Text as RNText, 
-  TextInput, 
-  TouchableOpacity, 
-  ScrollView, 
-  Image, 
-  ActivityIndicator, 
+import {
+  Modal,
+  View,
+  StyleSheet,
+  Text as RNText,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+  ActivityIndicator,
   Alert,
   Platform,
-  SafeAreaView
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../services/api';
 import { COLORS } from '../theme/colors';
 
-const Text = (props: any) => <RNText {...props} style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]} />;
+const Text = (props: any) => (
+  <RNText {...props} style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]} />
+);
+
+const CATEGORIES = ['Breakfast', 'Lunch', 'Snacks', 'Drinks'] as const;
 
 interface MealModalProps {
   visible: boolean;
@@ -29,6 +33,7 @@ interface MealModalProps {
 }
 
 export default function MealModal({ visible, onClose, onSave, stallId, meal }: MealModalProps) {
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -120,175 +125,261 @@ export default function MealModal({ visible, onClose, onSave, stallId, meal }: M
     }
   };
 
+  const heroTop = Math.max(insets.top, 12) + 4;
+
   return (
-    <Modal visible={visible} animationType="slide">
-      <SafeAreaView style={styles.container}>
-        <View style={styles.photoHeader}>
-          <Image
-            source={{
-              uri: formData.image || 'https://via.placeholder.com/900x650?text=Meal+photo',
-            }}
-            style={styles.photoHeaderImg}
-          />
-          <View style={styles.photoHeaderShade} />
+    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
+      <SafeAreaView style={styles.safeTop} edges={['bottom']}>
+        <View style={styles.root}>
+          <View style={styles.hero}>
+            <Image
+              source={{
+                uri: formData.image || 'https://via.placeholder.com/900x650?text=Meal+photo',
+              }}
+              style={styles.heroImage}
+            />
+            <View style={styles.heroOverlay} />
 
-          <TouchableOpacity style={[styles.iconBtn, { left: 16 }]} onPress={onClose} hitSlop={10}>
-            <MaterialCommunityIcons name="close" size={22} color="#fff" />
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.heroRoundBtn, { top: heroTop, left: 16 }]}
+              onPress={onClose}
+              hitSlop={10}
+              activeOpacity={0.85}>
+              <MaterialCommunityIcons name="close" size={22} color="#fff" />
+            </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.iconBtn, { right: 16 }]} onPress={pickImage} hitSlop={10}>
-            <MaterialCommunityIcons name="camera-outline" size={22} color="#fff" />
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.heroRoundBtn, { top: heroTop, right: 16 }]}
+              onPress={pickImage}
+              hitSlop={10}
+              activeOpacity={0.85}>
+              <MaterialCommunityIcons name="camera-outline" size={22} color="#fff" />
+            </TouchableOpacity>
 
-          <View style={styles.photoHeaderBadge}>
-            <MaterialCommunityIcons name="image-edit-outline" size={16} color={COLORS.primary} />
-            <Text style={styles.photoHeaderBadgeText}>{formData.image ? 'Change photo' : 'Add photo'}</Text>
+            <TouchableOpacity style={styles.heroBadge} onPress={pickImage} activeOpacity={0.88}>
+              <MaterialCommunityIcons name="image-edit-outline" size={18} color={COLORS.primary} />
+              <Text style={styles.heroBadgeText}>{formData.image ? 'Change photo' : 'Add photo'}</Text>
+            </TouchableOpacity>
           </View>
-        </View>
 
-        <ScrollView style={styles.body} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <View style={styles.topRow}>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.fieldLabel}>Name</Text>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}>
+            <View style={styles.sheet}>
+              <View style={styles.sheetHandle} />
+              <Text style={styles.screenTitle}>{meal ? 'Edit meal' : 'Add item'}</Text>
+              <Text style={styles.screenSubtitle}>
+                {meal ? 'Update details and save changes.' : 'Add a photo, set price and stock, then save to your menu.'}
+              </Text>
+
+              <Text style={styles.label}>Name</Text>
               <TextInput
                 placeholder="Meal name"
                 placeholderTextColor={COLORS.textGray}
-                style={styles.titleInput}
+                style={styles.input}
                 value={formData.name}
                 onChangeText={(text) => setFormData({ ...formData, name: text })}
               />
-            </View>
-            <View style={{ width: 120 }}>
-              <Text style={styles.fieldLabel}>Price</Text>
-              <View style={styles.pricePill}>
-                <Text style={styles.pricePrefix}>Rs.</Text>
+
+              <View style={styles.priceQtyRow}>
+                <View style={styles.priceQtyCol}>
+                  <Text style={styles.label}>Price</Text>
+                  <View style={styles.pricePill}>
+                    <Text style={styles.pricePrefix}>Rs.</Text>
+                    <TextInput
+                      placeholder="0"
+                      placeholderTextColor={COLORS.textGray}
+                      style={styles.priceInput}
+                      keyboardType="decimal-pad"
+                      value={formData.price}
+                      onChangeText={(text) => setFormData({ ...formData, price: text })}
+                    />
+                  </View>
+                </View>
+                <View style={styles.qtyCol}>
+                  <Text style={styles.label}>Quantity</Text>
+                  <TextInput
+                    placeholder="0"
+                    placeholderTextColor={COLORS.textGray}
+                    style={styles.qtyInput}
+                    keyboardType="number-pad"
+                    value={formData.quantity}
+                    onChangeText={(text) => setFormData({ ...formData, quantity: text })}
+                  />
+                </View>
+              </View>
+
+              <Text style={[styles.label, styles.labelSpaced]}>Category</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.categoryRow}>
+                {CATEGORIES.map((cat) => {
+                  const active = formData.category === cat;
+                  return (
+                    <TouchableOpacity
+                      key={cat}
+                      style={[styles.categoryPill, active ? styles.categoryPillOn : styles.categoryPillOff]}
+                      onPress={() => setFormData({ ...formData, category: cat })}
+                      activeOpacity={0.85}>
+                      <Text style={[styles.categoryPillText, active ? styles.categoryPillTextOn : styles.categoryPillTextOff]}>
+                        {cat}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              <View style={styles.descCard}>
+                <View style={styles.descHeader}>
+                  <MaterialCommunityIcons name="text-box-outline" size={18} color={COLORS.primary} />
+                  <Text style={styles.descTitle}>Description</Text>
+                </View>
                 <TextInput
-                  placeholder="0"
+                  placeholder="Write a short description"
                   placeholderTextColor={COLORS.textGray}
-                  style={styles.priceInput}
-                  keyboardType="numeric"
-                  value={formData.price}
-                  onChangeText={(text) => setFormData({ ...formData, price: text })}
+                  style={styles.descInput}
+                  multiline
+                  value={formData.description}
+                  onChangeText={(text) => setFormData({ ...formData, description: text })}
                 />
               </View>
+
+              <TouchableOpacity
+                style={[styles.saveBtn, loading && { opacity: 0.72 }]}
+                onPress={handleSave}
+                disabled={loading}
+                activeOpacity={0.88}>
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.saveBtnText}>{meal ? 'Update meal' : 'Add to menu'}</Text>
+                )}
+              </TouchableOpacity>
             </View>
-          </View>
-
-          <View style={styles.metaRow}>
-            <View style={styles.qtyRow}>
-              <Text style={styles.metaLabel}>qty</Text>
-              <TextInput
-                placeholder="0"
-                placeholderTextColor={COLORS.textGray}
-                style={styles.qtyInput}
-                keyboardType="numeric"
-                value={formData.quantity}
-                onChangeText={(text) => setFormData({ ...formData, quantity: text })}
-              />
-            </View>
-            <View style={styles.starsRow} pointerEvents="none">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <MaterialCommunityIcons key={i} name="star" size={18} color={COLORS.primary} />
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.categoryRow}>
-            <Text style={styles.fieldLabel}>Category</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-              {['Breakfast', 'Lunch', 'Snacks', 'Drinks'].map((cat) => (
-                <TouchableOpacity
-                  key={cat}
-                  style={[styles.categoryChip, formData.category === cat && styles.categoryChipActive]}
-                  onPress={() => setFormData({ ...formData, category: cat })}
-                >
-                  <Text style={[styles.categoryChipText, formData.category === cat && styles.categoryChipTextActive]}>{cat}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-
-          <View style={styles.descCard}>
-            <View style={styles.descHeader}>
-              <MaterialCommunityIcons name="text-box-outline" size={18} color={COLORS.textGray} />
-              <Text style={styles.descTitle}>Description</Text>
-            </View>
-            <TextInput
-              placeholder="Write a short description"
-              placeholderTextColor={COLORS.textGray}
-              style={styles.descInput}
-              multiline
-              value={formData.description}
-              onChangeText={(text) => setFormData({ ...formData, description: text })}
-            />
-          </View>
-
-          <TouchableOpacity
-            style={[styles.saveBtn, loading && { opacity: 0.7 }]}
-            onPress={handleSave}
-            disabled={loading}>
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.saveBtnText}>{meal ? 'Update meal' : 'Add to menu'}</Text>
-            )}
-          </TouchableOpacity>
-
-          <View style={{ height: 30 }} />
-        </ScrollView>
+          </ScrollView>
+        </View>
       </SafeAreaView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.surface },
-  photoHeader: { width: '100%', aspectRatio: 4 / 3, backgroundColor: COLORS.primarySoft },
-  photoHeaderImg: { width: '100%', height: '100%' },
-  photoHeaderShade: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.12)',
+  safeTop: { flex: 1, backgroundColor: COLORS.background },
+  root: { flex: 1, backgroundColor: COLORS.background },
+  hero: {
+    width: '100%',
+    aspectRatio: 4 / 3,
+    backgroundColor: COLORS.primarySoft,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    overflow: 'hidden',
   },
-  iconBtn: {
+  heroImage: { width: '100%', height: '100%' },
+  heroOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(11, 40, 38, 0.32)',
+  },
+  heroRoundBtn: {
     position: 'absolute',
-    top: 14,
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: 14,
-    backgroundColor: 'rgba(0,0,0,0.38)',
+    backgroundColor: 'rgba(0,0,0,0.35)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  photoHeaderBadge: {
+  heroBadge: {
     position: 'absolute',
     left: 16,
-    bottom: 14,
+    bottom: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  photoHeaderBadgeText: { fontSize: 13, fontWeight: '800', color: COLORS.primary },
+  heroBadgeText: { fontSize: 13, fontWeight: '800', color: COLORS.primary },
 
-  body: { flex: 1, paddingHorizontal: 20, paddingTop: 14 },
-  fieldLabel: { fontSize: 12, fontWeight: '800', color: COLORS.textGray, marginBottom: 6, textTransform: 'uppercase' },
-  topRow: { flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
-  titleInput: {
+  scroll: { flex: 1 },
+  scrollContent: { flexGrow: 1 },
+  sheet: {
+    marginTop: -20,
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 28,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: COLORS.border,
+    marginBottom: 18,
+    opacity: 0.85,
+  },
+  screenTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: COLORS.primaryDark,
+    letterSpacing: -0.3,
+  },
+  screenSubtitle: {
+    marginTop: 8,
+    marginBottom: 20,
+    fontSize: 14,
+    color: COLORS.textGray,
+    lineHeight: 20,
+  },
+  label: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: COLORS.textGray,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  labelSpaced: { marginTop: 18 },
+  input: {
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: Platform.OS === 'ios' ? 12 : 10,
+    paddingHorizontal: 16,
+    paddingVertical: Platform.OS === 'ios' ? 14 : 12,
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '700',
     color: COLORS.textDark,
     backgroundColor: COLORS.background,
   },
+  priceQtyRow: {
+    flexDirection: 'row',
+    gap: 14,
+    marginTop: 16,
+    alignItems: 'flex-start',
+  },
+  priceQtyCol: { flex: 1, minWidth: 0 },
+  qtyCol: { width: 112 },
   pricePill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -296,40 +387,52 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: Platform.OS === 'ios' ? 12 : 10,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === 'ios' ? 14 : 12,
     backgroundColor: COLORS.background,
   },
   pricePrefix: { fontSize: 14, fontWeight: '900', color: COLORS.textGray },
-  priceInput: { flex: 1, fontSize: 16, fontWeight: '900', color: COLORS.primary },
-
-  metaRow: { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  metaLabel: { fontSize: 13, fontWeight: '800', color: COLORS.textGray },
+  priceInput: { flex: 1, fontSize: 16, fontWeight: '900', color: COLORS.primary, minWidth: 0 },
   qtyInput: {
-    minWidth: 90,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 12,
+    borderRadius: 14,
     paddingHorizontal: 12,
-    paddingVertical: Platform.OS === 'ios' ? 10 : 8,
-    fontSize: 15,
+    paddingVertical: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: 16,
     fontWeight: '800',
     color: COLORS.textDark,
     backgroundColor: COLORS.background,
     textAlign: 'center',
   },
-  starsRow: { flexDirection: 'row', gap: 4, opacity: 0.9 },
 
-  categoryRow: { marginTop: 14 },
-  categoryScroll: { marginLeft: -20, paddingLeft: 20 },
-  categoryChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, marginRight: 10, backgroundColor: COLORS.surface },
-  categoryChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  categoryChipText: { fontSize: 13, fontWeight: '700', color: COLORS.textGray },
-  categoryChipTextActive: { color: '#fff' },
+  categoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 2,
+    marginBottom: 4,
+  },
+  categoryPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  categoryPillOn: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  categoryPillOff: {
+    backgroundColor: COLORS.primarySoft,
+    borderColor: COLORS.border,
+  },
+  categoryPillText: { fontSize: 14, fontWeight: '800' },
+  categoryPillTextOn: { color: '#fff' },
+  categoryPillTextOff: { color: COLORS.textDark },
 
   descCard: {
-    marginTop: 14,
+    marginTop: 18,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 16,
@@ -340,33 +443,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingHorizontal: 14,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: COLORS.border,
+    backgroundColor: COLORS.surface,
   },
   descTitle: { fontSize: 14, fontWeight: '800', color: COLORS.textDark },
   descInput: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    minHeight: 110,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    minHeight: 120,
     fontSize: 15,
-    color: COLORS.textGray,
+    color: COLORS.textDark,
     lineHeight: 22,
     textAlignVertical: 'top',
+    backgroundColor: COLORS.background,
   },
-  saveBtn: { 
-    backgroundColor: COLORS.primary, 
-    padding: 18, 
-    borderRadius: 14, 
+  saveBtn: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 16,
+    borderRadius: 10,
     alignItems: 'center',
-    marginTop: 18,
-    elevation: 3,
-    shadowColor: COLORS.primaryDark,
+    marginTop: 22,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
   },
   saveBtnText: { color: '#fff', fontWeight: '900', fontSize: 16 },
 });

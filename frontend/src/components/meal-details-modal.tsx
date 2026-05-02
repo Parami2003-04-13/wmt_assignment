@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import React, { useEffect, useState } from 'react';
 import React, { useState, useEffect } from 'react';
 import {
   Dimensions,
@@ -35,15 +36,13 @@ export default function MealDetailsModal({ visible, onClose, meal }: MealDetails
   const { addToCart } = useCart();
   // fetch review stats from api
   const [stats, setStats] = useState<{ averageRating: number; reviewCount: number }>({ averageRating: 0, reviewCount: 0 });
-  const [quantity, setQuantity] = useState(1);
 
   useEffect(() => {
     if (visible && meal?._id) {
       api.get(`/reviews/stats/${meal._id}`)
         .then(res => setStats(res.data))
         .catch(err => console.error('Error fetching meal stats:', err));
-    }
-  }, [visible, meal?._id]);
+  const [quantity, setQuantity] = useState(1);
 
   // Reset quantity when modal opens for a new meal
   useEffect(() => {
@@ -119,6 +118,23 @@ export default function MealDetailsModal({ visible, onClose, meal }: MealDetails
               <Text style={styles.sectionTitle}>Description</Text>
               <Text style={styles.description}>{meal.description}</Text>
 
+              <View style={styles.actionRow}>
+                <TouchableOpacity style={styles.orderBtn} onPress={handleAddToCart}>
+                  <MaterialCommunityIcons name="cart-outline" size={22} color="#fff" />
+                  <Text style={styles.orderBtnText}>Add to cart</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={styles.reviewBtn} 
+                  onPress={() => {
+                    onClose();
+                    router.push({ pathname: '/user/add-review', params: { mealId: meal._id } });
+                  }}
+                > 
+                  <MaterialCommunityIcons name="star-outline" size={22} color={PRIMARY} />
+                  <Text style={styles.reviewBtnText}>Add Review</Text>
+                </TouchableOpacity>
+              </View>
               {!isOutOfStock && (
                 <View style={styles.quantitySection}>
                   <Text style={styles.sectionTitle}>Select Quantity</Text>
@@ -146,29 +162,16 @@ export default function MealDetailsModal({ visible, onClose, meal }: MealDetails
                 </View>
               )}
 
-              <View style={styles.actionRow}>
-                <TouchableOpacity 
-                  style={[styles.orderBtn, isOutOfStock && styles.disabledBtn]} 
-                  onPress={handleAddToCart}
-                  disabled={isOutOfStock}
-                >
-                  <MaterialCommunityIcons name="cart-outline" size={22} color="#fff" />
-                  <Text style={styles.orderBtnText}>
-                    {isOutOfStock ? 'Currently Unavailable' : 'Add to cart'}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  style={styles.reviewBtn} 
-                  onPress={() => {
-                    onClose();
-                    router.push({ pathname: '/user/add-review', params: { mealId: meal._id } });
-                  }}
-                > 
-                  <MaterialCommunityIcons name="star-outline" size={22} color={PRIMARY} />
-                  <Text style={styles.reviewBtnText}>Add Review</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity 
+                style={[styles.orderBtn, isOutOfStock && styles.disabledBtn]} 
+                onPress={handleAddToCart}
+                disabled={isOutOfStock}
+              >
+                <MaterialCommunityIcons name="cart-outline" size={22} color="#fff" />
+                <Text style={styles.orderBtnText}>
+                  {isOutOfStock ? 'Currently Unavailable' : 'Add to cart'}
+                </Text>
+              </TouchableOpacity>
             </View>
           </ScrollView>
         </View>
@@ -257,13 +260,14 @@ const styles = StyleSheet.create({
     marginBottom: 20
   },
   qtyText: { fontSize: 13, color: PRIMARY, fontWeight: '700', marginLeft: 6 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: TEXT_DARK, marginBottom: 12 },
-  description: { fontSize: 15, color: TEXT_GRAY, lineHeight: 22, marginBottom: 20 },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: TEXT_DARK, marginBottom: 10 },
+  description: { fontSize: 15, color: TEXT_GRAY, lineHeight: 22, marginBottom: 30 },
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-  },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: TEXT_DARK, marginBottom: 12 },
+  description: { fontSize: 15, color: TEXT_GRAY, lineHeight: 22, marginBottom: 20 },
   quantitySection: {
     marginBottom: 24,
   },

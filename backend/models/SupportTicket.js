@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const ticketSchema = new mongoose.Schema({
+const supportTicketSchema = new mongoose.Schema({
   stall: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Stall',
@@ -49,10 +49,15 @@ const ticketSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
-  staffHasSeenTicket: {
+  repliedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  staffHasSeenSupportTicket: {
     type: Boolean,
     default: false
   }
 }, { timestamps: true });
 
-module.exports = mongoose.model('Ticket', ticketSchema);
+module.exports = mongoose.model('SupportTicket', supportTicketSchema);
