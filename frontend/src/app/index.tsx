@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, StatusBar } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Text } from '@ant-design/react-native';
 import { getStoredToken, getStoredUser } from '../services/api';
@@ -40,6 +40,7 @@ export default function Initializer() {
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" translucent={false} />
       <Text style={styles.appTitle}>CampusBites</Text>
       <ActivityIndicator size="large" color={COLORS.primary} />
       <Text style={styles.loadingText}>Loading your experience...</Text>
