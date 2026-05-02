@@ -483,7 +483,73 @@ app.get('/api/tickets/unread-count/staff/:stallId', async (req, res) => {
   }
 });
 
+// --- Order Routes ---
+
+// Create Order
+app.post('/api/orders', async (req, res) => {
+  const { 
+    userId, 
+    items, 
+    totalAmount, 
+    pickupTime, 
+    isStudentDiscount, 
+    studentIdImage, 
+    paymentMethod 
+  } = req.body;
+
+  if (!userId || !items || items.length === 0 || !totalAmount || !pickupTime || !paymentMethod) {
+    return res.status(400).json({ message: 'Missing required fields' });
+  }
+
+  try {
+    const auth = await authUserFromRequest(req);
+    // If auth is provided, ensure it matches userId
+    if (auth && auth._id.toString() !== userId) {
+      return res.status(403).json({ message: 'Unauthorized to place order for another user.' });
+    }
+
+    // Generate Unique Order ID (Human readable)
+    const orderCount = await Order.countDocuments();
+    const uniqueId = `ORD-${Date.now().toString().slice(-4)}-${(orderCount + 1).toString().padStart(3, '0')}`;
+
+    const newOrder = new Order({
+      user: userId,
+      items,
+      totalAmount,
+      pickupTime,
+      isStudentDiscount,
+      studentIdImage,
+      paymentMethod,
+      orderId: uniqueId,
+      status: 'Pending'
+    });
+
+    await newOrder.save();
+    res.status(201).json(newOrder);
+
+  } catch (err) {
+    console.error('Order creation error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get orders by user
+app.get('/api/orders/user/:userId', async (req, res) => {
+  try {
+    const auth = await authUserFromRequest(req);
+    if (auth && auth._id.toString() !== req.params.userId) {
+      return res.status(403).json({ message: 'Unauthorized' });
+    }
+
+    const orders = await Order.find({ user: req.params.userId }).sort({ createdAt: -1 });
+    res.json(orders);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Vercel serverless invokes this file as a module — do not bind a listener there.
+
 module.exports = app;
 if (!process.env.VERCEL && require.main === module) {
   app.listen(PORT, '0.0.0.0', () => {
