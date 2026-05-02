@@ -36,8 +36,8 @@ type Props = {
   stallId: string;
 };
 
-export default function UserTicketModal({ visible, onClose, stallId }: Props) {
-  const [tickets, setTickets] = useState<any[]>([]);
+export default function UserSupportTicketModal({ visible, onClose, stallId }: Props) {
+  const [supportTickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Form states
@@ -51,7 +51,7 @@ export default function UserTicketModal({ visible, onClose, stallId }: Props) {
     if (!stallId) return;
     setLoading(true);
     try {
-      const { data } = await api.get(`/tickets/user/${stallId}`);
+      const { data } = await api.get(`/support-tickets/user/${stallId}`);
       setTickets(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
@@ -80,9 +80,9 @@ export default function UserTicketModal({ visible, onClose, stallId }: Props) {
 
     try {
       if (editingId) {
-        await api.put(`/tickets/${editingId}`, { title, description, screenshot });
+        await api.put(`/support-tickets/${editingId}`, { title, description, screenshot });
       } else {
-        await api.post('/tickets', { stallId, title, description, screenshot });
+        await api.post('/support-tickets', { stallId, title, description, screenshot });
       }
       resetForm();
       loadTickets();
@@ -127,7 +127,7 @@ export default function UserTicketModal({ visible, onClose, stallId }: Props) {
         style: 'destructive',
         onPress: async () => {
           try {
-            await api.delete(`/tickets/${id}`);
+            await api.delete(`/support-tickets/${id}`);
             loadTickets();
           } catch (err) {
             Alert.alert('Error', 'Failed to delete ticket');
@@ -200,14 +200,14 @@ export default function UserTicketModal({ visible, onClose, stallId }: Props) {
 
               {loading ? (
                 <ActivityIndicator color={COLORS.primary} style={{ marginTop: 20 }} />
-              ) : tickets.length === 0 ? (
-                <Text style={styles.empty}>No tickets raised yet.</Text>
+              ) : supportTickets.length === 0 ? (
+                <Text style={styles.empty}>No supportTickets raised yet.</Text>
               ) : (
-                tickets.map(t => (
-                  <View key={t._id} style={styles.ticketCard}>
-                    <View style={styles.ticketHeader}>
+                supportTickets.map(t => (
+                  <View key={t._id} style={styles.supportTicketCard}>
+                    <View style={styles.supportTicketHeader}>
                       <View style={{ flex: 1, marginRight: 10 }}>
-                        <Text style={styles.ticketTitle}>{t.title}</Text>
+                        <Text style={styles.supportTicketTitle}>{t.title}</Text>
                       </View>
                       <View style={[styles.statusPill, { backgroundColor: t.reply ? '#DCF5ED' : '#FEF3C7' }]}>
                         <Text style={[styles.statusText, { color: t.reply ? COLORS.success : '#D97706' }]}>
@@ -215,7 +215,7 @@ export default function UserTicketModal({ visible, onClose, stallId }: Props) {
                         </Text>
                       </View>
                     </View>
-                    <Text style={styles.ticketDesc}>{t.description}</Text>
+                    <Text style={styles.supportTicketDesc}>{t.description}</Text>
 
                     {t.screenshot ? (
                       <TouchableOpacity activeOpacity={0.8} onPress={() => setFullScreenImage(t.screenshot)}>
@@ -231,12 +231,15 @@ export default function UserTicketModal({ visible, onClose, stallId }: Props) {
 
                     {t.reply && (
                       <View style={styles.replyBox}>
-                        <View style={styles.replyHeader}>
-                          <Text style={styles.replyLabel}>Staff Reply:</Text>
-                          <Text style={styles.replyDate}>
-                            {t.replyEditedAt ? `Replied (Edited): ${formatSLTime(t.replyEditedAt)}` : t.repliedAt ? `Replied: ${formatSLTime(t.repliedAt)}` : ''}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                          <MaterialCommunityIcons name="account-tie" size={16} color={COLORS.primary} />
+                          <Text style={styles.replyLabel}>
+                            {t.repliedBy?.name ? `Staff Reply (${t.repliedBy.name}):` : 'Staff Reply:'}
                           </Text>
                         </View>
+                        <Text style={[styles.replyDate, { marginBottom: 6 }]}>
+                          {t.replyEditedAt ? `Replied (Edited): ${formatSLTime(t.replyEditedAt)}` : t.repliedAt ? `Replied: ${formatSLTime(t.repliedAt)}` : ''}
+                        </Text>
                         <Text style={styles.replyText}>{t.reply}</Text>
                       </View>
                     )}
@@ -296,12 +299,12 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: COLORS.border, marginVertical: 16 },
   listTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textDark, marginBottom: 12 },
   empty: { color: COLORS.textGray, fontStyle: 'italic', textAlign: 'center', marginTop: 10 },
-  ticketCard: { backgroundColor: COLORS.background, borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: COLORS.border },
-  ticketHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
-  ticketTitle: { fontSize: 16, fontWeight: '700', color: COLORS.textDark, flex: 1 },
+  supportTicketCard: { backgroundColor: COLORS.background, borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: COLORS.border },
+  supportTicketHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
+  supportTicketTitle: { fontSize: 16, fontWeight: '700', color: COLORS.textDark, flex: 1 },
   statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   statusText: { fontSize: 12, fontWeight: '800' },
-  ticketDesc: { fontSize: 14, color: COLORS.textGray, lineHeight: 20 },
+  supportTicketDesc: { fontSize: 14, color: COLORS.textGray, lineHeight: 20 },
   replyBox: { marginTop: 12, padding: 12, backgroundColor: COLORS.primarySoft, borderRadius: 12 },
   replyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   replyLabel: { fontSize: 12, fontWeight: '800', color: COLORS.primary },

@@ -21,7 +21,7 @@ import api, { clearAuthStorage, getStoredUser } from '../../services/api';
 import MealModal from '../../components/meal-modal';
 import StallEditModal from '../../components/stall-edit-modal';
 import AddStaffModal from '../../components/add-staff-modal';
-import StaffTicketModal from '../../components/staff-ticket-modal';
+import StaffSupportTicketModal from '../../components/staff-support-ticket-modal';
 import { COLORS } from '../../theme/colors';
 
 /** Matches meal modal / backend Meal.category enum */
@@ -51,9 +51,9 @@ export default function StallManagement() {
   const [selectedMeal, setSelectedMeal] = useState<any>(null);
   const [stallEditVisible, setStallEditVisible] = useState(false);
   const [addStaffVisible, setAddStaffVisible] = useState(false);
-  const [ticketModalVisible, setTicketModalVisible] = useState(false);
+  const [supportTicketModalVisible, setTicketModalVisible] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
-  const [unreadTickets, setUnreadTickets] = useState(0);
+  const [unreadSupportTickets, setUnreadTickets] = useState(0);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [menuManageOpen, setMenuManageOpen] = useState(false);
   const [selectedManageCategory, setSelectedManageCategory] = useState<string | null>(null);
@@ -86,7 +86,7 @@ export default function StallManagement() {
   const fetchUnread = useCallback(async () => {
     if (!stallId) return;
     try {
-      const response = await api.get(`/tickets/unread-count/staff/${stallId}`);
+      const response = await api.get(`/support-tickets/unread-count/staff/${stallId}`);
       setUnreadTickets(response.data.count);
     } catch (err) {
       console.error('Fetch unread error');
@@ -270,9 +270,9 @@ export default function StallManagement() {
 
   const openCustomerSupport = async () => {
     setTicketModalVisible(true);
-    if (unreadTickets > 0 && stallId) {
+    if (unreadSupportTickets > 0 && stallId) {
       try {
-        await api.put(`/tickets/mark-seen/staff/${stallId}`);
+        await api.put(`/support-tickets/mark-seen/staff/${stallId}`);
         setUnreadTickets(0);
       } catch {
         /* ignore */
@@ -317,7 +317,7 @@ export default function StallManagement() {
                 hitSlop={12}>
                 <View style={{ position: 'relative' }}>
                   <MaterialCommunityIcons name="headset" size={22} color="#fff" />
-                  {unreadTickets > 0 ? <View style={styles.unreadDot} /> : null}
+                  {unreadSupportTickets > 0 ? <View style={styles.unreadDot} /> : null}
                 </View>
               </Pressable>
             ) : null}
@@ -704,7 +704,7 @@ export default function StallManagement() {
                     onPress={openCustomerSupport}>
                     <View style={{ position: 'relative' }}>
                       <MaterialCommunityIcons name="headset" size={18} color={COLORS.primary} />
-                      {unreadTickets > 0 ? <View style={styles.unreadDot} /> : null}
+                      {unreadSupportTickets > 0 ? <View style={styles.unreadDot} /> : null}
                     </View>
                     <Text style={styles.menuActionText}>Customer support</Text>
                   </TouchableOpacity>
@@ -770,8 +770,8 @@ export default function StallManagement() {
         onClose={() => setAddStaffVisible(false)}
         onChanged={() => { }}
       />
-      <StaffTicketModal
-        visible={ticketModalVisible}
+      <StaffSupportTicketModal
+        visible={supportTicketModalVisible}
         onClose={() => setTicketModalVisible(false)}
         stallId={stallId as string}
       />
