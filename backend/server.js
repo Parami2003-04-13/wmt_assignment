@@ -228,6 +228,19 @@ app.get('/api/meals/stall/:stallId', async (req, res) => {
   }
 });
 
+// Get a single meal by ID
+app.get('/api/meals/:id', async (req, res) => {
+  try {
+    const meal = await Meal.findById(req.params.id);
+    if (!meal) return res.status(404).json({ message: 'Meal not found' });
+    res.json(meal);
+  } catch (err) {
+    console.error('Fetch meal error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+
 // Update Meal
 app.patch('/api/meals/:id', async (req, res) => {
   try {
