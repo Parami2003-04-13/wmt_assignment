@@ -43,7 +43,7 @@ export default function OrderSuccessScreen() {
         </View>
 
         <Text style={styles.infoText}>
-          Please show this Order ID at the canteen counter when you pickup your meal.
+          Please show this Order ID at the stall counter when you pickup your meal.
         </Text>
       </View>
 
