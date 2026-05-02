@@ -117,6 +117,10 @@ exports.replyToTicket = async (req, res) => {
     const auth = await authUserFromRequest(req);
     if (!auth) return res.status(401).json({ message: 'Unauthorized' });
 
+    if (reply && reply.trim().length < 10) {
+      return res.status(400).json({ message: 'Reply must be at least 10 characters.' });
+    }
+
     const supportTicket = await SupportTicket.findById(req.params.id);
     if (!supportTicket) return res.status(404).json({ message: 'Support ticket not found' });
 

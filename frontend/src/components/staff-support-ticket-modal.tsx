@@ -76,7 +76,7 @@ export default function StaffSupportTicketModal({ visible, onClose, stallId }: P
   };
 
   const handleSaveReply = async () => {
-    if (!replyText.trim()) return Alert.alert('Validation', 'Reply cannot be empty');
+    if (replyText.trim().length < 10) return Alert.alert('Validation', 'Reply must be at least 10 characters');
 
     try {
       await api.put(`/support-tickets/${replyingTo._id}/reply`, { reply: replyText });
