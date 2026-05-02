@@ -552,7 +552,12 @@ app.get('/api/orders/user/:userId', async (req, res) => {
 
 module.exports = app;
 if (!process.env.VERCEL && require.main === module) {
-  app.listen(PORT, '0.0.0.0', () => {
+  app.listen(PORT, '0.0.0.0', async () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
+    try {
+      await connectDB();
+    } catch (err) {
+      console.error('Initial database connection failed:', err);
+    }
   });
 }

@@ -1,7 +1,6 @@
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
-
 function protect(req, res, next) {
   try {
     const authHeader = req.headers.authorization;

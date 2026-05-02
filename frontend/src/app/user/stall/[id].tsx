@@ -66,6 +66,7 @@ export default function UserStallDetails() {
   const [ticketVisible, setTicketVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [unreadTickets, setUnreadTickets] = useState(0);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const fetchAll = useCallback(async () => {
     if (!stallId) return;

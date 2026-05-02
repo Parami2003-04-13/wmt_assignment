@@ -43,7 +43,7 @@ function dateToHHmm(d: Date): string {
 function hhmmOrDefault(hm: string | undefined | null, defaultHour: number, defaultMin: number): Date {
   const d = new Date();
   const n = hm && hm.trim() ? normalizeClientTime(hm) : null;
-  if (n && n !== false) {
+  if (n) {
     const [h, mm] = n.split(':').map(Number);
     d.setHours(h, mm, 0, 0);
     return d;

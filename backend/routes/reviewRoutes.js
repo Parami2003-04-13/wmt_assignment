@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const Review = require('../models/Review'); // Path to your Review model
 const { protect } = require('../middleware/authMiddleware'); // Your auth protector
@@ -32,6 +33,35 @@ router.post('/', protect, async (req, res) => {
         const savedReview = await newReview.save();
 
         res.status(201).json(savedReview);
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error', error: error.message });
+    }
+});
+
+// @desc    Get average rating and review count for a meal
+// @route   GET /api/reviews/stats/:mealId
+// @access  Public
+router.get('/stats/:mealId', async (req, res) => {
+    try {
+        const stats = await Review.aggregate([
+            { $match: { meal: new mongoose.Types.ObjectId(req.params.mealId) } },
+            {
+                $group: {
+                    _id: '$meal',
+                    averageRating: { $avg: '$rating' },
+                    reviewCount: { $sum: 1 }
+                }
+            }
+        ]);
+
+        if (stats.length === 0) {
+            return res.json({ averageRating: 0, reviewCount: 0 });
+        }
+
+        res.json({
+            averageRating: Math.round(stats[0].averageRating * 10) / 10,
+            reviewCount: stats[0].reviewCount
+        });
     } catch (error) {
         res.status(500).json({ message: 'Server Error', error: error.message });
     }
@@ -91,6 +121,7 @@ router.put('/:id', protect, async (req, res) => {
 // @access  Private (Owner only)
 router.delete('/:id', protect, async (req, res) => {
     try {
+        console.log(`Delete request for review ${req.params.id} by user ${req.user.id}`);
         const review = await Review.findById(req.params.id);
 
         if (!review) {
@@ -98,7 +129,8 @@ router.delete('/:id', protect, async (req, res) => {
         }
 
         // Check ownership
-        if (review.user.toString() !== req.user.id) {
+        if (String(review.user) !== String(req.user.id)) {
+            console.log(`Auth mismatch: Review owner ${review.user} vs Acting user ${req.user.id}`);
             return res.status(401).json({ message: 'User not authorized' });
         }
 

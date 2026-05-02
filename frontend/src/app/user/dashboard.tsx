@@ -537,7 +537,7 @@ export default function UserDashboard() {
 
           <View style={styles.mealsHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.sectionTitle}>Today's Specials</Text>
+              <Text style={styles.sectionTitle}>Today&apos;s Specials</Text>
             </View>
           </View>
 

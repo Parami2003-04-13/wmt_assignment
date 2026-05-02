@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Dimensions,
   Image,
@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useCart } from '../context/CartContext';
+import api from '../services/api';
 
 const { width } = Dimensions.get('window');
 const PRIMARY = '#0F5B57';
@@ -32,12 +33,14 @@ interface MealDetailsModalProps {
 export default function MealDetailsModal({ visible, onClose, meal }: MealDetailsModalProps) {
   const router = useRouter();
   const { addToCart } = useCart();
-  const [quantity, setQuantity] = useState(1);
+  // fetch review stats from api
+  const [stats, setStats] = useState<{ averageRating: number; reviewCount: number }>({ averageRating: 0, reviewCount: 0 });
 
-  // Reset quantity when modal opens for a new meal
   useEffect(() => {
-    if (visible) {
-      setQuantity(1);
+    if (visible && meal?._id) {
+      api.get(`/reviews/stats/${meal._id}`)
+        .then(res => setStats(res.data))
+        .catch(err => console.error('Error fetching meal stats:', err));
     }
   }, [visible, meal?._id]);
 
@@ -85,6 +88,12 @@ export default function MealDetailsModal({ visible, onClose, meal }: MealDetails
                 <Text style={styles.price}>Rs. {meal.price}</Text>
               </View>
 
+              <View style={styles.ratingRow}>
+                <MaterialCommunityIcons name="star" size={16} color="#FFD700" />
+                <Text style={styles.ratingValue}>{stats.averageRating}</Text>
+                <Text style={styles.reviewCount}>({stats.reviewCount} {stats.reviewCount === 1 ? 'review' : 'reviews'})</Text>
+              </View>
+
               {meal?.stall?.name && (
                 <View style={styles.stallRow}>
                   <MaterialCommunityIcons name="storefront-outline" size={16} color={TEXT_GRAY} />
@@ -102,43 +111,23 @@ export default function MealDetailsModal({ visible, onClose, meal }: MealDetails
               <Text style={styles.sectionTitle}>Description</Text>
               <Text style={styles.description}>{meal.description}</Text>
 
-              {!isOutOfStock && (
-                <View style={styles.quantitySection}>
-                  <Text style={styles.sectionTitle}>Select Quantity</Text>
-                  <View style={styles.quantityPicker}>
-                    <TouchableOpacity 
-                      style={styles.qtyBtn} 
-                      onPress={decrement}
-                      disabled={quantity <= 1}
-                    >
-                      <MaterialCommunityIcons name="minus" size={20} color={quantity <= 1 ? '#CCC' : PRIMARY} />
-                    </TouchableOpacity>
-                    
-                    <View style={styles.qtyValueContainer}>
-                      <Text style={styles.qtyValue}>{quantity}</Text>
-                    </View>
+              <View style={styles.actionRow}>
+                <TouchableOpacity style={styles.orderBtn} onPress={handleAddToCart}>
+                  <MaterialCommunityIcons name="cart-outline" size={22} color="#fff" />
+                  <Text style={styles.orderBtnText}>Add to cart</Text>
+                </TouchableOpacity>
 
-                    <TouchableOpacity 
-                      style={styles.qtyBtn} 
-                      onPress={increment}
-                      disabled={quantity >= (meal.quantity ?? 0)}
-                    >
-                      <MaterialCommunityIcons name="plus" size={20} color={quantity >= (meal.quantity ?? 0) ? '#CCC' : PRIMARY} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-
-              <TouchableOpacity 
-                style={[styles.orderBtn, isOutOfStock && styles.disabledBtn]} 
-                onPress={handleAddToCart}
-                disabled={isOutOfStock}
-              >
-                <MaterialCommunityIcons name="cart-outline" size={22} color="#fff" />
-                <Text style={styles.orderBtnText}>
-                  {isOutOfStock ? 'Currently Unavailable' : 'Add to cart'}
-                </Text>
-              </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.reviewBtn} 
+                  onPress={() => {
+                    onClose();
+                    router.push({ pathname: '/user/add-review', params: { mealId: meal._id } });
+                  }}
+                > 
+                  <MaterialCommunityIcons name="star-outline" size={22} color={PRIMARY} />
+                  <Text style={styles.reviewBtnText}>Add Review</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </ScrollView>
         </View>
@@ -189,6 +178,21 @@ const styles = StyleSheet.create({
   },
   name: { fontSize: 22, fontWeight: 'bold', color: TEXT_DARK, flex: 1, marginRight: 10 },
   price: { fontSize: 20, fontWeight: '800', color: PRIMARY },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 4,
+  },
+  ratingValue: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: TEXT_DARK,
+  },
+  reviewCount: {
+    fontSize: 13,
+    color: TEXT_GRAY,
+  },
   stallRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -212,48 +216,20 @@ const styles = StyleSheet.create({
     marginBottom: 20
   },
   qtyText: { fontSize: 13, color: PRIMARY, fontWeight: '700', marginLeft: 6 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: TEXT_DARK, marginBottom: 12 },
-  description: { fontSize: 15, color: TEXT_GRAY, lineHeight: 22, marginBottom: 20 },
-  quantitySection: {
-    marginBottom: 24,
-  },
-  quantityPicker: {
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: TEXT_DARK, marginBottom: 10 },
+  description: { fontSize: 15, color: TEXT_GRAY, lineHeight: 22, marginBottom: 30 },
+  actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8F9FA',
-    borderRadius: 14,
-    padding: 8,
-    alignSelf: 'flex-start',
-  },
-  qtyBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: '#FFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  qtyValueContainer: {
-    paddingHorizontal: 20,
-    minWidth: 50,
-    alignItems: 'center',
-  },
-  qtyValue: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: TEXT_DARK,
+    gap: 12,
   },
   orderBtn: {
+    flex: 1,
     backgroundColor: PRIMARY,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 18,
+    padding: 16,
     borderRadius: 16,
     elevation: 3,
     shadowColor: PRIMARY_DARK,
@@ -267,4 +243,21 @@ const styles = StyleSheet.create({
     elevation: 0,
   },
   orderBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16, marginLeft: 10 },
+  reviewBtn: {
+    flex: 1,
+    backgroundColor: PRIMARY_SOFT,
+    flexDirection: 'row',
+    padding: 16,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: PRIMARY,
+  },
+  reviewBtnText: {
+    color: PRIMARY,
+    fontWeight: 'bold',
+    fontSize: 16,
+    marginLeft: 8,
+  },
 });

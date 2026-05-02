@@ -626,7 +626,7 @@ export default function StallManagement() {
                 <View style={styles.staffInfoBanner}>
                   <MaterialCommunityIcons name="shield-account-outline" size={22} color={COLORS.primary} />
                   <Text style={styles.staffInfoBannerText}>
-                    Staff account: editing description, phone, hours, and stall photos requires the stall owner's login.
+                    Staff account: editing description, phone, hours, and stall photos requires the stall owner&apos;s login.
                   </Text>
                 </View>
               </>

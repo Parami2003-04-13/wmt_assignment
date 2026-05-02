@@ -51,7 +51,7 @@ export default function CartScreen() {
           <View style={styles.emptyContainer}>
             <MaterialCommunityIcons name="cart-remove" size={64} color="#CBD5E1" />
             <Text style={styles.emptyTitle}>Your cart is empty</Text>
-            <Text style={styles.emptySubtitle}>Looks like you haven't added any meals yet.</Text>
+            <Text style={styles.emptySubtitle}>Looks like you haven&apos;t added any meals yet.</Text>
             <TouchableOpacity style={styles.browseBtn} onPress={() => router.back()}>
               <Text style={styles.browseBtnText}>Browse Meals</Text>
             </TouchableOpacity>
