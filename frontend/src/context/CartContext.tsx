@@ -21,6 +21,27 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
 
   const addToCart = (meal: any, quantity: number = 1) => {
+    if (cartItems.length > 0) {
+      const existingStallId = cartItems[0].meal.stall?._id || cartItems[0].meal.stall;
+      const newStallId = meal.stall?._id || meal.stall;
+
+      if (existingStallId && newStallId && String(existingStallId) !== String(newStallId)) {
+        Alert.alert(
+          'Different Stall',
+          'Your cart already contains items from another stall. Do you want to clear your cart and add this item instead?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Clear Cart & Add',
+              style: 'destructive',
+              onPress: () => setCartItems([{ meal, quantity }]),
+            },
+          ]
+        );
+        return;
+      }
+    }
+
     setCartItems((prevItems) => {
       const existingItem = prevItems.find((item) => item.meal._id === meal._id);
       if (existingItem) {

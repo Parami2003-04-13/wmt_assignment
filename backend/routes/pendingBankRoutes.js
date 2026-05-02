@@ -46,6 +46,19 @@ router.post('/', async (req, res) => {
       status: 'PendingReview',
     });
 
+    // Create notification for user
+    try {
+      const stallDoc = await Stall.findById(stallId).select('name').lean();
+      await Notification.create({
+        user: userId,
+        title: 'Payment submitted',
+        body: `Your bank transfer slip for Rs. ${totalAmount} at ${stallDoc?.name || 'the stall'} has been submitted and is pending verification.`,
+        type: 'bank_transfer_pending',
+      });
+    } catch (notifyErr) {
+      console.error('Pending bank notification error:', notifyErr);
+    }
+
     res.status(201).json({
       message:
         'Your transfer is pending review. You will receive a notification when staff verify it and confirm your order.',
