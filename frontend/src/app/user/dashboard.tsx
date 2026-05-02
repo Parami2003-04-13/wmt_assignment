@@ -4,7 +4,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     Image,
+    Keyboard,
+    Modal,
     Platform,
+    Pressable,
     Text as RNText // Renamed for helper
     ,
 
@@ -13,14 +16,17 @@ import {
     StyleSheet,
     TextInput,
     TouchableOpacity,
-    View
+    useWindowDimensions,
+    View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import MealDetailsModal from '../../components/meal-details-modal';
+import StallLocationMapView from '../../components/stall-location-map-view';
 import api, { getStoredUser } from '../../services/api';
 // Using standard Icons for 100% stability
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useCart } from '../../context/CartContext';
+import { hasValidStallCoordinates } from '../../utils/stallLocation';
 
 const PRIMARY = '#0F5B57';
 const PRIMARY_DARK = '#0B3F3C';
@@ -84,8 +90,10 @@ const Text = (props: any) => <RNText {...props} style={[{ fontFamily: Platform.O
 export default function UserDashboard() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const [userName, setUserName] = useState('');
   const [query, setQuery] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const { cartItems } = useCart();
   const cartItemCount = cartItems.reduce((total, item) => total + item.quantity, 0);
@@ -131,6 +139,7 @@ export default function UserDashboard() {
   const [loadingStalls, setLoadingStalls] = useState(true);
   const [selectedMeal, setSelectedMeal] = useState<any>(null);
   const [detailsVisible, setDetailsVisible] = useState(false);
+  const [stallForMap, setStallForMap] = useState<any | null>(null);
 
   /** Re-evaluate sunrise/lunch rails when Colombo hour changes (~1/min). */
   const [campusClock, setCampusClock] = useState(() => new Date());
@@ -233,6 +242,54 @@ export default function UserDashboard() {
     [mealsFromApprovedStalls, normalizedQuery, stallById, selectedCategory],
   );
 
+  /** Live search dropdown: ignore category chips so query matches campus-wide */
+  const searchStallHits = useMemo(() => {
+    if (!normalizedQuery) return [];
+    return stalls
+      .filter((s: any) => {
+        const bundle = `${s?.name || ''} ${s?.address || ''} ${s?.phone || ''} ${s?.description || ''} ${s?.status || ''}`;
+        return bundle.toLowerCase().includes(normalizedQuery);
+      })
+      .slice(0, 8);
+  }, [stalls, normalizedQuery]);
+
+  const searchMealHits = useMemo(() => {
+    if (!normalizedQuery) return [];
+    return mealsFromApprovedStalls
+      .filter((m: any) => {
+        const sid = getMealStallId(m);
+        const st = sid ? stallById[String(sid)] : null;
+        const populated =
+          typeof m?.stall === 'object' && m.stall ? `${m.stall.name ?? ''} ${m.stall.description ?? ''}` : '';
+        const bundle = `${m?.name ?? ''} ${m?.description ?? ''} ${String(m?.price ?? '')} ${String(m?.category ?? '')} ${st?.name ?? ''} ${st?.address ?? ''} ${populated}`;
+        return bundle.toLowerCase().includes(normalizedQuery);
+      })
+      .slice(0, 12);
+  }, [mealsFromApprovedStalls, normalizedQuery, stallById]);
+
+  const searchOverlayOpen = searchFocused && normalizedQuery.length > 0;
+  const searchHasHits = searchStallHits.length > 0 || searchMealHits.length > 0;
+
+  const dismissSearchOverlay = useCallback(() => {
+    Keyboard.dismiss();
+    setSearchFocused(false);
+  }, []);
+
+  const onSearchPickStall = useCallback(
+    (stall: any) => {
+      dismissSearchOverlay();
+      router.push(`/user/stall/${stall._id}`);
+    },
+    [dismissSearchOverlay, router],
+  );
+
+  const onSearchPickMeal = useCallback((meal: any) => {
+    Keyboard.dismiss();
+    setSearchFocused(false);
+    setSelectedMeal(meal);
+    setDetailsVisible(true);
+  }, []);
+
   const campusNowWindow = useMemo(() => campusMealWindowFromNow(campusClock), [campusClock]);
 
   /** Time-based carousel: ignores search/category filters so window always reflects the clock. */
@@ -308,6 +365,7 @@ export default function UserDashboard() {
           <TextInput
             value={query}
             onChangeText={setQuery}
+            onFocus={() => setSearchFocused(true)}
             placeholder="Search meals, stalls, price, descriptions…"
             placeholderTextColor="rgba(255,255,255,0.65)"
             style={styles.searchInput}
@@ -324,7 +382,12 @@ export default function UserDashboard() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <View style={styles.mainFill}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          scrollEnabled={!searchOverlayOpen}
+          keyboardShouldPersistTaps="handled">
         <View style={styles.content}>
           {/* Hero card */}
           <View style={styles.heroCard}>
@@ -487,10 +550,18 @@ export default function UserDashboard() {
               {filteredStalls.map((stall: any) => {
                 const isOpen = stall.status === 'Open';
                 const isClosed = stall.status === 'Closed';
-                const heroUri =
-                  stall.coverPhoto ||
-                  stall.profilePhoto ||
-                  'https://via.placeholder.com/400?text=Stall';
+                const coverStr =
+                  typeof stall.coverPhoto === 'string' ? stall.coverPhoto.trim() : '';
+                const profileStr =
+                  typeof stall.profilePhoto === 'string' ? stall.profilePhoto.trim() : '';
+                const hasCover = !!coverStr;
+                const hasProfile = !!profileStr;
+                const heroUri = hasCover
+                  ? coverStr
+                  : hasProfile
+                    ? profileStr
+                    : 'https://via.placeholder.com/400?text=Stall';
+                const showProfileOnCard = hasProfile && hasCover;
                 return (
                   <TouchableOpacity
                     key={stall._id}
@@ -525,8 +596,32 @@ export default function UserDashboard() {
                           {isOpen ? 'Open' : isClosed ? 'Closed' : stall.status || '—'}
                         </Text>
                       </View>
+                      {hasValidStallCoordinates(stall.latitude, stall.longitude) ? (
+                        <TouchableOpacity
+                          style={styles.stallMapFab}
+                          activeOpacity={0.88}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          onPress={() => setStallForMap(stall)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`View ${stall.name} on map`}
+                        >
+                          <MaterialCommunityIcons name="map-search-outline" size={17} color={PRIMARY} />
+                          <Text style={styles.stallMapFabText}>Map</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                      {showProfileOnCard ? (
+                        <View style={styles.stallBrowseAvatarRing} accessibilityLabel={`${stall.name} logo`}>
+                          <Image
+                            source={{ uri: profileStr }}
+                            style={styles.stallBrowseAvatarImg}
+                            resizeMode="cover"
+                          />
+                        </View>
+                      ) : null}
                     </View>
-                    <View style={styles.stallBrowseBody}>
+                    <View
+                      style={[styles.stallBrowseBody, showProfileOnCard && styles.stallBrowseBodyWithAvatar]}
+                    >
                       <Text style={styles.stallBrowseTitle} numberOfLines={2}>
                         {stall.name}
                       </Text>
@@ -639,6 +734,146 @@ export default function UserDashboard() {
         </View>
       </ScrollView>
 
+        {searchOverlayOpen ? (
+          <View style={styles.searchOverlayLayer} pointerEvents="box-none">
+            <Pressable
+              style={styles.searchBackdrop}
+              onPress={dismissSearchOverlay}
+              accessibilityLabel="Dismiss search results"
+            />
+            <View
+              style={[
+                styles.searchResultsCard,
+                { maxHeight: Math.min(windowHeight * 0.52, 420) },
+              ]}>
+              <ScrollView
+                nestedScrollEnabled
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={searchHasHits}>
+                {!searchHasHits ? (
+                  <View style={styles.searchEmptyWrap}>
+                    <MaterialCommunityIcons name="text-search" size={40} color={TEXT_GRAY} />
+                    <Text style={styles.searchEmptyTitle}>No results</Text>
+                    <Text style={styles.searchEmptySub} numberOfLines={2}>
+                      Nothing matched &quot;{query.trim()}&quot;. Try another name, stall, price, or dish.
+                    </Text>
+                  </View>
+                ) : (
+                  <>
+                    {searchStallHits.length > 0 ? (
+                      <>
+                        <Text style={styles.searchSectionLabel}>Stalls</Text>
+                        {searchStallHits.map((stall: any) => (
+                          <TouchableOpacity
+                            key={`ss-${stall._id}`}
+                            style={styles.searchHitRow}
+                            activeOpacity={0.75}
+                            onPress={() => onSearchPickStall(stall)}>
+                            <View style={[styles.searchHitIcon, styles.searchHitIconStall]}>
+                              <MaterialCommunityIcons name="storefront-outline" size={20} color={PRIMARY} />
+                            </View>
+                            <View style={styles.searchHitBody}>
+                              <Text style={styles.searchHitTitle} numberOfLines={1}>
+                                {stall.name}
+                              </Text>
+                              {stall.address ? (
+                                <Text style={styles.searchHitMeta} numberOfLines={1}>
+                                  {stall.address}
+                                </Text>
+                              ) : (
+                                <Text style={styles.searchHitMetaMuted} numberOfLines={1}>
+                                  View menu & hours
+                                </Text>
+                              )}
+                            </View>
+                            <MaterialCommunityIcons name="chevron-right" size={20} color={TEXT_GRAY} />
+                          </TouchableOpacity>
+                        ))}
+                      </>
+                    ) : null}
+                    {searchMealHits.length > 0 ? (
+                      <>
+                        <Text
+                          style={[
+                            styles.searchSectionLabel,
+                            searchStallHits.length > 0 && styles.searchSectionLabelSpaced,
+                          ]}>
+                          Meals
+                        </Text>
+                        {searchMealHits.map((meal: any) => {
+                          const stName = stallLabelForMeal(meal);
+                          return (
+                            <TouchableOpacity
+                              key={`sm-${meal._id}`}
+                              style={styles.searchHitRow}
+                              activeOpacity={0.75}
+                              onPress={() => onSearchPickMeal(meal)}>
+                              <Image
+                                source={{ uri: meal.image || 'https://via.placeholder.com/80' }}
+                                style={styles.searchHitThumb}
+                              />
+                              <View style={styles.searchHitBody}>
+                                <Text style={styles.searchHitTitle} numberOfLines={2}>
+                                  {meal.name}
+                                </Text>
+                                <Text style={styles.searchHitMeta} numberOfLines={1}>
+                                  {stName ? `${stName} · ` : ''}Rs. {meal.price}
+                                </Text>
+                              </View>
+                              <MaterialCommunityIcons name="chevron-right" size={20} color={TEXT_GRAY} />
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </>
+                    ) : null}
+                  </>
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        ) : null}
+      </View>
+
+      <Modal
+        visible={stallForMap !== null}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setStallForMap(null)}
+      >
+        <SafeAreaView style={styles.mapModalRoot} edges={['top', 'left', 'right', 'bottom']}>
+          <View style={styles.mapModalHeader}>
+            <TouchableOpacity onPress={() => setStallForMap(null)} hitSlop={12} accessibilityLabel="Close map">
+              <MaterialCommunityIcons name="close" size={26} color={TEXT_DARK} />
+            </TouchableOpacity>
+            <Text style={styles.mapModalTitle} numberOfLines={1}>
+              {stallForMap?.name ?? 'Stall location'}
+            </Text>
+            <View style={{ width: 26 }} />
+          </View>
+          {stallForMap != null && hasValidStallCoordinates(stallForMap.latitude, stallForMap.longitude) ? (
+            <>
+              <View style={styles.mapModalMap}>
+                <StallLocationMapView
+                  latitude={Number(stallForMap.latitude)}
+                  longitude={Number(stallForMap.longitude)}
+                  zoom={16}
+                />
+              </View>
+              {stallForMap.address ? (
+                <View style={styles.mapModalFooter}>
+                  <MaterialCommunityIcons name="map-marker-outline" size={18} color={TEXT_GRAY} />
+                  <Text style={styles.mapModalAddress} numberOfLines={3}>
+                    {stallForMap.address}
+                  </Text>
+                </View>
+              ) : null}
+            </>
+          ) : stallForMap != null ? (
+            <Text style={{ padding: 24, color: TEXT_GRAY }}>Location is not available for this stall.</Text>
+          ) : null}
+        </SafeAreaView>
+      </Modal>
+
       <MealDetailsModal 
         visible={detailsVisible}
         onClose={() => setDetailsVisible(false)}
@@ -675,6 +910,114 @@ export default function UserDashboard() {
 }
 
 const styles = StyleSheet.create({
+  mainFill: {
+    flex: 1,
+    position: 'relative',
+  },
+  searchOverlayLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
+  },
+  searchBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.38)',
+  },
+  searchResultsCard: {
+    position: 'absolute',
+    left: 14,
+    right: 14,
+    top: 10,
+    backgroundColor: SURFACE,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(15, 91, 87, 0.14)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 14,
+    zIndex: 21,
+  },
+  searchSectionLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: TEXT_GRAY,
+    textTransform: 'uppercase',
+    letterSpacing: 0.85,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 8,
+  },
+  searchSectionLabelSpaced: {
+    marginTop: 4,
+  },
+  searchHitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0,0,0,0.06)',
+  },
+  searchHitThumb: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: PRIMARY_SOFT,
+  },
+  searchHitIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  searchHitIconStall: {
+    backgroundColor: PRIMARY_SOFT,
+  },
+  searchHitBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  searchHitTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: TEXT_DARK,
+    letterSpacing: -0.15,
+  },
+  searchHitMeta: {
+    marginTop: 3,
+    fontSize: 13,
+    fontWeight: '600',
+    color: TEXT_GRAY,
+  },
+  searchHitMetaMuted: {
+    marginTop: 3,
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(99, 110, 114, 0.75)',
+  },
+  searchEmptyWrap: {
+    alignItems: 'center',
+    paddingVertical: 36,
+    paddingHorizontal: 24,
+  },
+  searchEmptyTitle: {
+    marginTop: 12,
+    fontSize: 17,
+    fontWeight: '900',
+    color: TEXT_DARK,
+  },
+  searchEmptySub: {
+    marginTop: 8,
+    fontSize: 14,
+    fontWeight: '600',
+    color: TEXT_GRAY,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
   container: {
     flex: 1,
     backgroundColor: BG,
@@ -1018,10 +1361,107 @@ const styles = StyleSheet.create({
     color: TEXT_DARK,
     letterSpacing: 0.2,
   },
+  stallBrowseAvatarRing: {
+    position: 'absolute',
+    bottom: -20,
+    left: 11,
+    width: 48,
+    height: 48,
+    borderRadius: 15,
+    padding: 2,
+    backgroundColor: SURFACE,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.96)',
+    shadowColor: PRIMARY_DARK,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    elevation: 6,
+    zIndex: 3,
+    overflow: 'hidden',
+  },
+  stallBrowseAvatarImg: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 11,
+    backgroundColor: PRIMARY_SOFT,
+  },
+  stallMapFab: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderWidth: 1,
+    borderColor: 'rgba(15, 91, 87, 0.14)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.14,
+    shadowRadius: 5,
+    elevation: 5,
+    zIndex: 2,
+  },
+  stallMapFabText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: PRIMARY,
+    letterSpacing: 0.2,
+  },
+  mapModalRoot: {
+    flex: 1,
+    backgroundColor: SURFACE,
+  },
+  mapModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0,0,0,0.08)',
+  },
+  mapModalTitle: {
+    flex: 1,
+    marginHorizontal: 10,
+    fontSize: 17,
+    fontWeight: '900',
+    color: TEXT_DARK,
+    textAlign: 'center',
+  },
+  mapModalMap: {
+    flex: 1,
+    minHeight: 280,
+    backgroundColor: '#e8ecec',
+  },
+  mapModalFooter: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(0,0,0,0.06)',
+    backgroundColor: BG,
+  },
+  mapModalAddress: {
+    flex: 1,
+    fontSize: 14,
+    color: TEXT_DARK,
+    fontWeight: '600',
+    lineHeight: 20,
+  },
   stallBrowseBody: {
     paddingHorizontal: 14,
     paddingTop: 13,
     paddingBottom: 12,
+  },
+  stallBrowseBodyWithAvatar: {
+    paddingTop: 22,
   },
   stallBrowseTitle: {
     fontSize: 15,
