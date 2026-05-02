@@ -89,9 +89,10 @@ export default function LoginScreen() {
       >
         <View style={styles.header}>
           <View style={styles.logoContainer}>
-            <Image 
-              source={{ uri: 'file:///C:/Users/malsh/.gemini/antigravity/brain/55884d5d-4c4e-4152-aaec-d5b451480081/campusbites_logo_1774873960810.png' }} 
-              style={styles.logo} 
+            <Image
+              source={require('../../assets/images/logo-glow.png')}
+              style={styles.logo}
+              resizeMode="contain"
             />
           </View>
           <Text style={styles.appTitle}>CampusBites</Text>

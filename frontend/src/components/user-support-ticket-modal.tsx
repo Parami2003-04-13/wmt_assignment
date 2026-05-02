@@ -16,6 +16,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../services/api';
+import { ensureRemoteImageUrl } from '../services/uploadImage';
 import { COLORS } from '../theme/colors';
 
 const formatSLTime = (dateString: string | null | undefined) => {
@@ -79,10 +80,38 @@ export default function UserSupportTicketModal({ visible, onClose, stallId }: Pr
     if (description.trim().length < 10) return Alert.alert('Validation', 'Description must be at least 10 characters');
 
     try {
-      if (editingId) {
-        await api.put(`/support-tickets/${editingId}`, { title, description, screenshot });
+      const trimmedShot = typeof screenshot === 'string' ? screenshot.trim() : '';
+      let screenshotUrl: string | null = trimmedShot || null;
+      if (screenshotUrl) {
+        try {
+          screenshotUrl = await ensureRemoteImageUrl(screenshotUrl, 'support/screenshots');
+        } catch (uploadErr: any) {
+          console.error(uploadErr);
+          Alert.alert(
+            'Upload failed',
+            uploadErr?.response?.data?.message ||
+              uploadErr?.message ||
+              'Could not upload the screenshot.'
+          );
+          return;
+        }
       } else {
-        await api.post('/support-tickets', { stallId, title, description, screenshot });
+        screenshotUrl = null;
+      }
+
+      if (editingId) {
+        await api.put(`/support-tickets/${editingId}`, {
+          title,
+          description,
+          screenshot: screenshotUrl,
+        });
+      } else {
+        await api.post('/support-tickets', {
+          stallId,
+          title,
+          description,
+          screenshot: screenshotUrl,
+        });
       }
       resetForm();
       loadTickets();
@@ -108,11 +137,18 @@ export default function UserSupportTicketModal({ visible, onClose, stallId }: Pr
       return;
     }
     let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       quality: 0.8,
+      base64: true,
     });
     if (!result.canceled) {
-      setScreenshot(result.assets[0].uri);
+      const a = result.assets[0];
+      const uri =
+        a.base64 != null ? `data:image/jpeg;base64,${a.base64}` : a.uri != null ? a.uri : null;
+      if (uri) {
+        setScreenshot(uri);
+      }
     }
   };
 

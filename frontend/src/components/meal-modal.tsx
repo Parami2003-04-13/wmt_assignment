@@ -16,6 +16,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../services/api';
+import { ensureRemoteImageUrl } from '../services/uploadImage';
 import { COLORS } from '../theme/colors';
 
 const Text = (props: any) => (
@@ -77,10 +78,16 @@ export default function MealModal({ visible, onClose, onSave, stallId, meal }: M
       allowsEditing: true,
       aspect: [4, 3],
       quality: 0.9,
+      base64: true,
     });
 
     if (!result.canceled) {
-      setFormData({ ...formData, image: result.assets[0].uri });
+      const a = result.assets[0];
+      const uri =
+        a.base64 != null ? `data:image/jpeg;base64,${a.base64}` : a.uri != null ? a.uri : null;
+      if (uri) {
+        setFormData({ ...formData, image: uri });
+      }
     }
   };
 
@@ -98,13 +105,26 @@ export default function MealModal({ visible, onClose, onSave, stallId, meal }: M
 
     setLoading(true);
     try {
+      let imageUrl = photo;
+      try {
+        imageUrl = (await ensureRemoteImageUrl(photo, 'meals')) ?? '';
+      } catch (uploadErr: any) {
+        console.error(uploadErr);
+        Alert.alert(
+          'Upload failed',
+          uploadErr?.response?.data?.message || uploadErr?.message || 'Could not upload the meal photo.'
+        );
+        setLoading(false);
+        return;
+      }
+
       const payload = {
         name: formData.name,
         description: formData.description,
         price: parseFloat(formData.price),
         quantity: parseInt(formData.quantity, 10),
         category: formData.category,
-        image: photo,
+        image: imageUrl,
         stallId,
       };
 
