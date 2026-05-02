@@ -6,6 +6,7 @@ const Payment = require('../models/Payment');
 const Stall = require('../models/Stall');
 const Notification = require('../models/Notification');
 const { authUserFromRequest } = require('../utils/authRequest');
+const { placeOrderCommit, defaultPaymentStatuses } = require('../services/placeOrder');
 
 const router = express.Router();
 
@@ -74,52 +75,36 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
+  if (paymentMethod === 'Bank Transfer') {
+    return res.status(400).json({
+      message:
+        'Bank transfers are verified by staff before an order exists. Submit your slip from checkout — no order will be charged until verification.',
+    });
+  }
+
   try {
     const auth = await authUserFromRequest(req);
     if (auth && auth._id.toString() !== userId) {
       return res.status(403).json({ message: 'Unauthorized to place order for another user.' });
     }
 
-    // Generate Unique Order ID
-    const orderCount = await Order.countDocuments();
-    const uniqueId = `ORD-${Date.now().toString().slice(-4)}-${(orderCount + 1).toString().padStart(3, '0')}`;
+    const { orderPaymentStatus, paymentRecordStatus } = defaultPaymentStatuses(paymentMethod);
 
-    const newOrder = new Order({
-      user: userId,
-      stall: stallId,
+    const { order: newOrder } = await placeOrderCommit({
+      userId,
+      stallId,
       items,
       totalAmount,
       pickupTime,
       isStudentDiscount,
       studentIdImage,
       paymentMethod,
-      orderId: uniqueId,
-      status: 'Pending',
-      paymentStatus: paymentMethod === 'Card' ? 'Paid' : 'Pending'
+      paymentSlip,
+      cardHolderName,
+      cardLastFour,
+      orderPaymentStatus,
+      paymentRecordStatus,
     });
-
-    await newOrder.save();
-
-    // Create Payment Record
-    const newPayment = new Payment({
-      order: newOrder._id,
-      user: userId,
-      amount: totalAmount,
-      method: paymentMethod === 'Pay at Stall' ? 'Pay at Stall' : paymentMethod,
-      status: paymentMethod === 'Card' ? 'Paid' : 'Pending',
-      paymentSlip: paymentSlip || '',
-      cardHolderName: cardHolderName || '',
-      cardLastFour: cardLastFour || ''
-    });
-
-    await newPayment.save();
-
-    // Update Stock
-    for (const item of items) {
-      await Meal.findByIdAndUpdate(item.meal, {
-        $inc: { quantity: -item.quantity }
-      });
-    }
 
     res.status(201).json(newOrder);
   } catch (err) {
@@ -194,6 +179,20 @@ router.patch('/:id', async (req, res) => {
         update.status = 'Cancelled';
       }
     }
+    // Pay at stall: completing with verified pickup QR / code counts as confirmation of payment at handover
+    const payAtStallPickupVerifiedCompleting =
+      status === 'Completed' &&
+      existingOrder.status !== 'Completed' &&
+      existingOrder.paymentMethod === 'Pay at Stall' &&
+      existingOrder.paymentStatus !== 'Paid' &&
+      pickupVerification &&
+      pickupCodeMatchesOrder(existingOrder, pickupVerification) &&
+      paymentStatus !== 'Failed';
+
+    if (payAtStallPickupVerifiedCompleting) {
+      update.paymentStatus = 'Paid';
+    }
+
     if (orderPhoto !== undefined) update.orderPhoto = orderPhoto;
 
     // Stock restoration logic: if changing to 'Cancelled' and wasn't already 'Cancelled' or 'Completed'
@@ -207,8 +206,8 @@ router.patch('/:id', async (req, res) => {
 
     await Order.findByIdAndUpdate(req.params.id, { $set: update }, { new: true });
 
-    if (paymentStatus) {
-      await Payment.findOneAndUpdate({ order: req.params.id }, { $set: { status: paymentStatus } });
+    if ('paymentStatus' in update && update.paymentStatus) {
+      await Payment.findOneAndUpdate({ order: req.params.id }, { $set: { status: update.paymentStatus } });
     }
 
     let nextOrderStatus = existingOrder.status;

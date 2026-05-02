@@ -295,10 +295,18 @@ export default function ManageOrdersScreen() {
     }
   };
 
+  /** Pay at stall — customer presented matching pickup proof; mark payment received. */
+  const verifyPayAtStallPaymentAfterPickupProof = (order: any) => {
+    if (!order || order.paymentMethod !== 'Pay at Stall') return;
+    if (order.paymentStatus === 'Paid') return;
+    void handleUpdateOrder(order._id, { paymentStatus: 'Paid' });
+  };
+
   const verifyManualPickup = () => {
     if (!selectedOrder) return;
     if (pickupCodeMatchesOrder(selectedOrder.orderId, manualPickupCode)) {
       setPickupVerifiedPayload(manualPickupCode.trim());
+      verifyPayAtStallPaymentAfterPickupProof(selectedOrder);
     } else {
       Alert.alert('No match', 'That order number does not match this order.');
     }
@@ -771,6 +779,7 @@ export default function ManageOrdersScreen() {
           onMatched={(raw) => {
             setPickupVerifiedPayload(raw);
             setPickupScanVisible(false);
+            if (selectedOrder) verifyPayAtStallPaymentAfterPickupProof(selectedOrder);
           }}
         />
       ) : null}

@@ -1,17 +1,35 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const Payment = require('../models/Payment');
 const Order = require('../models/Order');
 
 const router = express.Router();
 
+const ARCHIVE_DELETE_RETENTION_YEARS = 10;
+
+function paymentRecordOlderThanYears(createdAt, years) {
+  if (!createdAt) return false;
+  const cutoff = new Date();
+  cutoff.setFullYear(cutoff.getFullYear() - years);
+  return new Date(createdAt) < cutoff;
+}
+
 // List payments for all orders belonging to a stall (owner/manage payments UI)
 router.get('/stall/:stallId', async (req, res) => {
   try {
-    const orderIds = await Order.find({ stall: req.params.stallId }).distinct('_id');
+    const stallId = req.params.stallId;
+    if (!mongoose.Types.ObjectId.isValid(stallId)) {
+      return res.json([]);
+    }
+    const orderIds = await Order.find({ stall: stallId }).distinct('_id');
+    if (!orderIds.length) {
+      return res.json([]);
+    }
     const payments = await Payment.find({ order: { $in: orderIds } })
-      .populate('order', 'orderId totalAmount paymentMethod paymentStatus status pickupTime createdAt')
+      .populate('order', 'orderId totalAmount paymentMethod paymentStatus status pickupTime createdAt stall')
       .populate('user', 'name email')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
     res.json(payments);
   } catch (err) {
     console.error('List stall payments error:', err);
@@ -46,18 +64,17 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
-// Delete Payment (Specific conditions: Bank Transfer or Failed Card)
+// Delete archived payment records only (management UI retention policy).
 router.delete('/:id', async (req, res) => {
   try {
     const payment = await Payment.findById(req.params.id);
     if (!payment) return res.status(404).json({ message: 'Payment not found' });
 
-    // Condition check
-    const isBankTransfer = payment.method === 'Bank Transfer';
-    const isFailedCard = payment.method === 'Card' && payment.status === 'Failed';
-
-    if (!isBankTransfer && !isFailedCard) {
-      return res.status(400).json({ message: 'Only Bank Transfer or Failed Card payments can be deleted.' });
+    const created = payment.createdAt || payment._id?.getTimestamp?.();
+    if (!paymentRecordOlderThanYears(created, ARCHIVE_DELETE_RETENTION_YEARS)) {
+      return res.status(400).json({
+        message: `Payment records may only be deleted when older than ${ARCHIVE_DELETE_RETENTION_YEARS} years.`,
+      });
     }
 
     // Delete associated order as well? Usually yes, if payment is gone, order is invalid.

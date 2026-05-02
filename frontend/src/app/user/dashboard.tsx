@@ -332,11 +332,6 @@ export default function UserDashboard() {
               <Text style={styles.heroKicker}>Your solution, one tap away!</Text>
               <Text style={styles.heroTitle}>Find today’s best meals</Text>
               <Text style={styles.heroSub}>Recommended specials near you</Text>
-
-              <TouchableOpacity style={styles.heroBtn} accessibilityLabel="Explore specials">
-                <Text style={styles.heroBtnText}>Explore</Text>
-                <MaterialCommunityIcons name="arrow-right" size={18} color={PRIMARY} />
-              </TouchableOpacity>
             </View>
 
             <View style={styles.heroArt}>
@@ -447,9 +442,6 @@ export default function UserDashboard() {
           {/* Service categories — below time-based picks; filters stalls + Today's Specials */}
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Service Categories</Text>
-            <TouchableOpacity accessibilityLabel="View all categories">
-              <Text style={styles.viewAll}>View all</Text>
-            </TouchableOpacity>
           </View>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoriesScroll}>
@@ -559,16 +551,6 @@ export default function UserDashboard() {
               )}
             </ScrollView>
           )}
-
-          <TouchableOpacity style={styles.promoCard} accessibilityLabel="Explore deals">
-            <View>
-              <Text style={styles.promoHeader}>Craving something new?</Text>
-              <Text style={styles.promoSub}>Explore special campus deals</Text>
-            </View>
-            <View style={styles.promoBtn}>
-              <MaterialCommunityIcons name="chevron-right" size={24} color="#fff" />
-            </View>
-          </TouchableOpacity>
 
           <View style={styles.mealsHeader}>
             <View style={{ flex: 1 }}>
@@ -808,11 +790,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 10,
   },
-  viewAll: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: PRIMARY,
-  },
   heroCard: {
     backgroundColor: PRIMARY,
     borderRadius: 22,
@@ -842,22 +819,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: 'rgba(255,255,255,0.85)',
     marginTop: 6,
-  },
-  heroBtn: {
-    marginTop: 14,
-    alignSelf: 'flex-start',
-    backgroundColor: '#fff',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  heroBtnText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: PRIMARY,
-    marginRight: 8,
   },
   heroArt: {
     width: 92,
@@ -1096,38 +1057,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: PRIMARY,
     letterSpacing: 0.2,
-  },
-  promoCard: {
-    backgroundColor: PRIMARY,
-    borderRadius: 20,
-    padding: 20,
-    marginTop: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    shadowColor: PRIMARY_DARK,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  promoHeader: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  promoSub: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 4,
-  },
-  promoBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   bottomTab: {
     position: 'absolute',
