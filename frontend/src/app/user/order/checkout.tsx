@@ -172,7 +172,9 @@ export default function CheckoutScreen() {
         return;
       }
 
-      const stallId = cartItems[0].meal.stall._id || cartItems[0].meal.stall;
+      const stallIdRaw = cartItems[0].meal.stall._id || cartItems[0].meal.stall;
+      const stallId = String(stallIdRaw);
+
       const itemsPayload = cartItems.map((item) => ({
         meal: item.meal._id,
         name: item.meal.name,
@@ -182,7 +184,7 @@ export default function CheckoutScreen() {
 
       /** Bank transfers are queued for staff verification — no Order until approved */
       if (paymentMethod === 'Bank Transfer') {
-        await api.post('pending-bank-transfers', {
+        const pendingRes = await api.post('pending-bank-transfers', {
           userId: user.id,
           stallId,
           items: itemsPayload,
@@ -190,12 +192,22 @@ export default function CheckoutScreen() {
           pickupTime: pickupTime.toISOString(),
           paymentSlip: bankSlip,
         });
+
         clearCart();
-        Alert.alert(
-          'Payment pending verification',
-          'Your transfer slip was submitted. Payment is pending — we will notify you when staff verify your transfer and your order is created.',
-          [{ text: 'OK', onPress: () => router.replace('/user/orders') }]
-        );
+        const submissionId =
+          pendingRes?.data?.id != null
+            ? String(pendingRes.data.id)
+            : pendingRes?.data?._id != null
+              ? String(pendingRes.data._id)
+              : '';
+        router.replace({
+          pathname: '/user/order/success',
+          params: {
+            paymentMethod: 'Bank Transfer',
+            verificationPending: '1',
+            submissionId,
+          },
+        });
         return;
       }
 
@@ -217,12 +229,24 @@ export default function CheckoutScreen() {
       clearCart();
       router.replace({
         pathname: '/user/order/success',
-        params: { orderId: newOrder.orderId }
+        params: { orderId: newOrder.orderId },
       });
 
     } catch (error: any) {
-      console.error('Failed to place order:', error);
-      Alert.alert('Order Failed', error.response?.data?.message || 'Something went wrong while placing your order.');
+      if (__DEV__) {
+        console.warn('Checkout request failed:', error?.message ?? error);
+      }
+      const serverMsg = error.response?.data?.message;
+      const isBank = paymentMethod === 'Bank Transfer';
+      if (isBank) {
+        Alert.alert(
+          'Could not send your slip',
+          serverMsg ||
+            'Check your connection and try again. After it is sent successfully, stall staff will verify your transfer and you will be notified.',
+        );
+      } else {
+        Alert.alert('Order Failed', serverMsg || 'Something went wrong while placing your order.');
+      }
     } finally {
       setLoading(false);
     }
@@ -289,7 +313,6 @@ export default function CheckoutScreen() {
         {/* Payment Method */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Payment Method</Text>
-          <Text style={styles.nonRefundableHint}>* All payments are non-refundable once placed.</Text>
 
           <TouchableOpacity
             style={[styles.paymentOption, paymentMethod === 'Pay at Stall' ? styles.paymentSelected : null]}
@@ -703,12 +726,6 @@ const styles = StyleSheet.create({
   removeText: {
     color: DANGER,
     fontSize: 12,
-    fontWeight: '600',
-  },
-  nonRefundableHint: {
-    fontSize: 12,
-    color: DANGER,
-    marginBottom: 10,
     fontWeight: '600',
   },
   cardLogos: {

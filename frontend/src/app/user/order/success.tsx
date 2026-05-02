@@ -10,6 +10,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
+const WARNING = '#F1C40F';
+
 const PRIMARY = '#0F5B57';
 const TEXT_DARK = '#2D3436';
 const TEXT_GRAY = '#636E72';
@@ -21,31 +23,80 @@ const Text = (props: any) => (
   <RNText {...props} style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]} />
 );
 
+function normalizeParam(v: string | string[] | undefined): string {
+  if (v == null) return '';
+  const s = Array.isArray(v) ? v[0] : v;
+  return typeof s === 'string' ? s.trim() : '';
+}
+
 export default function OrderSuccessScreen() {
   const router = useRouter();
-  const { orderId } = useLocalSearchParams();
+  const params = useLocalSearchParams();
+  const orderId = normalizeParam(params.orderId as string | string[] | undefined);
+  const paymentMethod = normalizeParam(params.paymentMethod as string | string[] | undefined);
+  const isBankTransfer = paymentMethod === 'Bank Transfer';
+  const verificationPending = normalizeParam(params.verificationPending as string | string[] | undefined) === '1';
+  const submissionIdRaw = normalizeParam(params.submissionId as string | string[] | undefined);
+  const submissionRefTail =
+    submissionIdRaw.length >= 6 ? submissionIdRaw.slice(-6).toUpperCase() : submissionIdRaw.toUpperCase();
+
+  const titleText = verificationPending
+    ? 'Your transaction is verifying'
+    : isBankTransfer
+      ? 'Transfer submitted'
+      : 'Order Placed Successfully!';
+
+  const subtitleText = verificationPending
+    ? 'Your bank slip was received successfully. Stall staff are reviewing your payment — we will notify you once verification is complete and your order is placed.'
+    : isBankTransfer
+      ? 'Your payment is being verified by stall staff. You will be notified when your transfer is approved and your order is confirmed.'
+      : 'Your order has been received and is being processed.';
+
+  const showSubmissionRef = verificationPending && submissionRefTail.length > 0;
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <View style={styles.iconContainer}>
-          <MaterialCommunityIcons name="check-circle" size={100} color={SUCCESS} />
+        <View
+          style={[
+            styles.iconContainer,
+            isBankTransfer || verificationPending ? styles.iconShadowBank : styles.iconShadowSuccess,
+          ]}>
+          <MaterialCommunityIcons
+            name={isBankTransfer || verificationPending ? 'clock-outline' : 'check-circle'}
+            size={100}
+            color={isBankTransfer || verificationPending ? WARNING : SUCCESS}
+          />
         </View>
 
-        <Text style={styles.title}>Order Placed Successfully!</Text>
-        <Text style={styles.subtitle}>
-          Your order has been received and is being processed.
-        </Text>
+        <Text style={styles.title}>{titleText}</Text>
+        <Text style={styles.subtitle}>{subtitleText}</Text>
 
-        <View style={styles.orderIdCard}>
-          <Text style={styles.orderIdLabel}>Order ID</Text>
-          <Text style={styles.orderIdValue}>{orderId || 'ORD-000-000'}</Text>
-        </View>
+        {showSubmissionRef ? (
+          <View style={styles.orderIdCard}>
+            <Text style={styles.orderIdLabel}>Reference</Text>
+            <Text style={styles.orderIdValue}>{submissionRefTail}</Text>
+            <Text style={styles.referenceHint}>Show this reference if stall staff ask for your submission.</Text>
+          </View>
+        ) : !verificationPending ? (
+          <View style={styles.orderIdCard}>
+            <Text style={styles.orderIdLabel}>Order ID</Text>
+            <Text style={styles.orderIdValue}>{orderId || 'ORD-000-000'}</Text>
+          </View>
+        ) : null}
 
         <Text style={styles.infoText}>
-          Please show this Order ID at the stall counter when you pickup your meal.
-          {"\n"}
-          <Text style={styles.nonRefundableText}>* All payments are non-refundable.</Text>
+          {verificationPending ? (
+            <>
+              You do not have a pickup order yet. After staff approve your transfer, your order will appear under My Orders.
+              {'\n'}
+              <Text style={styles.verifyFootnote}>If something looks wrong with your slip, staff may reject it — check back or submit again from checkout.</Text>
+            </>
+          ) : isBankTransfer ? (
+            'Keep this order reference handy. Pull to refresh on My Orders for updates.'
+          ) : (
+            'Please show this Order ID at the stall counter when you pickup your meal.'
+          )}
         </Text>
       </View>
 
@@ -57,13 +108,7 @@ export default function OrderSuccessScreen() {
           <Text style={styles.doneBtnText}>Back to Dashboard</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.ordersBtn} 
-          onPress={() => {
-            // Future: Navigate to My Orders screen
-            router.replace('/user/dashboard');
-          }}
-        >
+        <TouchableOpacity style={styles.ordersBtn} onPress={() => router.replace('/user/orders')}>
           <Text style={styles.ordersBtnText}>View My Orders</Text>
         </TouchableOpacity>
       </View>
@@ -84,11 +129,16 @@ const styles = StyleSheet.create({
   },
   iconContainer: {
     marginBottom: 24,
-    shadowColor: SUCCESS,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.2,
     shadowRadius: 15,
     elevation: 8,
+  },
+  iconShadowSuccess: {
+    shadowColor: SUCCESS,
+  },
+  iconShadowBank: {
+    shadowColor: WARNING,
   },
   title: {
     fontSize: 24,
@@ -126,6 +176,22 @@ const styles = StyleSheet.create({
     color: PRIMARY,
     marginTop: 8,
   },
+  referenceHint: {
+    fontSize: 12,
+    color: TEXT_GRAY,
+    marginTop: 14,
+    textAlign: 'center',
+    fontWeight: '600',
+    lineHeight: 18,
+    paddingHorizontal: 8,
+  },
+  verifyFootnote: {
+    color: TEXT_GRAY,
+    fontWeight: '600',
+    fontSize: 12,
+    marginTop: 10,
+    lineHeight: 18,
+  },
   infoText: {
     fontSize: 14,
     color: TEXT_GRAY,
@@ -157,10 +223,5 @@ const styles = StyleSheet.create({
     color: PRIMARY,
     fontSize: 14,
     fontWeight: 'bold',
-  },
-  nonRefundableText: {
-    color: '#E74C3C',
-    fontWeight: 'bold',
-    fontSize: 12,
   },
 });

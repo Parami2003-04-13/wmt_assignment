@@ -42,6 +42,15 @@ function orderLineImageUri(item: any): string | null {
   return s ? s : null;
 }
 
+/** Friendly label so bank + Pending is not mistaken for “failed”. */
+function paymentStatusLabel(order: any): string {
+  const raw = order?.paymentStatus;
+  const pm = order?.paymentMethod;
+  const s = typeof raw === 'string' ? raw : '';
+  if (pm === 'Bank Transfer' && s === 'Pending') return 'Awaiting verification';
+  return s || '—';
+}
+
 type UserOrderFilterKey =
   | 'all'
   | 'active'
@@ -238,17 +247,20 @@ export default function UserOrdersScreen() {
                 <View>
                   <Text style={styles.totalLabel}>Total Amount</Text>
                   <Text style={styles.totalValue}>Rs. {order.totalAmount}</Text>
-                  <Text style={styles.nonRefundableText}>Non-refundable</Text>
                 </View>
                 <View style={styles.paymentInfo}>
                   <Text style={styles.paymentMethod}>{order.paymentMethod}</Text>
                   <View style={[styles.paymentStatusBadge, { backgroundColor: getPaymentStatusColor(order.paymentStatus) + '15' }]}>
                     <Text style={[styles.paymentStatusText, { color: getPaymentStatusColor(order.paymentStatus) }]}>
-                      {order.paymentStatus}
+                      {paymentStatusLabel(order)}
                     </Text>
                   </View>
                 </View>
               </View>
+
+              {order.paymentMethod === 'Bank Transfer' && order.paymentStatus === 'Pending' ? (
+                <Text style={styles.bankVerifyHint}>Staff are verifying your transfer; you will be notified when payment is confirmed.</Text>
+              ) : null}
 
               {order.status === 'Ready' ? (
                 <TouchableOpacity
@@ -539,12 +551,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: PRIMARY,
   },
-  nonRefundableText: {
-    fontSize: 10,
-    color: DANGER,
-    marginTop: 2,
-    fontWeight: '600',
-  },
   paymentInfo: {
     alignItems: 'flex-end',
   },
@@ -561,6 +567,13 @@ const styles = StyleSheet.create({
   paymentStatusText: {
     fontSize: 11,
     fontWeight: 'bold',
+  },
+  bankVerifyHint: {
+    fontSize: 12,
+    color: TEXT_GRAY,
+    marginTop: 10,
+    lineHeight: 17,
+    fontWeight: '600',
   },
   orderPhotoSection: {
     marginTop: 15,
