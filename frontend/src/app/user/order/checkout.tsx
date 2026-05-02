@@ -175,30 +175,37 @@ export default function CheckoutScreen() {
       const stallIdRaw = cartItems[0].meal.stall._id || cartItems[0].meal.stall;
       const stallId = String(stallIdRaw);
 
-      const lineItems = cartItems.map((item) => ({
+      const itemsPayload = cartItems.map((item) => ({
         meal: item.meal._id,
         name: item.meal.name,
         quantity: item.quantity,
         price: item.meal.price,
       }));
 
+      /** Bank transfers are queued for staff verification — no Order until approved */
       if (paymentMethod === 'Bank Transfer') {
         const pendingRes = await api.post('pending-bank-transfers', {
           userId: user.id,
           stallId,
-          items: lineItems,
+          items: itemsPayload,
           totalAmount: finalTotal,
           pickupTime: pickupTime.toISOString(),
           paymentSlip: bankSlip,
         });
 
         clearCart();
+        const submissionId =
+          pendingRes?.data?.id != null
+            ? String(pendingRes.data.id)
+            : pendingRes?.data?._id != null
+              ? String(pendingRes.data._id)
+              : '';
         router.replace({
           pathname: '/user/order/success',
           params: {
             paymentMethod: 'Bank Transfer',
             verificationPending: '1',
-            submissionId: pendingRes?.data?._id != null ? String(pendingRes.data._id) : '',
+            submissionId,
           },
         });
         return;
@@ -207,7 +214,7 @@ export default function CheckoutScreen() {
       const orderData = {
         userId: user.id,
         stallId,
-        items: lineItems,
+        items: itemsPayload,
         totalAmount: finalTotal,
         pickupTime: pickupTime.toISOString(),
         paymentMethod,
@@ -407,6 +414,15 @@ export default function CheckoutScreen() {
               <Text style={styles.paymentDesc}>Transfer to stall account and upload slip</Text>
             </View>
           </TouchableOpacity>
+
+          {paymentMethod === 'Bank Transfer' ? (
+            <View style={styles.bankPolicyBanner}>
+              <MaterialCommunityIcons name="information-outline" size={20} color={PRIMARY} />
+              <Text style={styles.bankPolicyBannerText}>
+                Payment stays pending until stall staff verify your slip. We notify you when your order is created — no meal stock is held until then.
+              </Text>
+            </View>
+          ) : null}
 
           {paymentMethod === 'Bank Transfer' && stallBankDetails && (
             <View style={styles.subSection}>
@@ -642,6 +658,26 @@ const styles = StyleSheet.create({
   subSection: {
     marginTop: 10,
     paddingLeft: 36,
+  },
+  bankPolicyBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: 10,
+    marginLeft: 36,
+    marginRight: 0,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: '#EAF5F5',
+    borderWidth: 1,
+    borderColor: PRIMARY + '33',
+  },
+  bankPolicyBannerText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 19,
+    color: TEXT_DARK,
+    fontWeight: '600',
   },
   input: {
     borderWidth: 1,

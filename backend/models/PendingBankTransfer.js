@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 
+/** Cart submitted for bank transfer; order is created only after staff approve. */
 const PendingBankTransferSchema = new mongoose.Schema(
   {
     user: {
@@ -24,15 +25,16 @@ const PendingBankTransferSchema = new mongoose.Schema(
     ],
     totalAmount: { type: Number, required: true },
     pickupTime: { type: Date, required: true },
-    paymentSlip: { type: String, required: true, trim: true },
     isStudentDiscount: { type: Boolean, default: false },
     studentIdImage: { type: String, default: '' },
+    paymentSlip: { type: String, required: true, trim: true },
     status: {
       type: String,
-      enum: ['pending', 'approved', 'rejected'],
-      default: 'pending',
+      enum: ['PendingReview', 'Approved', 'Rejected'],
+      default: 'PendingReview',
       index: true,
     },
+    rejectReason: { type: String, trim: true, default: '' },
   },
   { timestamps: true }
 );

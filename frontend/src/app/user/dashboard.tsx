@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     Image,
@@ -88,6 +89,30 @@ export default function UserDashboard() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const { cartItems } = useCart();
   const cartItemCount = cartItems.reduce((total, item) => total + item.quantity, 0);
+  const [unreadNotifyCount, setUnreadNotifyCount] = useState(0);
+
+  const fetchUnreadNotifications = useCallback(async () => {
+    try {
+      const user = await getStoredUser();
+      if (!user?.id) {
+        setUnreadNotifyCount(0);
+        return;
+      }
+      const res = await api.get('notifications/unread-count');
+      const n = res.data?.count;
+      setUnreadNotifyCount(typeof n === 'number' ? n : 0);
+    } catch {
+      setUnreadNotifyCount(0);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchUnreadNotifications();
+      const timer = setInterval(fetchUnreadNotifications, 60_000);
+      return () => clearInterval(timer);
+    }, [fetchUnreadNotifications])
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -262,8 +287,18 @@ export default function UserDashboard() {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.headerIconBtn, styles.headerIconBtnAfter]}
-              accessibilityLabel="Notifications">
-              <MaterialCommunityIcons name="bell-outline" size={20} color="rgba(255,255,255,0.92)" />
+              accessibilityLabel="Notifications"
+              onPress={() => router.push('/user/notifications')}>
+              <View style={styles.headerIconInner}>
+                <MaterialCommunityIcons name="bell-outline" size={20} color="rgba(255,255,255,0.92)" />
+                {unreadNotifyCount > 0 ? (
+                  <View style={[styles.headerCartBadge, styles.headerNotifyBadge]}>
+                    <Text style={styles.headerCartBadgeText}>
+                      {unreadNotifyCount > 99 ? '99+' : unreadNotifyCount}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
             </TouchableOpacity>
           </View>
         </View>
@@ -297,11 +332,6 @@ export default function UserDashboard() {
               <Text style={styles.heroKicker}>Your solution, one tap away!</Text>
               <Text style={styles.heroTitle}>Find today’s best meals</Text>
               <Text style={styles.heroSub}>Recommended specials near you</Text>
-
-              <TouchableOpacity style={styles.heroBtn} accessibilityLabel="Explore specials">
-                <Text style={styles.heroBtnText}>Explore</Text>
-                <MaterialCommunityIcons name="arrow-right" size={18} color={PRIMARY} />
-              </TouchableOpacity>
             </View>
 
             <View style={styles.heroArt}>
@@ -412,9 +442,6 @@ export default function UserDashboard() {
           {/* Service categories — below time-based picks; filters stalls + Today's Specials */}
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Service Categories</Text>
-            <TouchableOpacity accessibilityLabel="View all categories">
-              <Text style={styles.viewAll}>View all</Text>
-            </TouchableOpacity>
           </View>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoriesScroll}>
@@ -524,16 +551,6 @@ export default function UserDashboard() {
               )}
             </ScrollView>
           )}
-
-          <TouchableOpacity style={styles.promoCard} accessibilityLabel="Explore deals">
-            <View>
-              <Text style={styles.promoHeader}>Craving something new?</Text>
-              <Text style={styles.promoSub}>Explore special campus deals</Text>
-            </View>
-            <View style={styles.promoBtn}>
-              <MaterialCommunityIcons name="chevron-right" size={24} color="#fff" />
-            </View>
-          </TouchableOpacity>
 
           <View style={styles.mealsHeader}>
             <View style={{ flex: 1 }}>
@@ -730,6 +747,13 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '800',
   },
+  headerNotifyBadge: {
+    top: -6,
+    right: -12,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
+  },
   searchWrap: {
     marginTop: 14,
     flexDirection: 'row',
@@ -766,11 +790,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 10,
   },
-  viewAll: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: PRIMARY,
-  },
   heroCard: {
     backgroundColor: PRIMARY,
     borderRadius: 22,
@@ -800,22 +819,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: 'rgba(255,255,255,0.85)',
     marginTop: 6,
-  },
-  heroBtn: {
-    marginTop: 14,
-    alignSelf: 'flex-start',
-    backgroundColor: '#fff',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  heroBtnText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: PRIMARY,
-    marginRight: 8,
   },
   heroArt: {
     width: 92,
@@ -1054,38 +1057,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: PRIMARY,
     letterSpacing: 0.2,
-  },
-  promoCard: {
-    backgroundColor: PRIMARY,
-    borderRadius: 20,
-    padding: 20,
-    marginTop: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    shadowColor: PRIMARY_DARK,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  promoHeader: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  promoSub: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 4,
-  },
-  promoBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   bottomTab: {
     position: 'absolute',

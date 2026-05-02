@@ -167,6 +167,7 @@ const stallRoutes = require('./routes/stallRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const supportTicketRoutes = require('./routes/supportTicketRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const pendingBankRoutes = require('./routes/pendingBankRoutes');
 
 app.use('/api/auth', authRoutes);
@@ -175,6 +176,7 @@ app.use('/api/stalls', stallRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/support-tickets', supportTicketRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/pending-bank-transfers', pendingBankRoutes);
 
 // --- Meal Routes ---
