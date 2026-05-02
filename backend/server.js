@@ -7,6 +7,8 @@ const Stall = require('./models/Stall');
 const Meal = require('./models/Meal');
 const { connectDB } = require('./db');
 const { authUserFromRequest, stallCanManageMeals } = require('./utils/authRequest');
+const Order = require('./models/Order');
+
 
 const app = express();
 
@@ -43,6 +45,11 @@ if (!mongoUri) {
 }
 
 // Await connect per request — avoids flaky parallel connects & stale pools on serverless (Vercel).
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.originalUrl}`);
+  next();
+});
+
 app.use(async (req, res, next) => {
   const url = req.originalUrl || '';
   if (url === '/api/health' || url.startsWith('/api/health?')) {
@@ -525,7 +532,16 @@ app.post('/api/orders', async (req, res) => {
     });
 
     await newOrder.save();
+
+    // Update Stock (Decrement quantity for each item)
+    for (const item of items) {
+      await Meal.findByIdAndUpdate(item.meal, {
+        $inc: { quantity: -item.quantity }
+      });
+    }
+
     res.status(201).json(newOrder);
+
 
   } catch (err) {
     console.error('Order creation error:', err);

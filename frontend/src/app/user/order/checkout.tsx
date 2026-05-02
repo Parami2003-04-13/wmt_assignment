@@ -8,15 +8,15 @@ import {
   Image,
   Platform,
   Alert,
-  Switch,
   ActivityIndicator,
 } from 'react-native';
+
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCart } from '../../../context/CartContext';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import * as ImagePicker from 'expo-image-picker';
+
 import dayjs from 'dayjs';
 import api, { getStoredUser } from '../../../services/api';
 
@@ -38,10 +38,10 @@ export default function CheckoutScreen() {
 
   const [pickupTime, setPickupTime] = useState(new Date(Date.now() + 25 * 60000)); // Default +25 mins
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [isStudentDiscount, setIsStudentDiscount] = useState(false);
-  const [studentIdImage, setStudentIdImage] = useState<string | null>(null);
   const [timeError, setTimeError] = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<'Pay at Canteen' | 'Online'>('Pay at Canteen');
+
+  const [paymentMethod, setPaymentMethod] = useState<'Pay at Stall' | 'Online'>('Pay at Stall');
+
   const [loading, setLoading] = useState(false);
 
   const validateTime = (selectedTime: Date) => {
@@ -62,18 +62,11 @@ export default function CheckoutScreen() {
     }
   };
 
-  const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
-    });
 
-    if (!result.canceled) {
-      setStudentIdImage(result.assets[0].uri);
-    }
-  };
+
+  const finalTotal = cartTotal;
+
+
 
   const handlePlaceOrder = async () => {
     if (!validateTime(pickupTime)) {
@@ -81,12 +74,20 @@ export default function CheckoutScreen() {
       return;
     }
 
-    if (isStudentDiscount && !studentIdImage) {
-      Alert.alert('Student ID Required', 'Please upload your Student ID card to claim the discount.');
-      return;
+    setLoading(true);
+
+    if (paymentMethod === 'Online') {
+      try {
+        // Simulate Online Payment Processing
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        console.log('Online payment successful');
+      } catch (err) {
+        console.error('Payment simulation error:', err);
+        setLoading(false);
+        return;
+      }
     }
 
-    setLoading(true);
     try {
       const user = await getStoredUser();
       if (!user || !user.id) {
@@ -103,14 +104,13 @@ export default function CheckoutScreen() {
           quantity: item.quantity,
           price: item.meal.price
         })),
-        totalAmount: cartTotal,
+        totalAmount: finalTotal,
         pickupTime: pickupTime.toISOString(),
-        isStudentDiscount,
-        studentIdImage: studentIdImage || '',
         paymentMethod
       };
 
-      const response = await api.post('/orders', orderData);
+      const response = await api.post('orders', orderData);
+
       const newOrder = response.data;
 
       clearCart();
@@ -126,6 +126,7 @@ export default function CheckoutScreen() {
       setLoading(false);
     }
   };
+
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
@@ -150,8 +151,10 @@ export default function CheckoutScreen() {
           <View style={styles.divider} />
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Grand Total</Text>
-            <Text style={styles.totalAmount}>Rs. {cartTotal}</Text>
+            <Text style={styles.totalAmount}>Rs. {finalTotal}</Text>
           </View>
+
+
         </View>
 
         {/* Pickup Time */}
@@ -186,16 +189,16 @@ export default function CheckoutScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Payment Method</Text>
           <TouchableOpacity 
-            style={[styles.paymentOption, paymentMethod === 'Pay at Canteen' ? styles.paymentSelected : null]}
-            onPress={() => setPaymentMethod('Pay at Canteen')}
+            style={[styles.paymentOption, paymentMethod === 'Pay at Stall' ? styles.paymentSelected : null]}
+            onPress={() => setPaymentMethod('Pay at Stall')}
           >
             <MaterialCommunityIcons 
-              name={paymentMethod === 'Pay at Canteen' ? "radiobox-marked" : "radiobox-blank"} 
+              name={paymentMethod === 'Pay at Stall' ? "radiobox-marked" : "radiobox-blank"} 
               size={24} 
-              color={paymentMethod === 'Pay at Canteen' ? PRIMARY : TEXT_GRAY} 
+              color={paymentMethod === 'Pay at Stall' ? PRIMARY : TEXT_GRAY} 
             />
             <View style={styles.paymentInfo}>
-              <Text style={styles.paymentName}>Pay at Canteen</Text>
+              <Text style={styles.paymentName}>Option 1: Pay at Stall</Text>
               <Text style={styles.paymentDesc}>Pay with cash or card when you pickup</Text>
             </View>
           </TouchableOpacity>
@@ -210,46 +213,15 @@ export default function CheckoutScreen() {
               color={paymentMethod === 'Online' ? PRIMARY : TEXT_GRAY} 
             />
             <View style={styles.paymentInfo}>
-              <Text style={styles.paymentName}>Online Payment</Text>
+              <Text style={styles.paymentName}>Option 2: Pay Online</Text>
               <Text style={styles.paymentDesc}>Pay securely via card or mobile wallet</Text>
             </View>
           </TouchableOpacity>
+
         </View>
 
-        <View style={styles.section}>
-          <View style={styles.discountRow}>
-            <View>
-              <Text style={styles.sectionTitle}>Student Discount</Text>
-              <Text style={styles.discountSubtitle}>Upload ID for 10% off (pending verification)</Text>
-            </View>
-            <Switch
-              value={isStudentDiscount}
-              onValueChange={(value) => setIsStudentDiscount(value)}
-              trackColor={{ false: '#CBD5E1', true: PRIMARY }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
 
-          {isStudentDiscount && (
-            <View style={styles.uploadContainer}>
-              <TouchableOpacity style={styles.uploadBtn} onPress={pickImage}>
-                {studentIdImage ? (
-                  <Image source={{ uri: studentIdImage }} style={styles.uploadedImage} />
-                ) : (
-                  <>
-                    <MaterialCommunityIcons name="camera-plus-outline" size={32} color={PRIMARY} />
-                    <Text style={styles.uploadText}>Upload Student ID Card</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-              {studentIdImage && (
-                <TouchableOpacity onPress={() => setStudentIdImage(null)} style={styles.removeImageBtn}>
-                  <Text style={styles.removeImageText}>Remove & Re-upload</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
-        </View>
+
       </ScrollView>
 
       <View style={styles.footer}>

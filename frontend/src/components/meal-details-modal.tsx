@@ -35,10 +35,15 @@ export default function MealDetailsModal({ visible, onClose, meal }: MealDetails
   const { addToCart } = useCart();
   // fetch review stats from api
   const [stats, setStats] = useState<{ averageRating: number; reviewCount: number }>({ averageRating: 0, reviewCount: 0 });
+  const [quantity, setQuantity] = useState(1);
+
 
   useEffect(() => {
     if (visible && meal?._id) {
-      api.get(`/reviews/stats/${meal._id}`)
+      setQuantity(1);
+      const url = `reviews/stats/${meal._id}`;
+      console.log('Fetching stats from:', url);
+      api.get(url)
         .then(res => setStats(res.data))
         .catch(err => console.error('Error fetching meal stats:', err));
     }
@@ -111,11 +116,32 @@ export default function MealDetailsModal({ visible, onClose, meal }: MealDetails
               <Text style={styles.sectionTitle}>Description</Text>
               <Text style={styles.description}>{meal.description}</Text>
 
+              {!isOutOfStock && (
+                <View style={styles.qtySelectorRow}>
+                  <Text style={styles.sectionTitle}>Quantity</Text>
+                  <View style={styles.qtySelector}>
+                    <TouchableOpacity onPress={decrement} style={styles.qtySelectorBtn}>
+                      <MaterialCommunityIcons name="minus" size={20} color={PRIMARY} />
+                    </TouchableOpacity>
+                    <Text style={styles.qtySelectorText}>{quantity}</Text>
+                    <TouchableOpacity onPress={increment} style={styles.qtySelectorBtn}>
+                      <MaterialCommunityIcons name="plus" size={20} color={PRIMARY} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+
               <View style={styles.actionRow}>
-                <TouchableOpacity style={styles.orderBtn} onPress={handleAddToCart}>
+                <TouchableOpacity 
+                  style={[styles.orderBtn, isOutOfStock && styles.disabledBtn]} 
+                  onPress={handleAddToCart}
+                  disabled={isOutOfStock}
+                >
                   <MaterialCommunityIcons name="cart-outline" size={22} color="#fff" />
-                  <Text style={styles.orderBtnText}>Add to cart</Text>
+                  <Text style={styles.orderBtnText}>{isOutOfStock ? 'Sold Out' : 'Add to cart'}</Text>
                 </TouchableOpacity>
+
 
                 <TouchableOpacity 
                   style={styles.reviewBtn} 
@@ -217,7 +243,38 @@ const styles = StyleSheet.create({
   },
   qtyText: { fontSize: 13, color: PRIMARY, fontWeight: '700', marginLeft: 6 },
   sectionTitle: { fontSize: 16, fontWeight: 'bold', color: TEXT_DARK, marginBottom: 10 },
-  description: { fontSize: 15, color: TEXT_GRAY, lineHeight: 22, marginBottom: 30 },
+  description: { fontSize: 15, color: TEXT_GRAY, lineHeight: 22, marginBottom: 20 },
+  qtySelectorRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 30,
+    backgroundColor: '#F8F9FA',
+    padding: 12,
+    borderRadius: 16,
+  },
+  qtySelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 15,
+  },
+  qtySelectorBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  qtySelectorText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: TEXT_DARK,
+    minWidth: 20,
+    textAlign: 'center',
+  },
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
