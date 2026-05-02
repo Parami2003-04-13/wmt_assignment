@@ -265,33 +265,22 @@ router.patch('/:id', async (req, res) => {
     const auth = await authUserFromRequest(req);
     if (auth) {
       if (auth.role === 'stall staff') {
-        // Staff can only update non-restricted fields (like bank details)
-        const restrictedFields = [
-          'name',
-          'address',
-          'phone',
-          'description',
-          'latitude',
-          'longitude',
-          'profilePhoto',
-          'coverPhoto',
-          'openingTime',
-          'closingTime',
-        ];
-
-        const isAttemptingRestricted = Object.keys(req.body).some((key) =>
-          restrictedFields.includes(key)
-        );
-
-        if (isAttemptingRestricted) {
-          return res.status(403).json({
-            message: 'Staff cannot change description, hours, phone, stall images, or address.',
-          });
-        }
-
-        // Verify staff belongs to this stall
         if (!auth.staffStallId || auth.staffStallId.toString() !== id) {
           return res.status(403).json({ message: 'Not authorised to edit this stall.' });
+        }
+        const allowedStaffKeys = new Set(['openingTime', 'closingTime']);
+        const bodyKeys = Object.keys(req.body ?? {});
+        const disallowed = bodyKeys.filter((key) => !allowedStaffKeys.has(key));
+        if (disallowed.length > 0) {
+          return res.status(403).json({
+            message: 'Staff may only update opening hours (opening and closing time).',
+          });
+        }
+        const hasHoursInBody =
+          Object.prototype.hasOwnProperty.call(req.body, 'openingTime') ||
+          Object.prototype.hasOwnProperty.call(req.body, 'closingTime');
+        if (!hasHoursInBody) {
+          return res.status(400).json({ message: 'No valid fields to update' });
         }
       }
       const platformOk = auth.role === 'stall manager' || auth.role === 'admin';
