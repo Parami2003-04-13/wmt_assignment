@@ -322,7 +322,7 @@ export default function UserDashboard() {
                 </View>
                 <TouchableOpacity
                   style={styles.rightNowChevronWrap}
-                  onPress={() => router.push('/user/meals')}
+                  onPress={() => router.push('/user/meals' as any)}
                   hitSlop={8}
                   accessibilityLabel="Browse all meals">
                   <MaterialCommunityIcons name="chevron-right" size={22} color={PRIMARY} />
@@ -636,14 +636,14 @@ export default function UserDashboard() {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.tabItem}
-          onPress={() => router.push('/user/meals')}
+          onPress={() => router.push('/user/meals' as any)}
           accessibilityLabel="All meals">
           <MaterialCommunityIcons name="silverware-fork-knife" size={22} color={TEXT_GRAY} />
           <Text style={styles.tabLabel}>All meals</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.tabItem}
-          onPress={() => router.push('/user/orders')}
+          onPress={() => router.push('/user/orders' as any)}
           accessibilityLabel="Orders">
           <MaterialCommunityIcons name="clipboard-text-outline" size={22} color={TEXT_GRAY} />
           <Text style={styles.tabLabel}>Orders</Text>

@@ -1,6 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
-import React, { useState, useEffect } from 'react';
 import {
   Dimensions,
   Image,
@@ -42,6 +41,9 @@ export default function MealDetailsModal({ visible, onClose, meal }: MealDetails
       api.get(`/reviews/stats/${meal._id}`)
         .then(res => setStats(res.data))
         .catch(err => console.error('Error fetching meal stats:', err));
+    }
+  }, [visible, meal?._id]);
+
   const [quantity, setQuantity] = useState(1);
 
   // Reset quantity when modal opens for a new meal
@@ -260,14 +262,13 @@ const styles = StyleSheet.create({
     marginBottom: 20
   },
   qtyText: { fontSize: 13, color: PRIMARY, fontWeight: '700', marginLeft: 6 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: TEXT_DARK, marginBottom: 10 },
-  description: { fontSize: 15, color: TEXT_GRAY, lineHeight: 22, marginBottom: 30 },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: TEXT_DARK, marginBottom: 12 },
+  description: { fontSize: 15, color: TEXT_GRAY, lineHeight: 22, marginBottom: 20 },
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: TEXT_DARK, marginBottom: 12 },
-  description: { fontSize: 15, color: TEXT_GRAY, lineHeight: 22, marginBottom: 20 },
+  },
   quantitySection: {
     marginBottom: 24,
   },

@@ -99,7 +99,7 @@ export default function UserOrdersScreen() {
         ) : orders.length === 0 ? (
           <View style={styles.emptyState}>
             <MaterialCommunityIcons name="clipboard-text-outline" size={64} color={TEXT_GRAY} />
-            <Text style={styles.emptyText}>You haven't placed any orders yet.</Text>
+            <Text style={styles.emptyText}>You haven&apos;t placed any orders yet.</Text>
             <TouchableOpacity style={styles.orderNowBtn} onPress={() => router.push('/user/dashboard')}>
               <Text style={styles.orderNowText}>Order Now</Text>
             </TouchableOpacity>
