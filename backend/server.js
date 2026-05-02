@@ -166,10 +166,14 @@ app.delete('/api/users/:id', async (req, res) => {
 const authRoutes = require('./routes/authRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const stallRoutes = require('./routes/stallRoutes');
+const orderRoutes = require('./routes/orderRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/stalls', stallRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // --- Meal Routes ---
 
@@ -490,79 +494,7 @@ app.get('/api/tickets/unread-count/staff/:stallId', async (req, res) => {
   }
 });
 
-// --- Order Routes ---
-
-// Create Order
-app.post('/api/orders', async (req, res) => {
-  const { 
-    userId, 
-    items, 
-    totalAmount, 
-    pickupTime, 
-    isStudentDiscount, 
-    studentIdImage, 
-    paymentMethod 
-  } = req.body;
-
-  if (!userId || !items || items.length === 0 || !totalAmount || !pickupTime || !paymentMethod) {
-    return res.status(400).json({ message: 'Missing required fields' });
-  }
-
-  try {
-    const auth = await authUserFromRequest(req);
-    // If auth is provided, ensure it matches userId
-    if (auth && auth._id.toString() !== userId) {
-      return res.status(403).json({ message: 'Unauthorized to place order for another user.' });
-    }
-
-    // Generate Unique Order ID (Human readable)
-    const orderCount = await Order.countDocuments();
-    const uniqueId = `ORD-${Date.now().toString().slice(-4)}-${(orderCount + 1).toString().padStart(3, '0')}`;
-
-    const newOrder = new Order({
-      user: userId,
-      items,
-      totalAmount,
-      pickupTime,
-      isStudentDiscount,
-      studentIdImage,
-      paymentMethod,
-      orderId: uniqueId,
-      status: 'Pending'
-    });
-
-    await newOrder.save();
-
-    // Update Stock (Decrement quantity for each item)
-    for (const item of items) {
-      await Meal.findByIdAndUpdate(item.meal, {
-        $inc: { quantity: -item.quantity }
-      });
-    }
-
-    res.status(201).json(newOrder);
-
-
-  } catch (err) {
-    console.error('Order creation error:', err);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Get orders by user
-app.get('/api/orders/user/:userId', async (req, res) => {
-  try {
-    const auth = await authUserFromRequest(req);
-    if (auth && auth._id.toString() !== req.params.userId) {
-      return res.status(403).json({ message: 'Unauthorized' });
-    }
-
-    const orders = await Order.find({ user: req.params.userId }).sort({ createdAt: -1 });
-    res.json(orders);
-  } catch (err) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
+// Removed old Order Routes - now handled in routes/orderRoutes.js
 
 // Vercel serverless invokes this file as a module — do not bind a listener there.
 

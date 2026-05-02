@@ -265,13 +265,38 @@ router.patch('/:id', async (req, res) => {
     const auth = await authUserFromRequest(req);
     if (auth) {
       if (auth.role === 'stall staff') {
-        return res.status(403).json({
-          message: 'Staff cannot change description, hours, phone, stall images, or address.',
-        });
+        // Staff can only update non-restricted fields (like bank details)
+        const restrictedFields = [
+          'name',
+          'address',
+          'phone',
+          'description',
+          'latitude',
+          'longitude',
+          'profilePhoto',
+          'coverPhoto',
+          'openingTime',
+          'closingTime',
+        ];
+
+        const isAttemptingRestricted = Object.keys(req.body).some((key) =>
+          restrictedFields.includes(key)
+        );
+
+        if (isAttemptingRestricted) {
+          return res.status(403).json({
+            message: 'Staff cannot change description, hours, phone, stall images, or address.',
+          });
+        }
+
+        // Verify staff belongs to this stall
+        if (!auth.staffStallId || auth.staffStallId.toString() !== id) {
+          return res.status(403).json({ message: 'Not authorised to edit this stall.' });
+        }
       }
       const platformOk = auth.role === 'stall manager' || auth.role === 'admin';
       const ownerOk = auth.role === 'stall owner' && isStallOwnerUser(stallPre, auth);
-      if (!(platformOk || ownerOk)) {
+      if (!(platformOk || ownerOk || auth.role === 'stall staff')) {
         return res.status(403).json({ message: 'Not authorised to edit this stall.' });
       }
     }
@@ -287,6 +312,10 @@ router.patch('/:id', async (req, res) => {
       update.profilePhoto = req.body.profilePhoto.trim();
     if (typeof req.body.coverPhoto === 'string' && req.body.coverPhoto.trim())
       update.coverPhoto = req.body.coverPhoto.trim();
+    if (typeof req.body.bankName === 'string') update.bankName = req.body.bankName;
+    if (typeof req.body.accountNumber === 'string') update.accountNumber = req.body.accountNumber;
+    if (typeof req.body.accountName === 'string') update.accountName = req.body.accountName;
+    if (typeof req.body.branchName === 'string') update.branchName = req.body.branchName;
 
     const hasHoursKeys =
       Object.prototype.hasOwnProperty.call(req.body, 'openingTime') ||

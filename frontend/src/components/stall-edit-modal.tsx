@@ -59,6 +59,10 @@ export interface StallEditPayload {
   closingTime: string;
   profilePhoto?: string | null;
   coverPhoto?: string | null;
+  bankName?: string;
+  accountNumber?: string;
+  accountName?: string;
+  branchName?: string;
 }
 
 interface StallEditModalProps {
@@ -76,6 +80,10 @@ export default function StallEditModal({ visible, onClose, onSaved, stallId, ini
   const [closingTime, setClosingTime] = useState('');
   const [profilePhoto, setProfilePhoto] = useState('');
   const [coverPhoto, setCoverPhoto] = useState('');
+  const [bankName, setBankName] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [accountName, setAccountName] = useState('');
+  const [branchName, setBranchName] = useState('');
   const [pickerTarget, setPickerTarget] = useState<'open' | 'close' | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -87,6 +95,10 @@ export default function StallEditModal({ visible, onClose, onSaved, stallId, ini
     setClosingTime(initial.closingTime?.trim?.() ?? '');
     setProfilePhoto((initial.profilePhoto && String(initial.profilePhoto).trim()) || '');
     setCoverPhoto((initial.coverPhoto && String(initial.coverPhoto).trim()) || '');
+    setBankName(initial.bankName || '');
+    setAccountNumber(initial.accountNumber || '');
+    setAccountName(initial.accountName || '');
+    setBranchName(initial.branchName || '');
     setPickerTarget(null);
   }, [visible, initial]);
 
@@ -140,48 +152,92 @@ export default function StallEditModal({ visible, onClose, onSaved, stallId, ini
   };
 
   const handleSave = async () => {
+    const payload: Record<string, any> = {};
+
+    // Only include fields that have changed
     const p = phone.trim();
-    if (!p) {
-      Alert.alert('Required', 'Please enter a phone number.');
-      return;
+    if (p !== (initial?.phone ?? '').trim()) {
+      if (!p) {
+        Alert.alert('Required', 'Please enter a phone number.');
+        return;
+      }
+      payload.phone = p;
+    }
+
+    const d = description.trim();
+    if (d !== (initial?.description ?? '').trim()) {
+      payload.description = d;
+    }
+
+    const prof = profilePhoto.trim();
+    if (prof && prof !== (initial?.profilePhoto ?? '').trim()) {
+      payload.profilePhoto = prof;
+    }
+
+    const cov = coverPhoto.trim();
+    if (cov && cov !== (initial?.coverPhoto ?? '').trim()) {
+      payload.coverPhoto = cov;
+    }
+
+    const bName = bankName.trim();
+    if (bName !== (initial?.bankName ?? '').trim()) {
+      payload.bankName = bName;
+    }
+
+    const accNum = accountNumber.trim();
+    if (accNum !== (initial?.accountNumber ?? '').trim()) {
+      payload.accountNumber = accNum;
+    }
+
+    const accName = accountName.trim();
+    if (accName !== (initial?.accountName ?? '').trim()) {
+      payload.accountName = accName;
+    }
+
+    const bBranch = branchName.trim();
+    if (bBranch !== (initial?.branchName ?? '').trim()) {
+      payload.branchName = bBranch;
     }
 
     const oTrim = openingTime.trim();
     const cTrim = closingTime.trim();
-    const hasO = oTrim.length > 0;
-    const hasC = cTrim.length > 0;
+    const initO = (initial?.openingTime ?? '').trim();
+    const initC = (initial?.closingTime ?? '').trim();
 
-    if (hasO !== hasC) {
-      Alert.alert('Hours', 'Set both opening and closing time with the pickers, or clear scheduled hours.');
-      return;
+    if (oTrim !== initO || cTrim !== initC) {
+      const hasO = oTrim.length > 0;
+      const hasC = cTrim.length > 0;
+
+      if (hasO !== hasC) {
+        Alert.alert(
+          'Hours',
+          'Set both opening and closing time with the pickers, or clear scheduled hours.'
+        );
+        return;
+      }
+
+      if (!oTrim && !cTrim) {
+        payload.openingTime = '';
+        payload.closingTime = '';
+      } else {
+        const nO = normalizeClientTime(oTrim);
+        const nC = normalizeClientTime(cTrim);
+        if (nO === false || nC === false) {
+          Alert.alert('Invalid time', 'Something went wrong with the selected times. Please pick again.');
+          return;
+        }
+        if (!nO || !nC) {
+          Alert.alert('Hours', 'Opening and closing times are required when schedules are enabled.');
+          return;
+        }
+        payload.openingTime = nO;
+        payload.closingTime = nC;
+      }
     }
 
-    const payload: Record<string, string | null> = {
-      phone: p,
-      description: description.trim(),
-    };
-
-    const prof = profilePhoto.trim();
-    const cov = coverPhoto.trim();
-    if (prof) payload.profilePhoto = prof;
-    if (cov) payload.coverPhoto = cov;
-
-    if (!oTrim && !cTrim) {
-      payload.openingTime = '';
-      payload.closingTime = '';
-    } else {
-      const nO = normalizeClientTime(oTrim);
-      const nC = normalizeClientTime(cTrim);
-      if (nO === false || nC === false) {
-        Alert.alert('Invalid time', 'Something went wrong with the selected times. Please pick again.');
-        return;
-      }
-      if (!nO || !nC) {
-        Alert.alert('Hours', 'Opening and closing times are required when schedules are enabled.');
-        return;
-      }
-      payload.openingTime = nO;
-      payload.closingTime = nC;
+    if (Object.keys(payload).length === 0) {
+      onClose();
+      return;
     }
 
     setSaving(true);
@@ -373,6 +429,46 @@ export default function StallEditModal({ visible, onClose, onSaved, stallId, ini
           <TouchableOpacity style={styles.clearLink} onPress={clearScheduledHours}>
             <Text style={styles.clearLinkText}>Clear scheduled hours</Text>
           </TouchableOpacity>
+
+          <Text style={[styles.label, styles.mt]}>Bank Details (For Online Payments)</Text>
+          <Text style={styles.hint}>Provide bank details so customers can pay via bank transfer.</Text>
+          
+          <Text style={styles.subLabel}>Bank Name</Text>
+          <TextInput
+            value={bankName}
+            onChangeText={setBankName}
+            placeholder="e.g. Bank of Ceylon"
+            placeholderTextColor={COLORS.textGray}
+            style={styles.input}
+          />
+          
+          <Text style={[styles.subLabel, { marginTop: 10 }]}>Branch Name</Text>
+          <TextInput
+            value={branchName}
+            onChangeText={setBranchName}
+            placeholder="e.g. Colombo Fort"
+            placeholderTextColor={COLORS.textGray}
+            style={styles.input}
+          />
+
+          <Text style={[styles.subLabel, { marginTop: 10 }]}>Account Name</Text>
+          <TextInput
+            value={accountName}
+            onChangeText={setAccountName}
+            placeholder="Name on the bank account"
+            placeholderTextColor={COLORS.textGray}
+            style={styles.input}
+          />
+
+          <Text style={[styles.subLabel, { marginTop: 10 }]}>Account Number</Text>
+          <TextInput
+            value={accountNumber}
+            onChangeText={setAccountNumber}
+            placeholder="Bank account number"
+            placeholderTextColor={COLORS.textGray}
+            keyboardType="numeric"
+            style={styles.input}
+          />
 
           <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.7 }]} disabled={saving} onPress={handleSave}>
             {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Save</Text>}

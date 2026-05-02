@@ -393,6 +393,16 @@ export default function OwnerDashboard() {
                             {stall.status ?? 'Closed'}
                           </Text>
                         </View>
+                        <TouchableOpacity 
+                          style={styles.manageOrdersBtn}
+                          onPress={() => router.push({
+                            pathname: '/owner/manage-orders',
+                            params: { stallId: stall._id, stallName: stall.name }
+                          })}
+                        >
+                          <MaterialCommunityIcons name="clipboard-list-outline" size={16} color={COLORS.primary} />
+                          <Text style={styles.manageOrdersBtnText}>Orders</Text>
+                        </TouchableOpacity>
                       </View>
                     </View>
                     <MaterialCommunityIcons name="chevron-right" size={24} color={COLORS.textGray} />
@@ -1031,6 +1041,21 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   submitBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  manageOrdersBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E7F3F2',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginLeft: 10,
+  },
+  manageOrdersBtnText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: COLORS.primary,
+    marginLeft: 4,
+  },
 
   mapRoot: { flex: 1, backgroundColor: COLORS.surface },
   mapPickerHeader: {
