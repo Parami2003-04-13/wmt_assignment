@@ -11,6 +11,7 @@ import {
   Platform,
   ScrollView,
   Image,
+  Modal,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -29,6 +30,7 @@ const CreateReviewScreen = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [reviewId, setReviewId] = useState<string | null>(null);
   const [image, setImage] = useState<string | null>(null);
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -201,7 +203,7 @@ const CreateReviewScreen = () => {
           <Text style={styles.label}>Add a Photo (Optional)</Text>
           {image ? (
             <View style={styles.imagePreviewContainer}>
-              <Image source={{ uri: image }} style={styles.imagePreview} resizeMode="cover" />
+              <Image source={{ uri: image }} style={styles.imagePreview} resizeMode="contain" />
               <TouchableOpacity style={styles.removeImageBtn} onPress={() => setImage(null)}>
                 <MaterialCommunityIcons name="close" size={20} color="#fff" />
               </TouchableOpacity>
@@ -257,7 +259,9 @@ const CreateReviewScreen = () => {
                         </View>
                         <Text style={styles.reviewCardComment}>{r.comment}</Text>
                         {r.image ? (
-                            <Image source={{ uri: r.image }} style={styles.reviewCardImage} resizeMode="cover" />
+                            <TouchableOpacity activeOpacity={0.9} onPress={() => setFullscreenImage(r.image)}>
+                                <Image source={{ uri: r.image }} style={styles.reviewCardImage} resizeMode="contain" />
+                            </TouchableOpacity>
                         ) : null}
                         <Text style={styles.reviewCardDate}>{new Date(r.createdAt).toLocaleDateString()}</Text>
                     </View>
@@ -265,6 +269,25 @@ const CreateReviewScreen = () => {
             )}
         </View>
       </ScrollView>
+
+      {/* Fullscreen Image Modal */}
+      <Modal visible={!!fullscreenImage} transparent={true} animationType="fade">
+          <View style={styles.fullscreenContainer}>
+              <TouchableOpacity 
+                style={styles.fullscreenCloseBtn} 
+                onPress={() => setFullscreenImage(null)}
+              >
+                  <MaterialCommunityIcons name="close" size={30} color="#fff" />
+              </TouchableOpacity>
+              {fullscreenImage && (
+                  <Image 
+                    source={{ uri: fullscreenImage }} 
+                    style={styles.fullscreenImage} 
+                    resizeMode="contain" 
+                  />
+              )}
+          </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -472,6 +495,23 @@ const styles = StyleSheet.create({
     height: 30,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  fullscreenContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullscreenImage: {
+    width: '100%',
+    height: '100%',
+  },
+  fullscreenCloseBtn: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    padding: 10,
   }
 });
 
