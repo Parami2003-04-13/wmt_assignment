@@ -3,9 +3,34 @@ const mongoose = require('mongoose');
 const Order = require('../models/Order');
 const Meal = require('../models/Meal');
 const Payment = require('../models/Payment');
+const Stall = require('../models/Stall');
+const Notification = require('../models/Notification');
 const { authUserFromRequest } = require('../utils/authRequest');
+const { placeOrderCommit, defaultPaymentStatuses } = require('../services/placeOrder');
 
 const router = express.Router();
+
+function customerMessageForOrderStatus(orderIdDisplay, stallName, newStatus) {
+  const ord = orderIdDisplay || 'Your order';
+  const place = stallName ? `${stallName}` : 'the stall';
+
+  switch (newStatus) {
+    case 'Pending':
+      return { title: 'Order placed', body: `${ord} at ${place} is pending confirmation.` };
+    case 'Processing':
+      return { title: 'Order update', body: `${place} is processing ${ord}.` };
+    case 'Preparing':
+      return { title: 'Being prepared', body: `${place} is preparing ${ord}.` };
+    case 'Ready':
+      return { title: 'Ready for pickup', body: `${ord} at ${place} is ready.` };
+    case 'Completed':
+      return { title: 'Order completed', body: `${ord} has been marked completed.` };
+    case 'Cancelled':
+      return { title: 'Order cancelled', body: `${ord} at ${place} was cancelled.` };
+    default:
+      return { title: 'Order update', body: `${ord} at ${place} is now ${newStatus}.` };
+  }
+}
 
 function normalizePickupCode(raw) {
   if (raw === null || raw === undefined) return '';
@@ -50,52 +75,36 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
+  if (paymentMethod === 'Bank Transfer') {
+    return res.status(400).json({
+      message:
+        'Bank transfers are verified by staff before an order exists. Submit your slip from checkout — no order will be charged until verification.',
+    });
+  }
+
   try {
     const auth = await authUserFromRequest(req);
     if (auth && auth._id.toString() !== userId) {
       return res.status(403).json({ message: 'Unauthorized to place order for another user.' });
     }
 
-    // Generate Unique Order ID
-    const orderCount = await Order.countDocuments();
-    const uniqueId = `ORD-${Date.now().toString().slice(-4)}-${(orderCount + 1).toString().padStart(3, '0')}`;
+    const { orderPaymentStatus, paymentRecordStatus } = defaultPaymentStatuses(paymentMethod);
 
-    const newOrder = new Order({
-      user: userId,
-      stall: stallId,
+    const { order: newOrder } = await placeOrderCommit({
+      userId,
+      stallId,
       items,
       totalAmount,
       pickupTime,
       isStudentDiscount,
       studentIdImage,
       paymentMethod,
-      orderId: uniqueId,
-      status: 'Pending',
-      paymentStatus: paymentMethod === 'Card' ? 'Paid' : 'Pending'
+      paymentSlip,
+      cardHolderName,
+      cardLastFour,
+      orderPaymentStatus,
+      paymentRecordStatus,
     });
-
-    await newOrder.save();
-
-    // Create Payment Record
-    const newPayment = new Payment({
-      order: newOrder._id,
-      user: userId,
-      amount: totalAmount,
-      method: paymentMethod === 'Pay at Stall' ? 'Pay at Stall' : paymentMethod,
-      status: paymentMethod === 'Card' ? 'Paid' : 'Pending',
-      paymentSlip: paymentSlip || '',
-      cardHolderName: cardHolderName || '',
-      cardLastFour: cardLastFour || ''
-    });
-
-    await newPayment.save();
-
-    // Update Stock
-    for (const item of items) {
-      await Meal.findByIdAndUpdate(item.meal, {
-        $inc: { quantity: -item.quantity }
-      });
-    }
 
     res.status(201).json(newOrder);
   } catch (err) {
@@ -126,7 +135,7 @@ router.get('/user/:userId', async (req, res) => {
 router.get('/stall/:stallId', async (req, res) => {
   try {
     const orders = await Order.find({ stall: req.params.stallId })
-      .populate('user', 'name email')
+      .populate('user', 'name email phone')
       .populate('items.meal', 'name image')
       .sort({ createdAt: -1 });
     res.json(orders);
@@ -170,6 +179,20 @@ router.patch('/:id', async (req, res) => {
         update.status = 'Cancelled';
       }
     }
+    // Pay at stall: completing with verified pickup QR / code counts as confirmation of payment at handover
+    const payAtStallPickupVerifiedCompleting =
+      status === 'Completed' &&
+      existingOrder.status !== 'Completed' &&
+      existingOrder.paymentMethod === 'Pay at Stall' &&
+      existingOrder.paymentStatus !== 'Paid' &&
+      pickupVerification &&
+      pickupCodeMatchesOrder(existingOrder, pickupVerification) &&
+      paymentStatus !== 'Failed';
+
+    if (payAtStallPickupVerifiedCompleting) {
+      update.paymentStatus = 'Paid';
+    }
+
     if (orderPhoto !== undefined) update.orderPhoto = orderPhoto;
 
     // Stock restoration logic: if changing to 'Cancelled' and wasn't already 'Cancelled' or 'Completed'
@@ -183,11 +206,36 @@ router.patch('/:id', async (req, res) => {
 
     await Order.findByIdAndUpdate(req.params.id, { $set: update }, { new: true });
 
-    if (paymentStatus) {
-      await Payment.findOneAndUpdate({ order: req.params.id }, { $set: { status: paymentStatus } });
+    if ('paymentStatus' in update && update.paymentStatus) {
+      await Payment.findOneAndUpdate({ order: req.params.id }, { $set: { status: update.paymentStatus } });
+    }
+
+    let nextOrderStatus = existingOrder.status;
+    if (typeof update.status === 'string') {
+      nextOrderStatus = update.status;
+    }
+    if (nextOrderStatus !== existingOrder.status && existingOrder.user) {
+      try {
+        const stallDoc = await Stall.findById(existingOrder.stall).select('name').lean();
+        const stallName = stallDoc?.name || '';
+        const { title, body } = customerMessageForOrderStatus(existingOrder.orderId, stallName, nextOrderStatus);
+        await Notification.create({
+          user: existingOrder.user,
+          title,
+          body,
+          type: 'order_status',
+          order: existingOrder._id,
+          orderIdDisplay: existingOrder.orderId,
+          orderStatus: nextOrderStatus,
+          stallName: stallName || undefined,
+        });
+      } catch (notifyErr) {
+        console.error('Order status notification error:', notifyErr);
+      }
     }
 
     const order = await Order.findById(req.params.id)
+      .populate('user', 'name email phone')
       .populate('items.meal', 'name image')
       .lean();
 
