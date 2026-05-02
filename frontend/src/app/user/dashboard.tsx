@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     Image,
@@ -88,6 +89,30 @@ export default function UserDashboard() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const { cartItems } = useCart();
   const cartItemCount = cartItems.reduce((total, item) => total + item.quantity, 0);
+  const [unreadNotifyCount, setUnreadNotifyCount] = useState(0);
+
+  const fetchUnreadNotifications = useCallback(async () => {
+    try {
+      const user = await getStoredUser();
+      if (!user?.id) {
+        setUnreadNotifyCount(0);
+        return;
+      }
+      const res = await api.get('notifications/unread-count');
+      const n = res.data?.count;
+      setUnreadNotifyCount(typeof n === 'number' ? n : 0);
+    } catch {
+      setUnreadNotifyCount(0);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchUnreadNotifications();
+      const timer = setInterval(fetchUnreadNotifications, 60_000);
+      return () => clearInterval(timer);
+    }, [fetchUnreadNotifications])
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -262,8 +287,18 @@ export default function UserDashboard() {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.headerIconBtn, styles.headerIconBtnAfter]}
-              accessibilityLabel="Notifications">
-              <MaterialCommunityIcons name="bell-outline" size={20} color="rgba(255,255,255,0.92)" />
+              accessibilityLabel="Notifications"
+              onPress={() => router.push('/user/notifications')}>
+              <View style={styles.headerIconInner}>
+                <MaterialCommunityIcons name="bell-outline" size={20} color="rgba(255,255,255,0.92)" />
+                {unreadNotifyCount > 0 ? (
+                  <View style={[styles.headerCartBadge, styles.headerNotifyBadge]}>
+                    <Text style={styles.headerCartBadgeText}>
+                      {unreadNotifyCount > 99 ? '99+' : unreadNotifyCount}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
             </TouchableOpacity>
           </View>
         </View>
@@ -729,6 +764,13 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 9,
     fontWeight: '800',
+  },
+  headerNotifyBadge: {
+    top: -6,
+    right: -12,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
   },
   searchWrap: {
     marginTop: 14,

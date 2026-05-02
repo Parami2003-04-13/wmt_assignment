@@ -3,9 +3,33 @@ const mongoose = require('mongoose');
 const Order = require('../models/Order');
 const Meal = require('../models/Meal');
 const Payment = require('../models/Payment');
+const Stall = require('../models/Stall');
+const Notification = require('../models/Notification');
 const { authUserFromRequest } = require('../utils/authRequest');
 
 const router = express.Router();
+
+function customerMessageForOrderStatus(orderIdDisplay, stallName, newStatus) {
+  const ord = orderIdDisplay || 'Your order';
+  const place = stallName ? `${stallName}` : 'the stall';
+
+  switch (newStatus) {
+    case 'Pending':
+      return { title: 'Order placed', body: `${ord} at ${place} is pending confirmation.` };
+    case 'Processing':
+      return { title: 'Order update', body: `${place} is processing ${ord}.` };
+    case 'Preparing':
+      return { title: 'Being prepared', body: `${place} is preparing ${ord}.` };
+    case 'Ready':
+      return { title: 'Ready for pickup', body: `${ord} at ${place} is ready.` };
+    case 'Completed':
+      return { title: 'Order completed', body: `${ord} has been marked completed.` };
+    case 'Cancelled':
+      return { title: 'Order cancelled', body: `${ord} at ${place} was cancelled.` };
+    default:
+      return { title: 'Order update', body: `${ord} at ${place} is now ${newStatus}.` };
+  }
+}
 
 function normalizePickupCode(raw) {
   if (raw === null || raw === undefined) return '';
@@ -126,7 +150,7 @@ router.get('/user/:userId', async (req, res) => {
 router.get('/stall/:stallId', async (req, res) => {
   try {
     const orders = await Order.find({ stall: req.params.stallId })
-      .populate('user', 'name email')
+      .populate('user', 'name email phone')
       .populate('items.meal', 'name image')
       .sort({ createdAt: -1 });
     res.json(orders);
@@ -187,7 +211,32 @@ router.patch('/:id', async (req, res) => {
       await Payment.findOneAndUpdate({ order: req.params.id }, { $set: { status: paymentStatus } });
     }
 
+    let nextOrderStatus = existingOrder.status;
+    if (typeof update.status === 'string') {
+      nextOrderStatus = update.status;
+    }
+    if (nextOrderStatus !== existingOrder.status && existingOrder.user) {
+      try {
+        const stallDoc = await Stall.findById(existingOrder.stall).select('name').lean();
+        const stallName = stallDoc?.name || '';
+        const { title, body } = customerMessageForOrderStatus(existingOrder.orderId, stallName, nextOrderStatus);
+        await Notification.create({
+          user: existingOrder.user,
+          title,
+          body,
+          type: 'order_status',
+          order: existingOrder._id,
+          orderIdDisplay: existingOrder.orderId,
+          orderStatus: nextOrderStatus,
+          stallName: stallName || undefined,
+        });
+      } catch (notifyErr) {
+        console.error('Order status notification error:', notifyErr);
+      }
+    }
+
     const order = await Order.findById(req.params.id)
+      .populate('user', 'name email phone')
       .populate('items.meal', 'name image')
       .lean();
 
