@@ -9,6 +9,7 @@ import {
   Platform,
   Alert,
   Switch,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -17,6 +18,7 @@ import { useCart } from '../../../context/CartContext';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import dayjs from 'dayjs';
+import api, { getStoredUser } from '../../../services/api';
 
 const PRIMARY = '#0F5B57';
 const TEXT_DARK = '#2D3436';
@@ -39,6 +41,8 @@ export default function CheckoutScreen() {
   const [isStudentDiscount, setIsStudentDiscount] = useState(false);
   const [studentIdImage, setStudentIdImage] = useState<string | null>(null);
   const [timeError, setTimeError] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'Pay at Canteen' | 'Online'>('Pay at Canteen');
+  const [loading, setLoading] = useState(false);
 
   const validateTime = (selectedTime: Date) => {
     const minTime = dayjs().add(20, 'minute');
@@ -71,7 +75,7 @@ export default function CheckoutScreen() {
     }
   };
 
-  const handlePlaceOrder = () => {
+  const handlePlaceOrder = async () => {
     if (!validateTime(pickupTime)) {
       Alert.alert('Invalid Time', 'Please select a pickup time at least 20 minutes from now.');
       return;
@@ -82,16 +86,45 @@ export default function CheckoutScreen() {
       return;
     }
 
-    // In a real app, we would call an API here
-    Alert.alert('Success', 'Order initialized successfully!', [
-      {
-        text: 'OK',
-        onPress: () => {
-          clearCart();
-          router.replace('/user/dashboard');
-        },
-      },
-    ]);
+    setLoading(true);
+    try {
+      const user = await getStoredUser();
+      if (!user || !user.id) {
+        Alert.alert('Error', 'User session expired. Please login again.');
+        router.replace('/login');
+        return;
+      }
+
+      const orderData = {
+        userId: user.id,
+        items: cartItems.map(item => ({
+          meal: item.meal._id,
+          name: item.meal.name,
+          quantity: item.quantity,
+          price: item.meal.price
+        })),
+        totalAmount: cartTotal,
+        pickupTime: pickupTime.toISOString(),
+        isStudentDiscount,
+        studentIdImage: studentIdImage || '',
+        paymentMethod
+      };
+
+      const response = await api.post('/orders', orderData);
+      const newOrder = response.data;
+
+      clearCart();
+      router.replace({
+        pathname: '/user/order/success',
+        params: { orderId: newOrder.orderId }
+      });
+
+    } catch (error: any) {
+      console.error('Failed to place order:', error);
+      Alert.alert('Order Failed', error.response?.data?.message || 'Something went wrong while placing your order.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -149,7 +182,40 @@ export default function CheckoutScreen() {
           )}
         </View>
 
-        {/* Student Discount */}
+        {/* Payment Method */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Payment Method</Text>
+          <TouchableOpacity 
+            style={[styles.paymentOption, paymentMethod === 'Pay at Canteen' ? styles.paymentSelected : null]}
+            onPress={() => setPaymentMethod('Pay at Canteen')}
+          >
+            <MaterialCommunityIcons 
+              name={paymentMethod === 'Pay at Canteen' ? "radiobox-marked" : "radiobox-blank"} 
+              size={24} 
+              color={paymentMethod === 'Pay at Canteen' ? PRIMARY : TEXT_GRAY} 
+            />
+            <View style={styles.paymentInfo}>
+              <Text style={styles.paymentName}>Pay at Canteen</Text>
+              <Text style={styles.paymentDesc}>Pay with cash or card when you pickup</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.paymentOption, paymentMethod === 'Online' ? styles.paymentSelected : null]}
+            onPress={() => setPaymentMethod('Online')}
+          >
+            <MaterialCommunityIcons 
+              name={paymentMethod === 'Online' ? "radiobox-marked" : "radiobox-blank"} 
+              size={24} 
+              color={paymentMethod === 'Online' ? PRIMARY : TEXT_GRAY} 
+            />
+            <View style={styles.paymentInfo}>
+              <Text style={styles.paymentName}>Online Payment</Text>
+              <Text style={styles.paymentDesc}>Pay securely via card or mobile wallet</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.section}>
           <View style={styles.discountRow}>
             <View>
@@ -187,8 +253,16 @@ export default function CheckoutScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.placeOrderBtn} onPress={handlePlaceOrder}>
-          <Text style={styles.placeOrderBtnText}>Place Order</Text>
+        <TouchableOpacity 
+          style={[styles.placeOrderBtn, loading ? styles.disabledBtn : null]} 
+          onPress={handlePlaceOrder}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.placeOrderBtnText}>Place Order</Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -299,6 +373,32 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontStyle: 'italic',
   },
+  paymentOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  paymentSelected: {
+    borderColor: PRIMARY,
+    backgroundColor: '#F0F9F9',
+  },
+  paymentInfo: {
+    marginLeft: 12,
+  },
+  paymentName: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: TEXT_DARK,
+  },
+  paymentDesc: {
+    fontSize: 12,
+    color: TEXT_GRAY,
+    marginTop: 2,
+  },
   discountRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -355,6 +455,11 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
+    height: 56,
+    justifyContent: 'center',
+  },
+  disabledBtn: {
+    opacity: 0.7,
   },
   placeOrderBtnText: {
     color: '#fff',
