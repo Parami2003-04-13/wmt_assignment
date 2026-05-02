@@ -641,6 +641,13 @@ export default function UserDashboard() {
           <MaterialCommunityIcons name="silverware-fork-knife" size={22} color={TEXT_GRAY} />
           <Text style={styles.tabLabel}>All meals</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.tabItem}
+          onPress={() => router.push('/user/orders')}
+          accessibilityLabel="Orders">
+          <MaterialCommunityIcons name="clipboard-text-outline" size={22} color={TEXT_GRAY} />
+          <Text style={styles.tabLabel}>Orders</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.tabItem} onPress={() => router.push('/user/profile')} accessibilityLabel="Profile">
           <MaterialCommunityIcons name="account-outline" size={24} color={TEXT_GRAY} />
           <Text style={styles.tabLabel}>Profile</Text>

@@ -474,251 +474,261 @@ export default function StallManagement() {
           </View>
         </ScrollView>
       ) : (
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={COLORS.primary}
-            colors={[COLORS.primary]}
-          />
-        }>
-        <View style={styles.coverWrap}>
-          <Image
-            source={{
-              uri:
-                stall.coverPhoto ||
-                'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=1000',
-            }}
-            style={styles.coverPhoto}
-          />
-          <View style={styles.coverOverlay} />
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={COLORS.primary}
+              colors={[COLORS.primary]}
+            />
+          }>
+          <View style={styles.coverWrap}>
+            <Image
+              source={{
+                uri:
+                  stall.coverPhoto ||
+                  'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=1000',
+              }}
+              style={styles.coverPhoto}
+            />
+            <View style={styles.coverOverlay} />
 
-          <Pressable
-            style={[styles.roundIconBtn, { top: coverTop, left: 16 }]}
-            onPress={() => router.back()}
-            hitSlop={12}>
-            <MaterialCommunityIcons name="arrow-left" size={24} color="#fff" />
-          </Pressable>
-
-          {isStaffViewer ? (
             <Pressable
-              style={[styles.roundIconBtn, { top: coverTop, right: 16 }]}
-              onPress={handleStaffLogout}
+              style={[styles.roundIconBtn, { top: coverTop, left: 16 }]}
+              onPress={() => router.canGoBack() ? router.back() : router.replace('/owner/owner_dashboard')}
               hitSlop={12}>
-              <MaterialCommunityIcons name="logout" size={22} color="#fff" />
+              <MaterialCommunityIcons name="arrow-left" size={24} color="#fff" />
             </Pressable>
-          ) : null}
-        </View>
 
-        <View style={styles.sheet}>
-          <View style={styles.sheetHandle} />
-
-          <View style={styles.profileRow}>
-            <View style={styles.avatarRing}>
-              <Image
-                source={{
-                  uri: stall.profilePhoto || 'https://via.placeholder.com/150',
-                }}
-                style={styles.avatar}
-              />
-            </View>
-            <View style={styles.titleBlock}>
-              <View style={styles.titleToolbar}>
-                <View style={styles.titleStack}>
-                  <Text style={styles.stallName} numberOfLines={2}>
-                    {stall.name}
-                  </Text>
-                  <TouchableOpacity
-                    style={[styles.statusPill, { backgroundColor: isOpen ? '#DCF5ED' : '#FDECEC' }]}
-                    onPress={confirmToggleStatus}
-                    disabled={statusBusy}
-                    activeOpacity={0.85}>
-                    {statusBusy ? (
-                      <ActivityIndicator size="small" color={isOpen ? COLOR_OPEN : COLOR_CLOSED} />
-                    ) : (
-                      <>
-                        <View
-                          style={[
-                            styles.statusDot,
-                            { backgroundColor: isOpen ? COLOR_OPEN : COLOR_CLOSED },
-                          ]}
-                        />
-                        <Text
-                          style={[
-                            styles.statusPillText,
-                            { color: isOpen ? COLOR_OPEN : COLOR_CLOSED },
-                          ]}>
-                          {isOpen ? 'Open' : 'Closed'}
-                        </Text>
-                        <MaterialCommunityIcons
-                          name="chevron-down"
-                          size={16}
-                          color={isOpen ? COLOR_OPEN : COLOR_CLOSED}
-                        />
-                      </>
-                    )}
-                  </TouchableOpacity>
-                </View>
-                {isStallOwner && (
-                  <TouchableOpacity
-                    style={styles.addStaffBtn}
-                    onPress={() => setAddStaffVisible(true)}
-                    activeOpacity={0.85}>
-                    <MaterialCommunityIcons name="account-plus-outline" size={22} color={COLORS.primary} />
-                    <Text style={styles.addStaffBtnLabel}>Add staff</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-          </View>
-
-          <Text style={styles.hintTapStatus}>
-            {isStaffViewer
-              ? 'Staff: you can toggle Open/Closed during service and manage the menu. Payments are handled outside the app (cash, card at the stall).'
-              : 'Tap status for manual Open/Closed. With business hours set, scheduling updates automatically whenever you refresh or save details (Asia/Colombo).'}
-          </Text>
-
-          {stall.openingTime && stall.closingTime ? (
-            <View style={styles.hoursBanner}>
-              <MaterialCommunityIcons name="clock-outline" size={22} color={COLORS.primary} />
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.hoursTime}>
-                  {stall.openingTime} – {stall.closingTime}
-                </Text>
-                <Text style={styles.hoursMeta}>
-                  {stall.hoursAuto ? 'Scheduled · Asia/Colombo · auto updates on refresh/save' : 'Hours saved · manual status'}
-                </Text>
-              </View>
-            </View>
-          ) : null}
-
-          <View style={styles.infoCards}>
-            <View style={styles.infoCard}>
-              <View style={styles.infoIconBg}>
-                <MaterialCommunityIcons name="map-marker-outline" size={20} color={COLORS.primary} />
-              </View>
-              <Text style={styles.infoCardLabel}>Address</Text>
-              <Text style={styles.infoCardValue} numberOfLines={3}>
-                {stall.address}
-              </Text>
-            </View>
-            <View style={styles.infoCard}>
-              <View style={styles.infoIconBg}>
-                <MaterialCommunityIcons name="phone-outline" size={20} color={COLORS.primary} />
-              </View>
-              <Text style={styles.infoCardLabel}>Phone</Text>
-              <Text style={styles.infoCardValue}>{stall.phone}</Text>
-            </View>
-          </View>
-
-          <View style={styles.section}>
             {isStaffViewer ? (
-              <>
-                <Text style={styles.sectionEyebrow}>About</Text>
-                <View style={styles.descCard}>
-                  <Text style={styles.descText}>
-                    {stall.description || 'No description provided.'}
+              <Pressable
+                style={[styles.roundIconBtn, { top: coverTop, right: 16 }]}
+                onPress={handleStaffLogout}
+                hitSlop={12}>
+                <MaterialCommunityIcons name="logout" size={22} color="#fff" />
+              </Pressable>
+            ) : null}
+          </View>
+
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+
+            <View style={styles.profileRow}>
+              <View style={styles.avatarRing}>
+                <Image
+                  source={{
+                    uri: stall.profilePhoto || 'https://via.placeholder.com/150',
+                  }}
+                  style={styles.avatar}
+                />
+              </View>
+              <View style={styles.titleBlock}>
+                <View style={styles.titleToolbar}>
+                  <View style={styles.titleStack}>
+                    <Text style={styles.stallName} numberOfLines={2}>
+                      {stall.name}
+                    </Text>
+                    <TouchableOpacity
+                      style={[styles.statusPill, { backgroundColor: isOpen ? '#DCF5ED' : '#FDECEC' }]}
+                      onPress={confirmToggleStatus}
+                      disabled={statusBusy}
+                      activeOpacity={0.85}>
+                      {statusBusy ? (
+                        <ActivityIndicator size="small" color={isOpen ? COLOR_OPEN : COLOR_CLOSED} />
+                      ) : (
+                        <>
+                          <View
+                            style={[
+                              styles.statusDot,
+                              { backgroundColor: isOpen ? COLOR_OPEN : COLOR_CLOSED },
+                            ]}
+                          />
+                          <Text
+                            style={[
+                              styles.statusPillText,
+                              { color: isOpen ? COLOR_OPEN : COLOR_CLOSED },
+                            ]}>
+                            {isOpen ? 'Open' : 'Closed'}
+                          </Text>
+                          <MaterialCommunityIcons
+                            name="chevron-down"
+                            size={16}
+                            color={isOpen ? COLOR_OPEN : COLOR_CLOSED}
+                          />
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                  {isStallOwner && (
+                    <TouchableOpacity
+                      style={styles.addStaffBtn}
+                      onPress={() => setAddStaffVisible(true)}
+                      activeOpacity={0.85}>
+                      <MaterialCommunityIcons name="account-plus-outline" size={22} color={COLORS.primary} />
+                      <Text style={styles.addStaffBtnLabel}>Add staff</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            </View>
+
+            <Text style={styles.hintTapStatus}>
+              {isStaffViewer
+                ? 'Staff: you can toggle Open/Closed during service and manage the menu. Payments are handled outside the app (cash, card at the stall).'
+                : 'Tap status for manual Open/Closed. With business hours set, scheduling updates automatically whenever you refresh or save details (Asia/Colombo).'}
+            </Text>
+
+            {stall.openingTime && stall.closingTime ? (
+              <View style={styles.hoursBanner}>
+                <MaterialCommunityIcons name="clock-outline" size={22} color={COLORS.primary} />
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.hoursTime}>
+                    {stall.openingTime} – {stall.closingTime}
+                  </Text>
+                  <Text style={styles.hoursMeta}>
+                    {stall.hoursAuto ? 'Scheduled · Asia/Colombo · auto updates on refresh/save' : 'Hours saved · manual status'}
                   </Text>
                 </View>
-                <View style={styles.staffInfoBanner}>
-                  <MaterialCommunityIcons name="shield-account-outline" size={22} color={COLORS.primary} />
-                  <Text style={styles.staffInfoBannerText}>
-                    Staff account: editing description, phone, hours, and stall photos requires the stall owner&apos;s login.
-                  </Text>
+              </View>
+            ) : null}
+
+            <View style={styles.infoCards}>
+              <View style={styles.infoCard}>
+                <View style={styles.infoIconBg}>
+                  <MaterialCommunityIcons name="map-marker-outline" size={20} color={COLORS.primary} />
                 </View>
-              </>
-            ) : (
-              <>
-                <View style={styles.aboutHeader}>
-                  <Text style={[styles.sectionEyebrow, styles.aboutEyebrowNoMb]}>About</Text>
+                <Text style={styles.infoCardLabel}>Address</Text>
+                <Text style={styles.infoCardValue} numberOfLines={3}>
+                  {stall.address}
+                </Text>
+              </View>
+              <View style={styles.infoCard}>
+                <View style={styles.infoIconBg}>
+                  <MaterialCommunityIcons name="phone-outline" size={20} color={COLORS.primary} />
+                </View>
+                <Text style={styles.infoCardLabel}>Phone</Text>
+                <Text style={styles.infoCardValue}>{stall.phone}</Text>
+              </View>
+            </View>
+
+            <View style={styles.section}>
+              {isStaffViewer ? (
+                <>
+                  <Text style={styles.sectionEyebrow}>About</Text>
+                  <View style={styles.descCard}>
+                    <Text style={styles.descText}>
+                      {stall.description || 'No description provided.'}
+                    </Text>
+                  </View>
+                  <View style={styles.staffInfoBanner}>
+                    <MaterialCommunityIcons name="shield-account-outline" size={22} color={COLORS.primary} />
+                    <Text style={styles.staffInfoBannerText}>
+                      Staff account: editing description, phone, hours, and stall photos requires the stall owner&apos;s login.
+                    </Text>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <View style={styles.aboutHeader}>
+                    <Text style={[styles.sectionEyebrow, styles.aboutEyebrowNoMb]}>About</Text>
+                    <TouchableOpacity
+                      style={styles.aboutEditBtn}
+                      activeOpacity={0.85}
+                      onPress={() => setStallEditVisible(true)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <MaterialCommunityIcons name="cog-outline" size={18} color={COLORS.primary} />
+                      <Text style={styles.aboutEditBtnText}>Stall settings</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.descCard}>
+                    <Text style={styles.descText}>
+                      {stall.description ||
+                        'No description yet. Open Stall settings to describe what you serve.'}
+                    </Text>
+                  </View>
                   <TouchableOpacity
-                    style={styles.aboutEditBtn}
+                    style={styles.stallEditLink}
                     activeOpacity={0.85}
-                    onPress={() => setStallEditVisible(true)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <MaterialCommunityIcons name="cog-outline" size={18} color={COLORS.primary} />
-                    <Text style={styles.aboutEditBtnText}>Stall settings</Text>
+                    onPress={() => setStallEditVisible(true)}>
+                    <MaterialCommunityIcons name="store-edit-outline" size={20} color={COLORS.primary} />
+                    <Text style={styles.stallEditLinkText}>Hours, photos, phone & address</Text>
+                    <MaterialCommunityIcons name="chevron-right" size={22} color={COLORS.textGray} />
                   </TouchableOpacity>
-                </View>
-                <View style={styles.descCard}>
-                  <Text style={styles.descText}>
-                    {stall.description ||
-                      'No description yet. Open Stall settings to describe what you serve.'}
-                  </Text>
-                </View>
+                </>
+              )}
+            </View>
+
+            <View style={styles.menuSectionHeader}>
+              <View>
+                <Text style={styles.menuTitle}>Menu</Text>
+                <Text style={styles.menuSubtitle}>
+                  {meals.length} {meals.length === 1 ? 'item' : 'items'}
+                  {isStaffViewer ? ' · staff: menu & stock' : ' · open Manage meals to edit'}
+                </Text>
+              </View>
+              <View style={styles.menuActions}>
                 <TouchableOpacity
-                  style={styles.stallEditLink}
+                  style={styles.menuActionBtn}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    setSelectedManageCategory(null);
+                    setMenuManageOpen(true);
+                  }}>
+                  <MaterialCommunityIcons name="silverware-fork-knife" size={18} color={COLORS.primary} />
+                  <Text style={styles.menuActionText}>Manage meals</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuActionBtn}
+                  activeOpacity={0.85}
+                  onPress={() => router.push({
+                    pathname: '/owner/manage-orders',
+                    params: { stallId: stallId, stallName: stall.name }
+                  })}>
+                  <MaterialCommunityIcons name="receipt-text-outline" size={18} color={COLORS.primary} />
+                  <Text style={styles.menuActionText}>Orders</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuActionBtn}
                   activeOpacity={0.85}
                   onPress={() => setStallEditVisible(true)}>
-                  <MaterialCommunityIcons name="store-edit-outline" size={20} color={COLORS.primary} />
-                  <Text style={styles.stallEditLinkText}>Hours, photos, phone & address</Text>
-                  <MaterialCommunityIcons name="chevron-right" size={22} color={COLORS.textGray} />
+                  <MaterialCommunityIcons name="bank-outline" size={18} color={COLORS.primary} />
+                  <Text style={styles.menuActionText}>Edit Details</Text>
                 </TouchableOpacity>
-              </>
-            )}
-          </View>
-
-          <View style={styles.menuSectionHeader}>
-            <View>
-              <Text style={styles.menuTitle}>Menu</Text>
-              <Text style={styles.menuSubtitle}>
-                {meals.length} {meals.length === 1 ? 'item' : 'items'}
-                {isStaffViewer ? ' · staff: menu & stock' : ' · open Manage meals to edit'}
-              </Text>
+                {canAccessCustomerSupport ? (
+                  <TouchableOpacity
+                    style={styles.menuActionBtn}
+                    activeOpacity={0.85}
+                    onPress={openCustomerSupport}>
+                    <View style={{ position: 'relative' }}>
+                      <MaterialCommunityIcons name="headset" size={18} color={COLORS.primary} />
+                      {unreadTickets > 0 ? <View style={styles.unreadDot} /> : null}
+                    </View>
+                    <Text style={styles.menuActionText}>Customer support</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
             </View>
-            <View style={styles.menuActions}>
+
+            {meals.length === 0 ? (
               <TouchableOpacity
-                style={styles.menuActionBtn}
-                activeOpacity={0.85}
+                style={styles.menuEmptyCta}
+                activeOpacity={0.88}
                 onPress={() => {
                   setSelectedManageCategory(null);
                   setMenuManageOpen(true);
                 }}>
-                <MaterialCommunityIcons name="silverware-fork-knife" size={18} color={COLORS.primary} />
-                <Text style={styles.menuActionText}>Manage meals</Text>
+                <MaterialCommunityIcons name="silverware-fork-knife" size={36} color={COLORS.primary} />
+                <Text style={styles.menuEmptyCtaTitle}>No menu items yet</Text>
+                <Text style={styles.menuEmptyCtaSub}>Tap Manage meals above to add your first item.</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.menuActionBtn}
-                activeOpacity={0.85}
-                onPress={() => Alert.alert('Coming soon', 'Orders will be available in a future update.')}>
-                <MaterialCommunityIcons name="receipt-text-outline" size={18} color={COLORS.primary} />
-                <Text style={styles.menuActionText}>Orders</Text>
-              </TouchableOpacity>
-              {canAccessCustomerSupport ? (
-                <TouchableOpacity
-                  style={styles.menuActionBtn}
-                  activeOpacity={0.85}
-                  onPress={openCustomerSupport}>
-                  <View style={{ position: 'relative' }}>
-                    <MaterialCommunityIcons name="headset" size={18} color={COLORS.primary} />
-                    {unreadTickets > 0 ? <View style={styles.unreadDot} /> : null}
-                  </View>
-                  <Text style={styles.menuActionText}>Customer support</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
+            ) : null}
+
+            <View style={{ height: 40 }} />
           </View>
-
-          {meals.length === 0 ? (
-            <TouchableOpacity
-              style={styles.menuEmptyCta}
-              activeOpacity={0.88}
-              onPress={() => {
-                setSelectedManageCategory(null);
-                setMenuManageOpen(true);
-              }}>
-              <MaterialCommunityIcons name="silverware-fork-knife" size={36} color={COLORS.primary} />
-              <Text style={styles.menuEmptyCtaTitle}>No menu items yet</Text>
-              <Text style={styles.menuEmptyCtaSub}>Tap Manage meals above to add your first item.</Text>
-            </TouchableOpacity>
-          ) : null}
-
-          <View style={{ height: 40 }} />
-        </View>
-      </ScrollView>
+        </ScrollView>
       )}
 
       <MealModal
@@ -745,6 +755,10 @@ export default function StallManagement() {
               closingTime: stall.closingTime ?? '',
               profilePhoto: stall.profilePhoto ?? '',
               coverPhoto: stall.coverPhoto ?? '',
+              bankName: stall.bankName ?? '',
+              accountNumber: stall.accountNumber ?? '',
+              accountName: stall.accountName ?? '',
+              branchName: stall.branchName ?? '',
             }
             : null
         }
