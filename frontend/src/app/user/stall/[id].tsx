@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import api from '../../../services/api';
 import MealDetailsModal from '../../../components/meal-details-modal';
-import UserTicketModal from '../../../components/user-ticket-modal';
+import UserSupportTicketModal from '../../../components/user-support-ticket-modal';
 import { COLORS } from '../../../theme/colors';
 
 const Text = (props: any) => (
@@ -63,16 +63,16 @@ export default function UserStallDetails() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedMeal, setSelectedMeal] = useState<any>(null);
   const [mealVisible, setMealVisible] = useState(false);
-  const [ticketVisible, setTicketVisible] = useState(false);
+  const [supportTicketVisible, setTicketVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [unreadTickets, setUnreadTickets] = useState(0);
+  const [unreadSupportTickets, setUnreadTickets] = useState(0);
 
   const fetchAll = useCallback(async () => {
     if (!stallId) return;
     const [stallRes, mealsRes, unreadRes] = await Promise.all([
       api.get(`/stalls/${stallId}`),
       api.get(`/meals/stall/${stallId}`),
-      api.get(`/tickets/unread-count/user/${stallId}`),
+      api.get(`/support-tickets/unread-count/user/${stallId}`),
     ]);
     setStall(stallRes.data);
     setMeals(Array.isArray(mealsRes.data) ? mealsRes.data : []);
@@ -185,9 +185,9 @@ export default function UserStallDetails() {
 
   const openSupport = async () => {
     setTicketVisible(true);
-    if (unreadTickets > 0) {
+    if (unreadSupportTickets > 0) {
       try {
-        await api.put(`/tickets/mark-seen/user/${stallId}`);
+        await api.put(`/support-tickets/mark-seen/user/${stallId}`);
         setUnreadTickets(0);
       } catch {
         /* ignore */
@@ -278,7 +278,7 @@ export default function UserStallDetails() {
         <View style={[styles.topBarSide, styles.topBarSideRight]}>
           <Pressable style={styles.topBarIcon} onPress={openSupport} hitSlop={10}>
             <MaterialCommunityIcons name="headset" size={22} color={COLORS.primary} />
-            {unreadTickets > 0 && <View style={styles.supportDot} />}
+            {unreadSupportTickets > 0 && <View style={styles.supportDot} />}
           </Pressable>
         </View>
       </View>
@@ -412,7 +412,7 @@ export default function UserStallDetails() {
       </ScrollView>
 
       <MealDetailsModal visible={mealVisible} onClose={() => setMealVisible(false)} meal={selectedMeal} />
-      <UserTicketModal visible={ticketVisible} onClose={() => setTicketVisible(false)} stallId={stallId as string} />
+      <UserSupportTicketModal visible={supportTicketVisible} onClose={() => setTicketVisible(false)} stallId={stallId as string} />
     </View>
   );
 }
