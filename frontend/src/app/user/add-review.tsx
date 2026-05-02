@@ -31,6 +31,7 @@ const CreateReviewScreen = () => {
   const [reviewId, setReviewId] = useState<string | null>(null);
   const [image, setImage] = useState<string | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+  const [mealName, setMealName] = useState<string>('');
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -56,7 +57,20 @@ const CreateReviewScreen = () => {
 
   useEffect(() => {
     fetchReviews();
+    fetchMealDetails();
   }, [mealId]);
+
+  const fetchMealDetails = async () => {
+    if (!mealId) return;
+    try {
+      const res = await api.get(`/meals/${mealId}`);
+      if (res.data?.name) {
+        setMealName(res.data.name);
+      }
+    } catch (err) {
+      console.log('Error fetching meal details:', err);
+    }
+  };
 
   const fetchReviews = async () => {
     if (!mealId) return;
@@ -172,9 +186,9 @@ const CreateReviewScreen = () => {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
+      style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <Text style={styles.mealHeaderName}>{mealName}</Text>
         <Text style={styles.title}>{isEditing ? 'Update Review' : 'Rate your Meal'}</Text>
         <Text style={styles.subtitle}>{isEditing ? 'Need to change something?' : 'How was your experience?'}</Text>
 
@@ -512,6 +526,14 @@ const styles = StyleSheet.create({
     right: 20,
     zIndex: 10,
     padding: 10,
+  },
+  mealHeaderName: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#2ecc71',
+    textAlign: 'center',
+    marginTop: 30,
+    marginBottom: -10,
   }
 });
 
