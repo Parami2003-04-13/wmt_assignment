@@ -42,6 +42,15 @@ function orderLineImageUri(item: any): string | null {
   return s ? s : null;
 }
 
+/** Friendly label so bank + Pending is not mistaken for “failed”. */
+function paymentStatusLabel(order: any): string {
+  const raw = order?.paymentStatus;
+  const pm = order?.paymentMethod;
+  const s = typeof raw === 'string' ? raw : '';
+  if (pm === 'Bank Transfer' && s === 'Pending') return 'Awaiting verification';
+  return s || '—';
+}
+
 export default function UserOrdersScreen() {
   const router = useRouter();
   const [orders, setOrders] = useState<any[]>([]);
@@ -174,11 +183,15 @@ export default function UserOrdersScreen() {
                   <Text style={styles.paymentMethod}>{order.paymentMethod}</Text>
                   <View style={[styles.paymentStatusBadge, { backgroundColor: getPaymentStatusColor(order.paymentStatus) + '15' }]}>
                     <Text style={[styles.paymentStatusText, { color: getPaymentStatusColor(order.paymentStatus) }]}>
-                      {order.paymentStatus}
+                      {paymentStatusLabel(order)}
                     </Text>
                   </View>
                 </View>
               </View>
+
+              {order.paymentMethod === 'Bank Transfer' && order.paymentStatus === 'Pending' ? (
+                <Text style={styles.bankVerifyHint}>Staff are verifying your transfer; you will be notified when payment is confirmed.</Text>
+              ) : null}
 
               {order.status === 'Ready' ? (
                 <TouchableOpacity
@@ -435,6 +448,13 @@ const styles = StyleSheet.create({
   paymentStatusText: {
     fontSize: 11,
     fontWeight: 'bold',
+  },
+  bankVerifyHint: {
+    fontSize: 12,
+    color: TEXT_GRAY,
+    marginTop: 10,
+    lineHeight: 17,
+    fontWeight: '600',
   },
   orderPhotoSection: {
     marginTop: 15,

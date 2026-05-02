@@ -32,10 +32,20 @@ const Text = (props: any) => (
   <RNText {...props} style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]} />
 );
 
+function normalizeParam(v: string | string[] | undefined): string {
+  if (v == null) return '';
+  const s = Array.isArray(v) ? v[0] : v;
+  return typeof s === 'string' ? s.trim() : String(s ?? '').trim();
+}
+
 export default function ManagePaymentsScreen() {
   const router = useRouter();
-  const { stallId, stallName } = useLocalSearchParams();
+  const rawParams = useLocalSearchParams();
+  const stallId = normalizeParam(rawParams.stallId as string | string[] | undefined);
+  const stallName = normalizeParam(rawParams.stallName as string | string[] | undefined);
   const [payments, setPayments] = useState<any[]>([]);
+  const [pendingBankTransfers, setPendingBankTransfers] = useState<any[]>([]);
+  const [pendingActionId, setPendingActionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selected, setSelected] = useState<any>(null);
@@ -43,10 +53,21 @@ export default function ManagePaymentsScreen() {
   const [updating, setUpdating] = useState(false);
 
   const fetchPayments = useCallback(async () => {
-    if (!stallId) return;
+    if (!stallId) {
+      setPayments([]);
+      setPendingBankTransfers([]);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
     try {
-      const res = await api.get(`payments/stall/${stallId}`);
-      setPayments(res.data);
+      const [payRes, pendRes] = await Promise.all([
+        api.get(`payments/stall/${encodeURIComponent(stallId)}`).catch(() => ({ data: [] })),
+        api.get(`pending-bank-transfers/stall/${encodeURIComponent(stallId)}`).catch(() => ({ data: [] })),
+      ]);
+      setPayments(Array.isArray(payRes.data) ? payRes.data : []);
+      setPendingBankTransfers(Array.isArray(pendRes.data) ? pendRes.data : []);
     } catch (err) {
       console.error('Fetch stall payments error:', err);
     } finally {
@@ -56,7 +77,8 @@ export default function ManagePaymentsScreen() {
   }, [stallId]);
 
   useEffect(() => {
-    if (stallId) fetchPayments();
+    setLoading(true);
+    fetchPayments();
   }, [stallId, fetchPayments]);
 
   const onRefresh = () => {
@@ -146,6 +168,62 @@ export default function ManagePaymentsScreen() {
     setModalVisible(true);
   };
 
+  const handleApprovePendingBank = (mongoId: string) => {
+    Alert.alert(
+      'Verify bank transfer?',
+      'This creates the paid order for the customer and deducts meal stock.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Verify',
+          style: 'default',
+          onPress: async () => {
+            const idStr = String(mongoId);
+            setPendingActionId(idStr);
+            try {
+              await api.patch(`pending-bank-transfers/${encodeURIComponent(idStr)}/approve`);
+              await fetchPayments();
+              Alert.alert('Done', 'Order created for the customer.');
+            } catch (err: any) {
+              Alert.alert(
+                'Could not approve',
+                err?.response?.data?.message || 'Approve failed. Refresh and try again.',
+              );
+            } finally {
+              setPendingActionId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleRejectPendingBank = (mongoId: string) => {
+    Alert.alert('Reject submission?', 'The customer submitted this slip from checkout.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Reject',
+        style: 'destructive',
+        onPress: async () => {
+          const idStr = String(mongoId);
+          setPendingActionId(idStr);
+          try {
+            await api.patch(`pending-bank-transfers/${encodeURIComponent(idStr)}/reject`, {});
+            await fetchPayments();
+            Alert.alert('Rejected', 'Marked as rejected.');
+          } catch (err: any) {
+            Alert.alert(
+              'Could not reject',
+              err?.response?.data?.message || 'Reject failed. Refresh and try again.',
+            );
+          } finally {
+            setPendingActionId(null);
+          }
+        },
+      },
+    ]);
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
@@ -167,13 +245,78 @@ export default function ManagePaymentsScreen() {
         nestedScrollEnabled>
         {loading ? (
           <ActivityIndicator color={PRIMARY} style={{ marginTop: 50 }} />
-        ) : payments.length === 0 ? (
+        ) : payments.length === 0 && pendingBankTransfers.length === 0 ? (
           <View style={styles.emptyState}>
             <MaterialCommunityIcons name="credit-card-off-outline" size={64} color={TEXT_GRAY} />
-            <Text style={styles.emptyText}>No payment records for this stall yet.</Text>
+            <Text style={styles.emptyText}>
+              No pending bank slips to verify and no payment records yet.
+            </Text>
           </View>
         ) : (
-          payments.map((p) => (
+          <>
+            {pendingBankTransfers.length > 0 ? (
+              <View style={styles.pendingSection}>
+                <Text style={styles.sectionHeading}>Awaiting bank slip verification</Text>
+                {pendingBankTransfers.map((pb: any) => {
+                  const pid = String(pb._id ?? '');
+                  const busy = pendingActionId === pid;
+                  return (
+                    <View key={pid} style={styles.pendingCard}>
+                      <View style={styles.rowTop}>
+                        <View>
+                          <Text style={styles.orderId}>Bank slip submission</Text>
+                          <Text style={styles.date}>
+                            Submitted · {dayjs(pb.createdAt).format('DD MMM YYYY, hh:mm A')}
+                          </Text>
+                        </View>
+                        <View style={[styles.statusBadge, { backgroundColor: WARNING + '28' }]}>
+                          <Text style={[styles.statusText, { color: '#B88900' }]}>Needs review</Text>
+                        </View>
+                      </View>
+                      <View style={styles.userRow}>
+                        <MaterialCommunityIcons name="account-outline" size={16} color={TEXT_GRAY} />
+                        <Text style={styles.userName}>{pb.user?.name || 'Customer'}</Text>
+                      </View>
+                      <View style={styles.metaRow}>
+                        <Text style={styles.amount}>Rs. {pb.totalAmount}</Text>
+                        <Text style={styles.method}>Pickup {dayjs(pb.pickupTime).format('DD MMM, hh:mm A')}</Text>
+                      </View>
+                      {pb.paymentSlip ? (
+                        <Image
+                          source={{ uri: pb.paymentSlip }}
+                          style={styles.pendingSlipThumb}
+                          resizeMode="contain"
+                        />
+                      ) : null}
+                      <View style={styles.pendingActionsRow}>
+                        <TouchableOpacity
+                          style={[styles.pendingRejectBtn, busy && styles.pendingBtnBusy]}
+                          onPress={() => handleRejectPendingBank(pid)}
+                          disabled={busy}>
+                          <Text style={styles.pendingRejectBtnText}>Reject</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.pendingApproveBtn, busy && styles.pendingBtnBusy]}
+                          onPress={() => handleApprovePendingBank(pid)}
+                          disabled={busy}>
+                          {busy ? (
+                            <ActivityIndicator color="#fff" size="small" />
+                          ) : (
+                            <Text style={styles.pendingApproveBtnText}>Verify & place order</Text>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : null}
+            {payments.length > 0 ? (
+              <Text style={[styles.sectionHeading, pendingBankTransfers.length > 0 && { marginTop: 20 }]}>
+                Payment records
+              </Text>
+            ) : null}
+            {payments.map((p) => (
             <TouchableOpacity
               key={p._id}
               style={styles.card}
@@ -208,7 +351,8 @@ export default function ManagePaymentsScreen() {
                 </Text>
               ) : null}
             </TouchableOpacity>
-          ))
+            ))}
+          </>
         )}
       </ScrollView>
 
@@ -340,6 +484,64 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   scrollContent: { padding: 16 },
+  pendingSection: { marginBottom: 4 },
+  sectionHeading: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: TEXT_DARK,
+    marginBottom: 12,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  pendingCard: {
+    backgroundColor: SURFACE,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: THEME_COLORS.border,
+  },
+  pendingSlipThumb: {
+    width: '100%',
+    height: 140,
+    marginTop: 10,
+    borderRadius: 12,
+    backgroundColor: '#F7FAFC',
+  },
+  pendingActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 14,
+  },
+  pendingRejectBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: DANGER,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pendingRejectBtnText: {
+    color: DANGER,
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  pendingApproveBtn: {
+    flex: 2,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: SUCCESS,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pendingApproveBtnText: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  pendingBtnBusy: { opacity: 0.72 },
   emptyState: { alignItems: 'center', marginTop: 100 },
   emptyText: {
     fontSize: 16,

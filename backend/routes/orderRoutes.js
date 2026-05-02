@@ -50,6 +50,13 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
+  if (paymentMethod === 'Bank Transfer') {
+    return res.status(400).json({
+      message:
+        'Bank transfers are verified by staff before an order exists. Submit your slip from checkout — no order will be charged until verification.',
+    });
+  }
+
   try {
     const auth = await authUserFromRequest(req);
     if (auth && auth._id.toString() !== userId) {

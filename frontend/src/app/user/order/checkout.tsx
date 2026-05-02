@@ -172,19 +172,45 @@ export default function CheckoutScreen() {
         return;
       }
 
+      const stallIdRaw = cartItems[0].meal.stall._id || cartItems[0].meal.stall;
+      const stallId = String(stallIdRaw);
+
+      const lineItems = cartItems.map((item) => ({
+        meal: item.meal._id,
+        name: item.meal.name,
+        quantity: item.quantity,
+        price: item.meal.price,
+      }));
+
+      if (paymentMethod === 'Bank Transfer') {
+        const pendingRes = await api.post('pending-bank-transfers', {
+          userId: user.id,
+          stallId,
+          items: lineItems,
+          totalAmount: finalTotal,
+          pickupTime: pickupTime.toISOString(),
+          paymentSlip: bankSlip,
+        });
+
+        clearCart();
+        router.replace({
+          pathname: '/user/order/success',
+          params: {
+            paymentMethod: 'Bank Transfer',
+            verificationPending: '1',
+            submissionId: pendingRes?.data?._id != null ? String(pendingRes.data._id) : '',
+          },
+        });
+        return;
+      }
+
       const orderData = {
         userId: user.id,
-        stallId: cartItems[0].meal.stall._id || cartItems[0].meal.stall,
-        items: cartItems.map(item => ({
-          meal: item.meal._id,
-          name: item.meal.name,
-          quantity: item.quantity,
-          price: item.meal.price
-        })),
+        stallId,
+        items: lineItems,
         totalAmount: finalTotal,
         pickupTime: pickupTime.toISOString(),
         paymentMethod,
-        paymentSlip: paymentMethod === 'Bank Transfer' ? bankSlip : undefined,
         cardHolderName: paymentMethod === 'Card' ? cardDetails.holderName : undefined,
         cardLastFour: paymentMethod === 'Card' ? cardDetails.number.replace(/\s/g, '').slice(-4) : undefined,
       };
@@ -196,12 +222,24 @@ export default function CheckoutScreen() {
       clearCart();
       router.replace({
         pathname: '/user/order/success',
-        params: { orderId: newOrder.orderId }
+        params: { orderId: newOrder.orderId },
       });
 
     } catch (error: any) {
-      console.error('Failed to place order:', error);
-      Alert.alert('Order Failed', error.response?.data?.message || 'Something went wrong while placing your order.');
+      if (__DEV__) {
+        console.warn('Checkout request failed:', error?.message ?? error);
+      }
+      const serverMsg = error.response?.data?.message;
+      const isBank = paymentMethod === 'Bank Transfer';
+      if (isBank) {
+        Alert.alert(
+          'Could not send your slip',
+          serverMsg ||
+            'Check your connection and try again. After it is sent successfully, stall staff will verify your transfer and you will be notified.',
+        );
+      } else {
+        Alert.alert('Order Failed', serverMsg || 'Something went wrong while placing your order.');
+      }
     } finally {
       setLoading(false);
     }
@@ -396,6 +434,13 @@ export default function CheckoutScreen() {
                   <Text style={styles.removeText}>Remove Slip</Text>
                 </TouchableOpacity>
               )}
+
+              <View style={styles.bankVerifyNotice}>
+                <MaterialCommunityIcons name="account-check-outline" size={22} color={PRIMARY} />
+                <Text style={styles.bankVerifyNoticeText}>
+                  Your payment slip will be verified by stall staff. This is not an instant confirmation — you will be notified when your payment is approved and your order is confirmed.
+                </Text>
+              </View>
             </View>
           )}
 
@@ -653,6 +698,24 @@ const styles = StyleSheet.create({
   removeText: {
     color: DANGER,
     fontSize: 12,
+    fontWeight: '600',
+  },
+  bankVerifyNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: 14,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: PRIMARY + '12',
+    borderWidth: 1,
+    borderColor: PRIMARY + '35',
+  },
+  bankVerifyNoticeText: {
+    flex: 1,
+    fontSize: 13,
+    color: TEXT_DARK,
+    lineHeight: 19,
     fontWeight: '600',
   },
   nonRefundableHint: {
