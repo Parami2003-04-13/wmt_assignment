@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,11 +8,11 @@ import {
   Text as RNText,
   Platform,
   ActivityIndicator,
-  Dimensions,
   StatusBar,
   Alert,
   RefreshControl,
   Pressable,
+  Switch,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -24,13 +24,10 @@ import AddStaffModal from '../../components/add-staff-modal';
 import StaffTicketModal from '../../components/staff-ticket-modal';
 import { COLORS } from '../../theme/colors';
 
-const { width } = Dimensions.get('window');
-const SHEET_PAD = 20;
-/** Inner width minus sheet padding matches two cards + gutters */
-const GRID_GAP = 10;
-const GRID_INNER_W = width - SHEET_PAD * 2;
-/** Two columns: card + gap + card = inner width */
-const CARD_W = (GRID_INNER_W - GRID_GAP) / 2;
+/** Matches meal modal / backend Meal.category enum */
+const MEAL_CATEGORY_OPTIONS = ['Breakfast', 'Lunch', 'Snacks', 'Drinks'] as const;
+const MANAGE_UNCATEGORIZED = '__uncategorized__';
+
 const COLOR_OPEN = COLORS.success;
 const COLOR_CLOSED = COLORS.danger;
 
@@ -58,6 +55,9 @@ export default function StallManagement() {
   const [statusBusy, setStatusBusy] = useState(false);
   const [unreadTickets, setUnreadTickets] = useState(0);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [menuManageOpen, setMenuManageOpen] = useState(false);
+  const [selectedManageCategory, setSelectedManageCategory] = useState<string | null>(null);
+  const [availBusyId, setAvailBusyId] = useState<string | null>(null);
 
   const stallId = Array.isArray(id) ? id[0] : id;
 
@@ -127,11 +127,11 @@ export default function StallManagement() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([fetchStallDetails(), fetchMeals()]);
+      await Promise.all([fetchStallDetails(), fetchMeals(), fetchUnread()]);
     } finally {
       setRefreshing(false);
     }
-  }, [fetchStallDetails, fetchMeals]);
+  }, [fetchStallDetails, fetchMeals, fetchUnread]);
 
   const handleStaffLogout = async () => {
     await clearAuthStorage();
@@ -165,6 +165,49 @@ export default function StallManagement() {
   const handleAddMeal = () => {
     setSelectedMeal(null);
     setMealModalVisible(true);
+  };
+
+  const manageCategoryTabs = useMemo(() => {
+    const hasUncategorized = meals.some((m) => !(m?.category != null ? String(m.category).trim() : ''));
+    const extras = new Set<string>();
+    meals.forEach((m) => {
+      const c = m?.category != null ? String(m.category).trim() : '';
+      if (c && !(MEAL_CATEGORY_OPTIONS as readonly string[]).includes(c)) {
+        extras.add(c);
+      }
+    });
+    const tabs: string[] = ['All Items', ...MEAL_CATEGORY_OPTIONS];
+    Array.from(extras)
+      .sort((a, b) => a.localeCompare(b))
+      .forEach((c) => tabs.push(c));
+    if (hasUncategorized) tabs.push('Uncategorized');
+    return tabs;
+  }, [meals]);
+
+  const filteredManageMeals = useMemo(() => {
+    let list = [...meals];
+    if (selectedManageCategory === MANAGE_UNCATEGORIZED) {
+      list = list.filter((meal) => !(meal.category || '').trim());
+    } else if (selectedManageCategory) {
+      list = list.filter((meal) => (meal.category || '').trim() === selectedManageCategory);
+    }
+    list.sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || '')));
+    return list;
+  }, [meals, selectedManageCategory]);
+
+  const toggleMealAvailability = async (meal: any, available: boolean) => {
+    if (!meal?._id || availBusyId) return;
+    setAvailBusyId(meal._id);
+    try {
+      const current = Number(meal.quantity) || 0;
+      const nextQty = available ? (current > 0 ? current : 25) : 0;
+      await api.patch(`/meals/${meal._id}`, { quantity: nextQty });
+      await fetchMeals();
+    } catch {
+      Alert.alert('Error', 'Could not update availability.');
+    } finally {
+      setAvailBusyId(null);
+    }
   };
 
   const confirmToggleStatus = () => {
@@ -223,10 +266,214 @@ export default function StallManagement() {
     !!managerId &&
     String(currentUser.id) === managerId;
 
+  const canAccessCustomerSupport = isStaffViewer || isStallOwner;
+
+  const openCustomerSupport = async () => {
+    setTicketModalVisible(true);
+    if (unreadTickets > 0 && stallId) {
+      try {
+        await api.put(`/tickets/mark-seen/staff/${stallId}`);
+        setUnreadTickets(0);
+      } catch {
+        /* ignore */
+      }
+    }
+  };
+
+  const manageCoverUri =
+    stall.coverPhoto ||
+    'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=1000';
+
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primaryDark} translucent={false} />
 
+      {menuManageOpen ? (
+        <ScrollView
+          style={styles.manageRootScroll}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.manageScrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={COLORS.primary}
+              colors={[COLORS.primary]}
+            />
+          }>
+          <View style={styles.coverWrap}>
+            <Image source={{ uri: manageCoverUri }} style={styles.coverPhoto} />
+            <View style={styles.coverOverlay} />
+            <Pressable
+              style={[styles.roundIconBtn, { top: coverTop, left: 16 }]}
+              onPress={() => setMenuManageOpen(false)}
+              hitSlop={12}>
+              <MaterialCommunityIcons name="arrow-left" size={24} color="#fff" />
+            </Pressable>
+            {canAccessCustomerSupport ? (
+              <Pressable
+                style={[styles.roundIconBtn, { top: coverTop, right: 16 }]}
+                onPress={openCustomerSupport}
+                hitSlop={12}>
+                <View style={{ position: 'relative' }}>
+                  <MaterialCommunityIcons name="headset" size={22} color="#fff" />
+                  {unreadTickets > 0 ? <View style={styles.unreadDot} /> : null}
+                </View>
+              </Pressable>
+            ) : null}
+          </View>
+
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+
+            <View style={[styles.profileRow, { marginBottom: 14 }]}>
+              <View style={styles.avatarRing}>
+                <Image
+                  source={{
+                    uri: stall.profilePhoto || 'https://via.placeholder.com/150',
+                  }}
+                  style={styles.avatar}
+                />
+              </View>
+              <View style={styles.titleBlock}>
+                <Text style={styles.stallName} numberOfLines={2}>
+                  {stall.name}
+                </Text>
+                <Text style={styles.menuSubtitle}>
+                  Manage menu items · {meals.length} {meals.length === 1 ? 'meal' : 'meals'} total
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.managePrimaryBtn}
+              onPress={handleAddMeal}
+              activeOpacity={0.88}>
+              <MaterialCommunityIcons name="plus" size={22} color="#fff" />
+              <Text style={styles.managePrimaryBtnText}>Add meal</Text>
+            </TouchableOpacity>
+
+            <Text style={[styles.sectionEyebrow, { marginTop: 4 }]}>Categories</Text>
+            <ScrollView
+              horizontal
+              nestedScrollEnabled
+              showsHorizontalScrollIndicator={false}
+              style={styles.manageCategoriesScroll}
+              contentContainerStyle={styles.manageCategoriesRow}>
+              {manageCategoryTabs.map((tab) => {
+                const isAll = tab === 'All Items';
+                const isUncat = tab === 'Uncategorized';
+                const value = isAll ? null : isUncat ? MANAGE_UNCATEGORIZED : tab;
+                const active = isAll
+                  ? selectedManageCategory == null
+                  : selectedManageCategory === value;
+                return (
+                  <TouchableOpacity
+                    key={tab}
+                    style={[styles.manageChip, active && styles.manageChipActive]}
+                    onPress={() => setSelectedManageCategory(value)}
+                    activeOpacity={0.85}>
+                    <Text style={[styles.manageChipText, active && styles.manageChipTextActive]}>{tab}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <Text style={styles.hoursMeta}>
+              {selectedManageCategory == null
+                ? `${meals.length} ${meals.length === 1 ? 'item' : 'items'} shown`
+                : `${filteredManageMeals.length} of ${meals.length} with this category`}
+            </Text>
+
+            <View style={[styles.menuSectionHeader, { marginTop: 12 }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.menuTitle}>Your dishes</Text>
+                <Text style={styles.menuSubtitle}>
+                  {filteredManageMeals.length} listed · Toggle availability or edit details
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.manageMealsList}>
+              {filteredManageMeals.map((meal) => {
+                const available = (Number(meal.quantity) || 0) > 0;
+                const qty = Number(meal.quantity) || 0;
+                return (
+                  <View key={meal._id} style={styles.manageMealCard}>
+                    <View style={styles.manageMealTop}>
+                      <Image
+                        source={{ uri: meal.image || 'https://via.placeholder.com/150' }}
+                        style={styles.manageMealThumb}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.manageMealInfo}>
+                        <Text style={styles.manageMealName} numberOfLines={2}>
+                          {meal.name}
+                        </Text>
+                        <Text style={styles.manageMealDesc} numberOfLines={2}>
+                          {meal.description || 'No description'}
+                        </Text>
+                        <View style={styles.manageMealMeta}>
+                          <Text style={styles.manageMealPrice}>Rs. {meal.price}</Text>
+                          <View style={styles.manageMealQtyPill}>
+                            <Text style={styles.manageMealQtyText}>{qty} left</Text>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                    {(meal.category || '').trim() ? (
+                      <View style={styles.manageMealCategoryRow}>
+                        <View style={styles.manageMealCatTag}>
+                          <Text style={styles.manageMealCatTagText}>{String(meal.category).trim()}</Text>
+                        </View>
+                      </View>
+                    ) : null}
+                    <View style={styles.manageMealActions}>
+                      <View style={styles.manageMealSwitchRow}>
+                        <Switch
+                          value={available}
+                          onValueChange={(v) => toggleMealAvailability(meal, v)}
+                          disabled={availBusyId === meal._id}
+                          trackColor={{ false: COLORS.border, true: COLORS.primary }}
+                          thumbColor="#fff"
+                          ios_backgroundColor={COLORS.border}
+                        />
+                        <Text style={[styles.manageMealSwitchLabel, !available && styles.manageMealSwitchLabelOff]}>
+                          {available ? 'Available' : 'Unavailable'}
+                        </Text>
+                      </View>
+                      <View style={styles.manageMealIconRow}>
+                        <TouchableOpacity style={styles.aboutEditBtn} onPress={() => handleEditMeal(meal)} activeOpacity={0.85}>
+                          <MaterialCommunityIcons name="pencil-outline" size={18} color={COLORS.primary} />
+                          <Text style={styles.aboutEditBtnText}>Edit</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.manageDeleteBtn}
+                          onPress={() => handleDeleteMeal(meal._id)}
+                          activeOpacity={0.85}>
+                          <MaterialCommunityIcons name="trash-can-outline" size={18} color={COLORS.danger} />
+                          <Text style={styles.manageDeleteBtnText}>Delete</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+
+            {filteredManageMeals.length === 0 ? (
+              <View style={styles.manageEmptyWrap}>
+                <MaterialCommunityIcons name="food-outline" size={42} color={COLORS.border} />
+                <Text style={styles.manageEmptyTitle}>No meals here</Text>
+                <Text style={styles.manageEmptySub}>
+                  Try another category or tap Add meal to create one.
+                </Text>
+              </View>
+            ) : null}
+
+            <View style={{ height: Math.max(insets.bottom, 20) }} />
+          </View>
+        </ScrollView>
+      ) : (
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -419,10 +666,20 @@ export default function StallManagement() {
               <Text style={styles.menuTitle}>Menu</Text>
               <Text style={styles.menuSubtitle}>
                 {meals.length} {meals.length === 1 ? 'item' : 'items'}
-                {isStaffViewer ? ' · staff: menu & stock' : ' · tap a card to edit'}
+                {isStaffViewer ? ' · staff: menu & stock' : ' · open Manage meals to edit'}
               </Text>
             </View>
             <View style={styles.menuActions}>
+              <TouchableOpacity
+                style={styles.menuActionBtn}
+                activeOpacity={0.85}
+                onPress={() => {
+                  setSelectedManageCategory(null);
+                  setMenuManageOpen(true);
+                }}>
+                <MaterialCommunityIcons name="silverware-fork-knife" size={18} color={COLORS.primary} />
+                <Text style={styles.menuActionText}>Manage meals</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.menuActionBtn}
                 activeOpacity={0.85}
@@ -430,94 +687,39 @@ export default function StallManagement() {
                 <MaterialCommunityIcons name="receipt-text-outline" size={18} color={COLORS.primary} />
                 <Text style={styles.menuActionText}>Orders</Text>
               </TouchableOpacity>
-              {isStaffViewer && (
+              {canAccessCustomerSupport ? (
                 <TouchableOpacity
                   style={styles.menuActionBtn}
                   activeOpacity={0.85}
-                  onPress={async () => {
-                    setTicketModalVisible(true);
-                    if (unreadTickets > 0) {
-                      try {
-                        await api.put(`/tickets/mark-seen/staff/${stallId}`);
-                        setUnreadTickets(0);
-                      } catch (e) {}
-                    }
-                  }}>
+                  onPress={openCustomerSupport}>
                   <View style={{ position: 'relative' }}>
-                    <MaterialCommunityIcons name="message-reply-text-outline" size={18} color={COLORS.primary} />
-                    {unreadTickets > 0 && <View style={styles.unreadDot} />}
+                    <MaterialCommunityIcons name="headset" size={18} color={COLORS.primary} />
+                    {unreadTickets > 0 ? <View style={styles.unreadDot} /> : null}
                   </View>
-                  <Text style={styles.menuActionText}>Reply</Text>
+                  <Text style={styles.menuActionText}>Customer support</Text>
                 </TouchableOpacity>
-              )}
+              ) : null}
             </View>
           </View>
 
-          <View style={styles.mealsGrid}>
-            <TouchableOpacity style={styles.addCard} onPress={handleAddMeal} activeOpacity={0.85}>
-              <View style={styles.addImageZone}>
-                <View style={styles.addIconRing}>
-                  <MaterialCommunityIcons name="plus" size={26} color={COLORS.primary} />
-                </View>
-              </View>
-              <View style={styles.addCardFooter}>
-                <Text style={styles.addLabel}>Add meal</Text>
-              </View>
+          {meals.length === 0 ? (
+            <TouchableOpacity
+              style={styles.menuEmptyCta}
+              activeOpacity={0.88}
+              onPress={() => {
+                setSelectedManageCategory(null);
+                setMenuManageOpen(true);
+              }}>
+              <MaterialCommunityIcons name="silverware-fork-knife" size={36} color={COLORS.primary} />
+              <Text style={styles.menuEmptyCtaTitle}>No menu items yet</Text>
+              <Text style={styles.menuEmptyCtaSub}>Tap Manage meals above to add your first item.</Text>
             </TouchableOpacity>
-
-            {meals.map((meal) => (
-              <View key={meal._id} style={styles.mealCard}>
-                <Pressable style={styles.mealImagePress} onPress={() => handleEditMeal(meal)}>
-                  <Image
-                    source={{
-                      uri: meal.image || 'https://via.placeholder.com/150',
-                    }}
-                    style={styles.mealImg}
-                  />
-                </Pressable>
-                <View style={styles.mealBody}>
-                  <Text style={styles.mealTitle} numberOfLines={2}>
-                    {meal.name}
-                  </Text>
-                  <View style={styles.mealFooter}>
-                    <Text style={styles.mealPrice}>Rs. {meal.price}</Text>
-                    <View style={styles.qtyPill}>
-                      <Text style={styles.qtyPillText}>{meal.quantity} left</Text>
-                    </View>
-                  </View>
-                  <View style={styles.mealActionBar}>
-                    <TouchableOpacity
-                      style={styles.mealActionItem}
-                      onPress={() => handleEditMeal(meal)}
-                      activeOpacity={0.85}>
-                      <MaterialCommunityIcons name="pencil-outline" size={18} color={COLORS.primary} />
-                      <Text style={styles.mealActionEditText}>Edit</Text>
-                    </TouchableOpacity>
-                    <View style={styles.mealActionDivider} />
-                    <TouchableOpacity
-                      style={styles.mealActionItem}
-                      onPress={() => handleDeleteMeal(meal._id)}
-                      activeOpacity={0.85}>
-                      <MaterialCommunityIcons name="trash-can-outline" size={18} color={COLORS.danger} />
-                      <Text style={styles.mealActionDeleteText}>Delete</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            ))}
-          </View>
-
-          {meals.length === 0 && (
-            <View style={styles.emptyWrap}>
-              <MaterialCommunityIcons name="food-outline" size={44} color={COLORS.border} />
-              <Text style={styles.emptyTitle}>Nothing listed yet</Text>
-              <Text style={styles.emptySub}>Use “Add meal” in the grid to create your first item.</Text>
-            </View>
-          )}
+          ) : null}
 
           <View style={{ height: 40 }} />
         </View>
       </ScrollView>
+      )}
 
       <MealModal
         visible={mealModalVisible}
@@ -834,6 +1036,32 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   menuActionText: { fontSize: 13, fontWeight: '800', color: COLORS.primary },
+  menuEmptyCta: {
+    alignItems: 'center',
+    paddingVertical: 28,
+    paddingHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderStyle: 'dashed',
+    backgroundColor: COLORS.background,
+  },
+  menuEmptyCtaTitle: {
+    marginTop: 12,
+    fontSize: 16,
+    fontWeight: '800',
+    color: COLORS.textDark,
+    textAlign: 'center',
+  },
+  menuEmptyCtaSub: {
+    marginTop: 8,
+    fontSize: 14,
+    color: COLORS.textGray,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
   unreadDot: {
     position: 'absolute',
     top: -2,
@@ -846,98 +1074,87 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
   },
 
-  mealsGrid: {
+  /** Menu management — same cover + sheet stack as main stall detail */
+  manageRootScroll: { flex: 1, backgroundColor: COLORS.background },
+  manageScrollContent: { flexGrow: 1, paddingBottom: 0 },
+  managePrimaryBtn: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    // Avoid `gap` here: it is not consistently supported on Android for wrapped flex layouts.
-    justifyContent: 'space-between',
-  },
-  addCard: {
-    width: CARD_W,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.background,
-    overflow: 'hidden',
-    marginBottom: GRID_GAP,
-  },
-  addImageZone: {
-    aspectRatio: 1,
-    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.surface,
-  },
-  addCardFooter: {
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    alignItems: 'center',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: COLORS.border,
-    backgroundColor: COLORS.surface,
-  },
-  addIconRing: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: COLORS.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.primarySoft,
-  },
-  addLabel: { fontSize: 13, fontWeight: '800', color: COLORS.primary },
-
-  mealCard: {
-    width: CARD_W,
-    borderRadius: 16,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    overflow: 'hidden',
+    gap: 10,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    borderRadius: 14,
+    marginBottom: 18,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
-    marginBottom: GRID_GAP,
   },
-  mealImagePress: { width: '100%', aspectRatio: 1, backgroundColor: COLORS.background },
-  mealImg: { width: '100%', height: '100%', resizeMode: 'cover' as const },
-  mealBody: { paddingHorizontal: 10, paddingTop: 10, paddingBottom: 8 },
-  mealTitle: { fontSize: 14, fontWeight: '800', color: COLORS.textDark, minHeight: 36, lineHeight: 18 },
-  mealFooter: {
+  managePrimaryBtnText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  /** Match `user/stall` category chips */
+  manageCategoriesScroll: {
+    marginBottom: 6,
+    marginLeft: -20,
+    marginRight: -20,
+  },
+  manageCategoriesRow: {
+    paddingLeft: 20,
+    paddingRight: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 0,
+    paddingVertical: 4,
+  },
+  manageChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginRight: 10,
+    backgroundColor: COLORS.surface,
+  },
+  manageChipActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  manageChipText: { fontSize: 13, fontWeight: '700', color: COLORS.textGray },
+  manageChipTextActive: { color: '#fff' },
+  manageMealsList: { gap: 10, marginTop: 4 },
+  /** Match `user/stall` meal row + owner action row */
+  manageMealCard: {
+    borderRadius: 16,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 12,
+  },
+  manageMealTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  manageMealThumb: {
+    width: 72,
+    height: 72,
+    borderRadius: 14,
+    backgroundColor: COLORS.primarySoft,
+  },
+  manageMealInfo: { flex: 1, minWidth: 0 },
+  manageMealName: { fontSize: 15, fontWeight: '900', color: COLORS.textDark },
+  manageMealDesc: { marginTop: 4, fontSize: 13, color: COLORS.textGray, lineHeight: 18 },
+  manageMealMeta: {
     marginTop: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
   },
-  mealActionBar: {
-    marginTop: 10,
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: COLORS.border,
-    marginHorizontal: -10,
-    marginBottom: -8,
-  },
-  mealActionDivider: {
-    width: StyleSheet.hairlineWidth,
-    backgroundColor: COLORS.border,
-  },
-  mealActionItem: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-  },
-  mealActionEditText: { fontSize: 13, fontWeight: '800', color: COLORS.primary },
-  mealActionDeleteText: { fontSize: 13, fontWeight: '800', color: COLORS.danger },
-  mealPrice: { fontSize: 14, fontWeight: '900', color: COLORS.primary },
-  qtyPill: {
+  manageMealPrice: { fontSize: 14, fontWeight: '900', color: COLORS.primary },
+  manageMealQtyPill: {
     backgroundColor: COLORS.background,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -945,14 +1162,60 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  qtyPillText: { fontSize: 11, fontWeight: '800', color: COLORS.textGray },
-
-  emptyWrap: {
+  manageMealQtyText: { fontSize: 11, fontWeight: '800', color: COLORS.textGray },
+  manageMealCategoryRow: { marginTop: 10 },
+  manageMealCatTag: {
+    alignSelf: 'flex-start',
+    backgroundColor: COLORS.primarySoft,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  manageMealCatTagText: { fontSize: 12, fontWeight: '800', color: COLORS.primary },
+  manageMealActions: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  manageMealSwitchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
+  manageMealSwitchLabel: { fontSize: 13, fontWeight: '800', color: COLORS.primary },
+  manageMealSwitchLabelOff: { color: COLORS.textGray },
+  manageMealIconRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  manageDeleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: '#FDECEC',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  manageDeleteBtnText: { fontSize: 13, fontWeight: '800', color: COLORS.danger },
+  manageEmptyWrap: {
     alignItems: 'center',
     paddingVertical: 28,
-    paddingHorizontal: 20,
-    marginBottom: 8,
+    paddingHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 16,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderStyle: 'dashed',
   },
-  emptyTitle: { marginTop: 12, fontSize: 16, fontWeight: '800', color: COLORS.textDark },
-  emptySub: { marginTop: 6, fontSize: 14, color: COLORS.textGray, textAlign: 'center', lineHeight: 20 },
+  manageEmptyTitle: { marginTop: 12, fontSize: 16, fontWeight: '800', color: COLORS.textDark },
+  manageEmptySub: {
+    marginTop: 6,
+    fontSize: 14,
+    color: COLORS.textGray,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
 });

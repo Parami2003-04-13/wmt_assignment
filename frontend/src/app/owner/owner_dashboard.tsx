@@ -243,14 +243,18 @@ export default function OwnerDashboard() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.primaryDark} />
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primaryDark} translucent={false} />
 
       <View style={styles.hero}>
         <View style={styles.heroTopRow}>
           <View style={styles.heroTextBlock}>
             <Text style={styles.heroEyebrow}>Partner hub</Text>
-            <Text style={styles.heroTitle}>Hi, {firstName}</Text>
-            <Text style={styles.heroSubtitle}>Manage stalls, status, and new applications</Text>
+            <Text style={styles.heroTitle} numberOfLines={2}>
+              Hi, {firstName}
+            </Text>
+            <Text style={styles.heroSubtitle}>
+              Your stalls, approvals, and registrations in one place.
+            </Text>
           </View>
           <TouchableOpacity
             onPress={() => setAccountMenuVisible(true)}
@@ -264,17 +268,24 @@ export default function OwnerDashboard() {
         {stalls.length > 0 && (
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
+              <View style={styles.statIconBadge}>
+                <MaterialCommunityIcons name="storefront-outline" size={19} color="#fff" />
+              </View>
               <Text style={styles.statValue}>{stalls.length}</Text>
               <Text style={styles.statLabel}>Stalls</Text>
             </View>
             <View style={[styles.statCard, styles.statCardAccent]}>
-              <MaterialCommunityIcons name="check-decagram-outline" size={18} color={COLORS.primary} />
-              <Text style={styles.statValueSmall}>{approvedCount}</Text>
+              <View style={[styles.statIconBadge, styles.statIconBadgeLive]}>
+                <MaterialCommunityIcons name="check-bold" size={20} color="#0B3F3C" />
+              </View>
+              <Text style={styles.statValue}>{approvedCount}</Text>
               <Text style={styles.statLabel}>Live</Text>
             </View>
             <View style={styles.statCard}>
-              <MaterialCommunityIcons name="clock-outline" size={18} color="#C9A227" />
-              <Text style={styles.statValueSmall}>{pendingCount}</Text>
+              <View style={styles.statIconBadge}>
+                <MaterialCommunityIcons name="clock-outline" size={19} color="#E8D48B" />
+              </View>
+              <Text style={styles.statValue}>{pendingCount}</Text>
               <Text style={styles.statLabel}>Review</Text>
             </View>
           </View>
@@ -303,7 +314,7 @@ export default function OwnerDashboard() {
             </Text>
             <TouchableOpacity style={styles.primaryBtn} onPress={() => setModalVisible(true)}>
               <MaterialCommunityIcons name="plus-circle-outline" size={22} color="#fff" />
-              <Text style={styles.primaryBtnText}> Register your stall</Text>
+              <Text style={styles.primaryBtnText}>Register your stall</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -342,7 +353,7 @@ export default function OwnerDashboard() {
                   onPress={() => router.push(`/owner/${stall._id}` as any)}
                   activeOpacity={0.75}>
                   {stall.coverPhoto ? (
-                    <Image source={{ uri: stall.coverPhoto }} style={styles.stallCover} />
+                    <Image source={{ uri: stall.coverPhoto }} style={styles.stallCover} resizeMode="cover" />
                   ) : (
                     <View style={[styles.stallCover, styles.stallCoverPlaceholder]} />
                   )}
@@ -384,14 +395,14 @@ export default function OwnerDashboard() {
                         </View>
                       </View>
                     </View>
-                    <MaterialCommunityIcons name="chevron-right" size={24} color="#B2BEC3" />
+                    <MaterialCommunityIcons name="chevron-right" size={24} color={COLORS.textGray} />
                   </View>
                 </TouchableOpacity>
               );
             })}
           </View>
         )}
-        <View style={{ height: showFab ? 100 : 32 }} />
+        <View style={{ height: showFab ? Math.max(insets.bottom, 24) + 76 : Math.max(insets.bottom, 16) + 16 }} />
       </ScrollView>
 
       <Modal
@@ -430,7 +441,10 @@ export default function OwnerDashboard() {
       </Modal>
 
       {showFab && (
-        <TouchableOpacity style={styles.fab} onPress={() => setModalVisible(true)} activeOpacity={0.9}>
+        <TouchableOpacity
+          style={[styles.fab, { bottom: Math.max(insets.bottom, 16) + 12 }]}
+          onPress={() => setModalVisible(true)}
+          activeOpacity={0.9}>
           <MaterialCommunityIcons name="plus" size={28} color="#fff" />
           <Text style={styles.fabLabel}>New stall</Text>
         </TouchableOpacity>
@@ -548,7 +562,7 @@ export default function OwnerDashboard() {
               ) : (
                 <>
                   <MaterialCommunityIcons name="send-outline" size={22} color="#fff" />
-                  <Text style={styles.submitBtnText}> Submit for verification</Text>
+                  <Text style={styles.submitBtnText}>Submit for verification</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -644,100 +658,122 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primaryDark,
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 22,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
   },
   heroTopRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   heroTextBlock: { flex: 1, paddingRight: 12 },
   heroEyebrow: {
-    color: 'rgba(255,255,255,0.55)',
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.8,
+    color: 'rgba(255,255,255,0.72)',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.4,
     textTransform: 'uppercase',
   },
   heroTitle: {
     color: '#fff',
-    fontSize: 26,
-    fontWeight: '800',
-    marginTop: 6,
-    letterSpacing: -0.3,
+    fontSize: 25,
+    fontWeight: '900',
+    marginTop: 8,
+    letterSpacing: -0.45,
+    lineHeight: 30,
   },
   heroSubtitle: {
-    color: 'rgba(255,255,255,0.75)',
+    color: 'rgba(255,255,255,0.78)',
     fontSize: 14,
-    marginTop: 6,
+    marginTop: 8,
     lineHeight: 20,
-    maxWidth: 280,
+    fontWeight: '500',
   },
   logoutChip: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    width: 46,
+    height: 46,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   statsRow: {
     flexDirection: 'row',
-    marginTop: 20,
-    gap: 10,
+    marginTop: 16,
+    gap: 8,
   },
   statCard: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    minHeight: 112,
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 16,
     paddingVertical: 12,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: 'rgba(255,255,255,0.14)',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
   },
-  statCardAccent: {},
+  statCardAccent: {
+    backgroundColor: 'rgba(255,255,255,0.13)',
+    borderColor: 'rgba(255,255,255,0.22)',
+  },
+  statIconBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  statIconBadgeLive: {
+    backgroundColor: '#C8F0E8',
+  },
   statValue: {
-    fontSize: 26,
-    fontWeight: '800',
+    fontSize: 22,
+    fontWeight: '900',
     color: '#fff',
-  },
-  statValueSmall: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#fff',
-    marginTop: 4,
+    fontVariant: ['tabular-nums'],
   },
   statLabel: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.6)',
-    marginTop: 2,
-    fontWeight: '600',
+    color: 'rgba(255,255,255,0.65)',
+    marginTop: 4,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+    textTransform: 'uppercase',
   },
 
-  scroll: { paddingHorizontal: 20, paddingTop: 20 },
+  scroll: { paddingHorizontal: 20, paddingTop: 18 },
 
   emptyCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: 20,
-    padding: 28,
+    borderRadius: 16,
+    padding: 26,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: COLORS.border,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
   },
   emptyIconRing: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+    width: 84,
+    height: 84,
+    borderRadius: 42,
     backgroundColor: COLORS.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 18,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  emptyTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textDark },
+  emptyTitle: { fontSize: 20, fontWeight: '900', color: COLORS.textDark, letterSpacing: -0.2 },
   emptyBody: {
     fontSize: 14,
     color: COLORS.textGray,
@@ -748,39 +784,41 @@ const styles = StyleSheet.create({
   primaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
     backgroundColor: COLORS.primary,
     paddingHorizontal: 22,
-    paddingVertical: 14,
+    paddingVertical: 15,
     borderRadius: 14,
     marginTop: 22,
-    shadowColor: COLORS.primaryDark,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 3,
   },
-  primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  primaryBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
 
   listSection: { paddingBottom: 8 },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '900',
     color: COLORS.textDark,
     marginBottom: 14,
+    letterSpacing: -0.25,
   },
 
   pendingCard: {
     flexDirection: 'row',
     backgroundColor: COLORS.surface,
-    borderRadius: 18,
-    marginBottom: 14,
+    borderRadius: 16,
+    marginBottom: 12,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: COLORS.warningSoft,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
     elevation: 2,
   },
   pendingAccent: {
@@ -803,16 +841,16 @@ const styles = StyleSheet.create({
 
   stallCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: 18,
-    marginBottom: 14,
+    borderRadius: 16,
+    marginBottom: 12,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: COLORS.border,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.06,
-    shadowRadius: 14,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
   },
   stallCover: { width: '100%', height: 96 },
   stallCoverPlaceholder: { backgroundColor: COLORS.primarySoft },
@@ -855,7 +893,6 @@ const styles = StyleSheet.create({
 
   fab: {
     position: 'absolute',
-    bottom: 28,
     right: 20,
     flexDirection: 'row',
     alignItems: 'center',
@@ -864,13 +901,13 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: COLORS.primary,
     gap: 8,
-    elevation: 6,
-    shadowColor: COLORS.primaryDark,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
   },
-  fabLabel: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  fabLabel: { color: '#fff', fontWeight: '800', fontSize: 15 },
 
   modalRoot: { flex: 1, backgroundColor: COLORS.background },
   modalHero: {
@@ -923,7 +960,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
   },
   photoPreviewFull: { width: '100%', height: '100%' },
-  photoPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB' },
+  photoPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.background,
+  },
   photoPlaceholderText: {
     marginTop: 8,
     fontSize: 12,
@@ -990,21 +1032,21 @@ const styles = StyleSheet.create({
   },
   submitBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
 
-  mapRoot: { flex: 1, backgroundColor: '#fff' },
+  mapRoot: { flex: 1, backgroundColor: COLORS.surface },
   mapPickerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 15,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    backgroundColor: COLORS.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
   },
   backBtn: { marginRight: 10 },
   searchBarContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F7F8FA',
+    backgroundColor: COLORS.background,
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 46,
@@ -1022,7 +1064,7 @@ const styles = StyleSheet.create({
     top: 76,
     left: 15,
     right: 15,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.surface,
     borderRadius: 14,
     elevation: 5,
     shadowColor: '#000',

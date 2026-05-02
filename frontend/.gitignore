@@ -1,6 +1,6 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
+# Dependencies
 node_modules/
 
 # Expo
@@ -21,25 +21,41 @@ expo-env.d.ts
 # Metro
 .metro-health-check*
 
-# debug
+# Debug / logs
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+pnpm-debug.log*
 
 # macOS
 .DS_Store
-*.pem
 
-# local env files
-.env*.local
+# Windows
+Thumbs.db
+Desktop.ini
+
+# IDE / tooling
+.idea/
+*.swp
+*.swo
+
+# Local env files — keep `.env.example` committed if you add one
 .env
+.env*.local
 
-# typescript
+# TypeScript
 *.tsbuildinfo
 
+# Certificates / keys (often used for signing or dev HTTPS)
+*.pem
+
+# Example / scaffolding
 app-example
 
-# generated native folders
+# Generated native folders (prebuild creates these when needed)
 /ios
 /android
+
+# Deploy (Vercel CLI link state)
+.vercel/
 

@@ -46,10 +46,25 @@ export default function MealDetailsModal({ visible, onClose, meal }: MealDetails
 
   if (!meal) return null;
 
+  const isOutOfStock = (meal.quantity ?? 0) <= 0;
+
   const handleAddToCart = () => {
-    addToCart(meal);
+    if (isOutOfStock) return;
+    addToCart(meal, quantity);
     onClose();
     router.push('/user/cart');
+  };
+
+  const increment = () => {
+    if (quantity < (meal.quantity ?? 0)) {
+      setQuantity(q => q + 1);
+    }
+  };
+
+  const decrement = () => {
+    if (quantity > 1) {
+      setQuantity(q => q - 1);
+    }
   };
 
   return (
@@ -87,8 +102,10 @@ export default function MealDetailsModal({ visible, onClose, meal }: MealDetails
               )}
 
               <View style={styles.qtyBadge}>
-                <MaterialCommunityIcons name="tag-outline" size={14} color={PRIMARY} />
-                <Text style={styles.qtyText}>{meal.quantity ?? 0} available</Text>
+                <MaterialCommunityIcons name="tag-outline" size={14} color={isOutOfStock ? '#EE5253' : PRIMARY} />
+                <Text style={[styles.qtyText, isOutOfStock && { color: '#EE5253' }]}>
+                  {isOutOfStock ? 'Out of Stock' : `${meal.quantity ?? 0} available`}
+                </Text>
               </View>
 
               <Text style={styles.sectionTitle}>Description</Text>
@@ -129,7 +146,7 @@ const styles = StyleSheet.create({
   },
   content: {
     width: '100%',
-    maxHeight: '85%',
+    maxHeight: '90%',
     backgroundColor: '#fff',
     borderRadius: 24,
     overflow: 'hidden',
@@ -219,6 +236,11 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 10,
+  },
+  disabledBtn: {
+    backgroundColor: '#A0A0A0',
+    shadowOpacity: 0,
+    elevation: 0,
   },
   orderBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16, marginLeft: 10 },
   reviewBtn: {

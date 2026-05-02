@@ -140,7 +140,7 @@ export default function OwnerManageAccount() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} translucent={false} />
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.backHit} onPress={() => router.back()} hitSlop={12}>
           <MaterialCommunityIcons name="arrow-left" size={26} color={COLORS.textDark} />

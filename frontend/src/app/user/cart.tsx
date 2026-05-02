@@ -8,6 +8,7 @@ import {
   Image,
   Platform,
   Alert,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -31,26 +32,18 @@ export default function CartScreen() {
 
   const handleCheckout = () => {
     if (cartItems.length === 0) return;
-    Alert.alert('Checkout Successful', 'Your order has been placed!', [
-      {
-        text: 'OK',
-        onPress: () => {
-          clearCart();
-          router.replace('/user/dashboard');
-        },
-      },
-    ]);
+    router.push('/user/order/checkout');
   };
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      {/* Header */}
+      <StatusBar barStyle="dark-content" backgroundColor={BG} translucent={false} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <MaterialCommunityIcons name="arrow-left" size={24} color={TEXT_DARK} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Your Cart</Text>
-        <View style={{ width: 24 }} /> {/* Placeholder for alignment */}
+        <View style={{ width: 24 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -85,7 +78,6 @@ export default function CartScreen() {
         )}
       </ScrollView>
 
-      {/* Footer */}
       {cartItems.length > 0 && (
         <View style={styles.footer}>
           <View style={styles.totalRow}>
