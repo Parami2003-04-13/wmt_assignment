@@ -377,32 +377,24 @@ export default function OwnerDashboard() {
                           {stall.address}
                         </Text>
                       </View>
-                      <View style={styles.stallFooterRow}>
-                        <View style={[styles.statusPill, { backgroundColor: open ? '#DCF5ED' : '#FDECEC' }]}>
-                          <View
-                            style={[
-                              styles.statusDotSmall,
-                              { backgroundColor: open ? COLOR_OPEN : COLOR_CLOSED },
-                            ]}
-                          />
-                          <Text
-                            style={[
-                              styles.statusPillText,
-                              { color: open ? COLOR_OPEN : COLOR_CLOSED },
-                            ]}>
-                            {stall.status ?? 'Closed'}
-                          </Text>
+                      <View style={styles.stallFooterBlock}>
+                        <View style={styles.stallFooterRow}>
+                          <View style={[styles.statusPill, { backgroundColor: open ? '#DCF5ED' : '#FDECEC' }]}>
+                            <View
+                              style={[
+                                styles.statusDotSmall,
+                                { backgroundColor: open ? COLOR_OPEN : COLOR_CLOSED },
+                              ]}
+                            />
+                            <Text
+                              style={[
+                                styles.statusPillText,
+                                { color: open ? COLOR_OPEN : COLOR_CLOSED },
+                              ]}>
+                              {stall.status ?? 'Closed'}
+                            </Text>
+                          </View>
                         </View>
-                        <TouchableOpacity 
-                          style={styles.manageOrdersBtn}
-                          onPress={() => router.push({
-                            pathname: '/owner/manage-orders',
-                            params: { stallId: stall._id, stallName: stall.name }
-                          })}
-                        >
-                          <MaterialCommunityIcons name="clipboard-list-outline" size={16} color={COLORS.primary} />
-                          <Text style={styles.manageOrdersBtnText}>Orders</Text>
-                        </TouchableOpacity>
                       </View>
                     </View>
                     <MaterialCommunityIcons name="chevron-right" size={24} color={COLORS.textGray} />
@@ -889,7 +881,8 @@ const styles = StyleSheet.create({
   stallName: { fontSize: 17, fontWeight: '800', color: COLORS.textDark },
   stallAddrRow: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 6, gap: 4 },
   stallLocation: { flex: 1, fontSize: 13, color: COLORS.textGray, lineHeight: 18 },
-  stallFooterRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center' },
+  stallFooterBlock: { marginTop: 10 },
+  stallFooterRow: { flexDirection: 'row', alignItems: 'center' },
   statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1041,21 +1034,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   submitBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
-  manageOrdersBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E7F3F2',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginLeft: 10,
-  },
-  manageOrdersBtnText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: COLORS.primary,
-    marginLeft: 4,
-  },
 
   mapRoot: { flex: 1, backgroundColor: COLORS.surface },
   mapPickerHeader: {

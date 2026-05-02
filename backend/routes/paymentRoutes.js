@@ -4,6 +4,21 @@ const Order = require('../models/Order');
 
 const router = express.Router();
 
+// List payments for all orders belonging to a stall (owner/manage payments UI)
+router.get('/stall/:stallId', async (req, res) => {
+  try {
+    const orderIds = await Order.find({ stall: req.params.stallId }).distinct('_id');
+    const payments = await Payment.find({ order: { $in: orderIds } })
+      .populate('order', 'orderId totalAmount paymentMethod paymentStatus status pickupTime createdAt')
+      .populate('user', 'name email')
+      .sort({ createdAt: -1 });
+    res.json(payments);
+  } catch (err) {
+    console.error('List stall payments error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Get payment by order ID
 router.get('/order/:orderId', async (req, res) => {
   try {

@@ -37,7 +37,13 @@
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to scan pickup QR codes for orders."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
