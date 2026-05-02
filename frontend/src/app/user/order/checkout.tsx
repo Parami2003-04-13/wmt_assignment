@@ -450,13 +450,6 @@ export default function CheckoutScreen() {
                   <Text style={styles.removeText}>Remove Slip</Text>
                 </TouchableOpacity>
               )}
-
-              <View style={styles.bankVerifyNotice}>
-                <MaterialCommunityIcons name="account-check-outline" size={22} color={PRIMARY} />
-                <Text style={styles.bankVerifyNoticeText}>
-                  Your payment slip will be verified by stall staff. This is not an instant confirmation — you will be notified when your payment is approved and your order is confirmed.
-                </Text>
-              </View>
             </View>
           )}
 
@@ -734,24 +727,6 @@ const styles = StyleSheet.create({
   removeText: {
     color: DANGER,
     fontSize: 12,
-    fontWeight: '600',
-  },
-  bankVerifyNotice: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    marginTop: 14,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: PRIMARY + '12',
-    borderWidth: 1,
-    borderColor: PRIMARY + '35',
-  },
-  bankVerifyNoticeText: {
-    flex: 1,
-    fontSize: 13,
-    color: TEXT_DARK,
-    lineHeight: 19,
     fontWeight: '600',
   },
   nonRefundableHint: {
