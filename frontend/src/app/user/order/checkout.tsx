@@ -313,7 +313,6 @@ export default function CheckoutScreen() {
         {/* Payment Method */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Payment Method</Text>
-          <Text style={styles.nonRefundableHint}>* All payments are non-refundable once placed.</Text>
 
           <TouchableOpacity
             style={[styles.paymentOption, paymentMethod === 'Pay at Stall' ? styles.paymentSelected : null]}
@@ -727,12 +726,6 @@ const styles = StyleSheet.create({
   removeText: {
     color: DANGER,
     fontSize: 12,
-    fontWeight: '600',
-  },
-  nonRefundableHint: {
-    fontSize: 12,
-    color: DANGER,
-    marginBottom: 10,
     fontWeight: '600',
   },
   cardLogos: {

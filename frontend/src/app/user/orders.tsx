@@ -247,7 +247,6 @@ export default function UserOrdersScreen() {
                 <View>
                   <Text style={styles.totalLabel}>Total Amount</Text>
                   <Text style={styles.totalValue}>Rs. {order.totalAmount}</Text>
-                  <Text style={styles.nonRefundableText}>Non-refundable</Text>
                 </View>
                 <View style={styles.paymentInfo}>
                   <Text style={styles.paymentMethod}>{order.paymentMethod}</Text>
@@ -551,12 +550,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: PRIMARY,
-  },
-  nonRefundableText: {
-    fontSize: 10,
-    color: DANGER,
-    marginTop: 2,
-    fontWeight: '600',
   },
   paymentInfo: {
     alignItems: 'flex-end',

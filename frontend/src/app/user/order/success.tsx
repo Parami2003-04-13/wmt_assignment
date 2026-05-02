@@ -93,17 +93,9 @@ export default function OrderSuccessScreen() {
               <Text style={styles.verifyFootnote}>If something looks wrong with your slip, staff may reject it — check back or submit again from checkout.</Text>
             </>
           ) : isBankTransfer ? (
-            <>
-              Keep this order reference handy. Pull to refresh on My Orders for updates.
-              {'\n'}
-              <Text style={styles.nonRefundableText}>* Manual bank approvals apply; unpaid or cancelled orders follow stall policy.</Text>
-            </>
+            'Keep this order reference handy. Pull to refresh on My Orders for updates.'
           ) : (
-            <>
-              Please show this Order ID at the stall counter when you pickup your meal.
-              {'\n'}
-              <Text style={styles.nonRefundableText}>* All payments are non-refundable.</Text>
-            </>
+            'Please show this Order ID at the stall counter when you pickup your meal.'
           )}
         </Text>
       </View>
@@ -231,10 +223,5 @@ const styles = StyleSheet.create({
     color: PRIMARY,
     fontSize: 14,
     fontWeight: 'bold',
-  },
-  nonRefundableText: {
-    color: '#E74C3C',
-    fontWeight: 'bold',
-    fontSize: 12,
   },
 });
