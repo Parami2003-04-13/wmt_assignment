@@ -24,6 +24,11 @@ const reviewSchema = new mongoose.Schema({
         required: true,
         trim: true
     },
+    // Optional image attached to the review
+    image: {
+        type: String,
+        default: null
+    },
     createdAt: {
         type: Date,
         default: Date.now
