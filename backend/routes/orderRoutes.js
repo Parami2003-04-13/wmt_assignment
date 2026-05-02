@@ -214,16 +214,31 @@ router.patch('/:id', async (req, res) => {
     if (typeof update.status === 'string') {
       nextOrderStatus = update.status;
     }
-    if (nextOrderStatus !== existingOrder.status && existingOrder.user) {
+
+    const statusChanged = nextOrderStatus !== existingOrder.status;
+    const paymentStatusChanged = !!(update.paymentStatus && update.paymentStatus !== existingOrder.paymentStatus);
+
+    if ((statusChanged || paymentStatusChanged) && existingOrder.user) {
       try {
         const stallDoc = await Stall.findById(existingOrder.stall).select('name').lean();
         const stallName = stallDoc?.name || '';
-        const { title, body } = customerMessageForOrderStatus(existingOrder.orderId, stallName, nextOrderStatus);
+        
+        let title, body;
+        if (statusChanged) {
+          const msg = customerMessageForOrderStatus(existingOrder.orderId, stallName, nextOrderStatus);
+          title = msg.title;
+          body = msg.body;
+        } else {
+          // Only payment status changed (e.g. from Pending to Paid/Failed)
+          title = 'Payment Update';
+          body = `The payment status for order ${existingOrder.orderId} at ${stallName || 'the stall'} is now ${update.paymentStatus}.`;
+        }
+
         await Notification.create({
           user: existingOrder.user,
           title,
           body,
-          type: 'order_status',
+          type: statusChanged ? 'order_status' : 'payment_status',
           order: existingOrder._id,
           orderIdDisplay: existingOrder.orderId,
           orderStatus: nextOrderStatus,
