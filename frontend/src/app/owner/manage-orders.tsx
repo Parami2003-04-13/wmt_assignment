@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text as RNText,
@@ -11,12 +11,16 @@ import {
   Platform,
   Alert,
   Modal,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../../services/api';
+import { COLORS } from '../../theme/colors';
+import { OwnerPickupQrScannerModal } from '../../components/OwnerPickupQrScanner';
+import { pickupCodeMatchesOrder } from '../../utils/pickupVerification';
 import dayjs from 'dayjs';
 
 const PRIMARY = '#0F5B57';
@@ -32,6 +36,105 @@ const Text = (props: any) => (
   <RNText {...props} style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]} />
 );
 
+const ORDER_STATUS_OPTIONS = ['Pending', 'Processing', 'Preparing', 'Ready', 'Completed', 'Cancelled'] as const;
+
+type OrderListFilterKey = 'all' | 'late_pickup' | 'active' | (typeof ORDER_STATUS_OPTIONS)[number];
+
+const ORDER_LIST_FILTER_OPTIONS: { key: OrderListFilterKey; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'late_pickup', label: 'Late pickup' },
+  { key: 'active', label: 'In progress' },
+  ...ORDER_STATUS_OPTIONS.map((s) => ({ key: s, label: s })),
+];
+
+/** Forward-only funnel; Cancelled is a separate escape hatch (not reversible into the funnel). */
+const LINEAR_ORDER_RANK: Record<string, number> = {
+  Pending: 0,
+  Processing: 1,
+  Preparing: 2,
+  Ready: 3,
+  Completed: 4,
+};
+
+function isStatusSelectable(option: string, savedStatus: string): boolean {
+  if (savedStatus === 'Cancelled') return option === 'Cancelled';
+  if (option === 'Cancelled') return savedStatus !== 'Completed';
+  if (option === 'Completed') return savedStatus === 'Ready';
+
+  const savedRank = LINEAR_ORDER_RANK[savedStatus];
+  const optRank = LINEAR_ORDER_RANK[option];
+  if (savedRank === undefined || optRank === undefined) return true;
+  return optRank >= savedRank;
+}
+
+function isOrderOlderThanOneMonth(createdAt: string | Date): boolean {
+  return dayjs(createdAt).isBefore(dayjs().subtract(1, 'month'));
+}
+
+function isActiveOrderStatus(status: string) {
+  return status !== 'Completed' && status !== 'Cancelled';
+}
+
+/** Pickup window has passed but the order is still active. */
+function isPickupOverdue(order: { pickupTime: string | Date; status: string }): boolean {
+  if (!isActiveOrderStatus(order.status)) return false;
+  return dayjs(order.pickupTime).isBefore(dayjs());
+}
+
+function orderMatchesListFilter(order: { status: string; pickupTime: string | Date }, filter: OrderListFilterKey) {
+  switch (filter) {
+    case 'all':
+      return true;
+    case 'late_pickup':
+      return isPickupOverdue(order);
+    case 'active':
+      return isActiveOrderStatus(order.status);
+    default:
+      return order.status === filter;
+  }
+}
+
+/** Among late-pickup orders: Pending → Processing → Preparing → Ready (then earlier pickup first). */
+const OVERDUE_STATUS_PRIORITY_RANK: Record<string, number> = {
+  Pending: 0,
+  Processing: 1,
+  Preparing: 2,
+  Ready: 3,
+};
+
+function overdueStatusPriorityRank(status: string): number {
+  return OVERDUE_STATUS_PRIORITY_RANK[status] ?? 99;
+}
+
+function orderLineLabel(item: any) {
+  return item.meal?.name ?? item.name ?? 'Meal';
+}
+
+function orderLineImageUri(item: any): string | null {
+  const raw = item.meal?.image;
+  const s = typeof raw === 'string' ? raw.trim() : '';
+  return s ? s : null;
+}
+
+function orderHasConfirmationPhoto(order: { orderPhoto?: string } | null) {
+  return !!order && String(order.orderPhoto ?? '').trim().length > 0;
+}
+
+/** Late pickup first; late block ordered by status priority, then pickup time. Non-late: pickup time only. */
+function sortOrdersForManageList(list: any[]): any[] {
+  return [...list].sort((a, b) => {
+    const overdueA = isPickupOverdue(a);
+    const overdueB = isPickupOverdue(b);
+    if (overdueA !== overdueB) return overdueA ? -1 : 1;
+    if (overdueA && overdueB) {
+      const pa = overdueStatusPriorityRank(a.status);
+      const pb = overdueStatusPriorityRank(b.status);
+      if (pa !== pb) return pa - pb;
+    }
+    return dayjs(a.pickupTime).valueOf() - dayjs(b.pickupTime).valueOf();
+  });
+}
+
 export default function ManageOrdersScreen() {
   const router = useRouter();
   const { stallId, stallName } = useLocalSearchParams();
@@ -42,11 +145,21 @@ export default function ManageOrdersScreen() {
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [draftStatus, setDraftStatus] = useState<string>('Pending');
+  const [pickupScanVisible, setPickupScanVisible] = useState(false);
+  const [pickupVerifiedPayload, setPickupVerifiedPayload] = useState<string | null>(null);
+  const [manualPickupCode, setManualPickupCode] = useState('');
+  const [listFilter, setListFilter] = useState<OrderListFilterKey>('all');
+
+  const filteredOrders = useMemo(
+    () => orders.filter((o) => orderMatchesListFilter(o, listFilter)),
+    [orders, listFilter]
+  );
 
   const fetchOrders = async () => {
     try {
       const res = await api.get(`orders/stall/${stallId}`);
-      setOrders(res.data);
+      setOrders(sortOrdersForManageList(Array.isArray(res.data) ? res.data : []));
     } catch (err) {
       console.error('Fetch stall orders error:', err);
     } finally {
@@ -59,6 +172,20 @@ export default function ManageOrdersScreen() {
     if (stallId) fetchOrders();
   }, [stallId]);
 
+  useEffect(() => {
+    setPickupVerifiedPayload(null);
+    setManualPickupCode('');
+    setPickupScanVisible(false);
+  }, [selectedOrder?._id]);
+
+  useEffect(() => {
+    if (draftStatus !== 'Completed') {
+      setPickupVerifiedPayload(null);
+      setManualPickupCode('');
+      setPickupScanVisible(false);
+    }
+  }, [draftStatus]);
+
   const onRefresh = () => {
     setRefreshing(true);
     fetchOrders();
@@ -67,12 +194,34 @@ export default function ManageOrdersScreen() {
   const handleUpdateOrder = async (orderId: string, updates: any) => {
     setUpdating(true);
     try {
-      await api.patch(`orders/${orderId}`, updates);
+      const res = await api.patch(`orders/${orderId}`, updates);
+      const updated = res.data;
       fetchOrders();
-      setEditModalVisible(false);
-    } catch (err) {
+      setSelectedOrder((prev) =>
+        prev && prev._id === orderId ? { ...prev, ...updated, user: prev.user ?? updated.user } : prev
+      );
+      if (updates.status !== undefined) {
+        setDraftStatus(updated.status);
+      }
+
+      // Photo upload stays in-modal; closing only after successful status saves.
+      if (updates.orderPhoto !== undefined) {
+        /* stay open */
+      } else if (updates.status !== undefined) {
+        setEditModalVisible(false);
+        setPickupVerifiedPayload(null);
+        setManualPickupCode('');
+      }
+    } catch (err: unknown) {
       console.error('Update order error:', err);
-      Alert.alert('Error', 'Failed to update order.');
+      const msg =
+        typeof err === 'object' &&
+        err !== null &&
+        'response' in err &&
+        typeof (err as any).response?.data?.message === 'string'
+          ? (err as any).response.data.message
+          : 'Failed to update order.';
+      Alert.alert('Error', msg);
     } finally {
       setUpdating(false);
     }
@@ -102,40 +251,6 @@ export default function ManageOrdersScreen() {
     );
   };
 
-
-
-  const handleDeletePayment = async (orderId: string) => {
-    try {
-      const res = await api.get(`payments/order/${orderId}`);
-      const paymentId = res.data._id;
-
-      Alert.alert(
-        'Delete Payment Record',
-        'Are you sure you want to delete this payment record?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Delete',
-            style: 'destructive',
-            onPress: async () => {
-              try {
-                await api.delete(`payments/${paymentId}`);
-                fetchOrders();
-                setEditModalVisible(false);
-                Alert.alert('Success', 'Payment record deleted.');
-              } catch (err) {
-                console.error('Delete payment error:', err);
-                Alert.alert('Error', 'Failed to delete payment record.');
-              }
-            }
-          }
-        ]
-      );
-    } catch (err) {
-      Alert.alert('Error', 'Could not find payment record.');
-    }
-  };
-
   const uploadOrderPhoto = async (orderId: string) => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -150,22 +265,102 @@ export default function ManageOrdersScreen() {
     }
   };
 
+  const verifyManualPickup = () => {
+    if (!selectedOrder) return;
+    if (pickupCodeMatchesOrder(selectedOrder.orderId, manualPickupCode)) {
+      setPickupVerifiedPayload(manualPickupCode.trim());
+    } else {
+      Alert.alert('No match', 'That order number does not match this order.');
+    }
+  };
+
+  const submitDraftStatus = () => {
+    if (!selectedOrder || draftStatus === selectedOrder.status || updating) return;
+    if (!isStatusSelectable(draftStatus, selectedOrder.status)) {
+      Alert.alert('Invalid status', 'You can only move the order forward, not backward.');
+      setDraftStatus(selectedOrder.status);
+      return;
+    }
+    if (draftStatus === 'Cancelled') {
+      Alert.alert(
+        'Cancel Order',
+        'Are you sure you want to cancel this order? This will restore the meal stock.',
+        [
+          { text: 'No', style: 'cancel' },
+          {
+            text: 'Yes, Cancel',
+            style: 'destructive',
+            onPress: () => handleUpdateOrder(selectedOrder._id, { status: 'Cancelled' }),
+          },
+        ]
+      );
+      return;
+    }
+    if (draftStatus === 'Ready') {
+      if (!orderHasConfirmationPhoto(selectedOrder)) {
+        Alert.alert(
+          'Photo required',
+          'Upload an order confirmation photo before marking this order Ready.',
+        );
+        return;
+      }
+    }
+    if (draftStatus === 'Completed') {
+      if (selectedOrder.status !== 'Ready') {
+        Alert.alert(
+          'Not ready yet',
+          'Mark this order Ready first (with a confirmation photo), then verify pickup before completing.',
+        );
+        return;
+      }
+      if (
+        !pickupVerifiedPayload ||
+        !pickupCodeMatchesOrder(selectedOrder.orderId, pickupVerifiedPayload)
+      ) {
+        Alert.alert(
+          'Verify pickup',
+          'Scan the customer pickup QR or enter the order number and verify before completing.',
+        );
+        return;
+      }
+      handleUpdateOrder(selectedOrder._id, {
+        status: 'Completed',
+        pickupVerification: pickupVerifiedPayload,
+      });
+      return;
+    }
+    handleUpdateOrder(selectedOrder._id, { status: draftStatus });
+  };
+
+  const statusDirty = selectedOrder ? draftStatus !== selectedOrder.status : false;
+  const completeNeedsVerifiedPickup =
+    !!selectedOrder &&
+    draftStatus === 'Completed' &&
+    selectedOrder.status === 'Ready' &&
+    (!pickupVerifiedPayload || !pickupCodeMatchesOrder(selectedOrder.orderId, pickupVerifiedPayload));
+
+  /** Hide photo UI while drafting Completed/Cancelled so pickup verification stays visible below the chips. */
+  const showConfirmationPhotoUi =
+    !!selectedOrder &&
+    draftStatus !== 'Completed' &&
+    draftStatus !== 'Cancelled' &&
+    (draftStatus === 'Ready' || selectedOrder.status === 'Ready') &&
+    selectedOrder.status !== 'Completed' &&
+    selectedOrder.status !== 'Cancelled';
+
+  const showPickupVerifyUi =
+    !!selectedOrder &&
+    draftStatus === 'Completed' &&
+    selectedOrder.status === 'Ready';
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Pending': return WARNING;
+      case 'Processing': return '#3498DB';
       case 'Preparing': return PRIMARY;
       case 'Ready': return SUCCESS;
       case 'Completed': return TEXT_GRAY;
       case 'Cancelled': return DANGER;
-      default: return TEXT_GRAY;
-    }
-  };
-
-  const getPaymentStatusColor = (status: string) => {
-    switch (status) {
-      case 'Paid': return SUCCESS;
-      case 'Pending': return WARNING;
-      case 'Failed': return DANGER;
       default: return TEXT_GRAY;
     }
   };
@@ -185,6 +380,37 @@ export default function ManageOrdersScreen() {
         </TouchableOpacity>
       </View>
 
+      {!loading && orders.length > 0 ? (
+        <View style={styles.filterBar}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterBarContent}
+            keyboardShouldPersistTaps="handled">
+            {ORDER_LIST_FILTER_OPTIONS.map((opt) => {
+              const active = listFilter === opt.key;
+              return (
+                <TouchableOpacity
+                  key={opt.key}
+                  style={[styles.filterChip, active && styles.filterChipActive]}
+                  onPress={() => setListFilter(opt.key)}
+                  activeOpacity={0.85}>
+                  {opt.key === 'late_pickup' ? (
+                    <MaterialCommunityIcons
+                      name="clock-alert-outline"
+                      size={14}
+                      color={active ? '#fff' : COLORS.danger}
+                      style={{ marginRight: 5 }}
+                    />
+                  ) : null}
+                  <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{opt.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : null}
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -196,13 +422,28 @@ export default function ManageOrdersScreen() {
             <MaterialCommunityIcons name="clipboard-text-outline" size={64} color={TEXT_GRAY} />
             <Text style={styles.emptyText}>No orders received for this stall yet.</Text>
           </View>
+        ) : filteredOrders.length === 0 ? (
+          <View style={styles.emptyState}>
+            <MaterialCommunityIcons name="filter-variant-remove" size={56} color={TEXT_GRAY} />
+            <Text style={styles.emptyText}>No orders match this filter.</Text>
+            <TouchableOpacity style={styles.clearFilterBtn} onPress={() => setListFilter('all')}>
+              <Text style={styles.clearFilterBtnText}>Show all orders</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
-          orders.map((order) => (
+          filteredOrders.map((order) => {
+            const pickupLate = isPickupOverdue(order);
+            const canDelete = isOrderOlderThanOneMonth(order.createdAt);
+            return (
             <TouchableOpacity
               key={order._id}
               style={styles.orderCard}
               onPress={() => {
                 setSelectedOrder(order);
+                setDraftStatus(order.status);
+                setPickupVerifiedPayload(null);
+                setManualPickupCode('');
+                setPickupScanVisible(false);
                 setEditModalVisible(true);
               }}
             >
@@ -211,8 +452,16 @@ export default function ManageOrdersScreen() {
                   <Text style={styles.orderId}>{order.orderId}</Text>
                   <Text style={styles.orderDate}>{dayjs(order.createdAt).format('DD MMM, hh:mm A')}</Text>
                 </View>
-                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status) + '15' }]}>
-                  <Text style={[styles.statusText, { color: getStatusColor(order.status) }]}>{order.status}</Text>
+                <View style={styles.orderHeaderBadges}>
+                  {pickupLate ? (
+                    <View style={[styles.statusBadge, styles.pickupLateBadge]}>
+                      <MaterialCommunityIcons name="clock-alert-outline" size={13} color={COLORS.danger} />
+                      <Text style={styles.pickupLateBadgeText}>Late pickup</Text>
+                    </View>
+                  ) : null}
+                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status) + '15' }]}>
+                    <Text style={[styles.statusText, { color: getStatusColor(order.status) }]}>{order.status}</Text>
+                  </View>
                 </View>
               </View>
 
@@ -222,42 +471,55 @@ export default function ManageOrdersScreen() {
               </View>
 
               <View style={styles.itemsList}>
-                {order.items.map((item: any, idx: number) => (
-                  <Text key={idx} style={styles.itemText}>{item.quantity}x {item.name}</Text>
-                ))}
+                {(order.items ?? []).map((item: any, idx: number) => {
+                  const uri = orderLineImageUri(item);
+                  return (
+                    <View key={idx} style={styles.orderLineRow}>
+                      {uri ? (
+                        <Image source={{ uri }} style={styles.orderLineThumb} />
+                      ) : (
+                        <View style={styles.orderLineThumbPlaceholder}>
+                          <MaterialCommunityIcons name="silverware-fork-knife" size={18} color={TEXT_GRAY} />
+                        </View>
+                      )}
+                      <Text style={styles.orderLineText} numberOfLines={2}>
+                        {item.quantity}x {orderLineLabel(item)}
+                      </Text>
+                    </View>
+                  );
+                })}
               </View>
 
               <View style={styles.divider} />
 
               <View style={styles.orderFooter}>
-                <View>
+                <View style={{ flex: 1 }}>
                   <Text style={styles.totalLabel}>Total: Rs. {order.totalAmount}</Text>
-                  <Text style={styles.pickupTime}>Pickup: {dayjs(order.pickupTime).format('hh:mm A')}</Text>
-                  <Text style={styles.nonRefundableText}>Non-refundable</Text>
+                  <Text style={styles.pickupTime}>
+                    Pickup: {dayjs(order.pickupTime).format('hh:mm A')}
+                  </Text>
                 </View>
-                <View style={styles.paymentInfo}>
-                  <View style={[styles.paymentStatusBadge, { backgroundColor: getPaymentStatusColor(order.paymentStatus) + '15' }]}>
-                    <Text style={[styles.paymentStatusText, { color: getPaymentStatusColor(order.paymentStatus) }]}>
-                      {order.paymentStatus}
-                    </Text>
-                  </View>
-                  <Text style={styles.paymentMethod}>{order.paymentMethod}</Text>
-
-                  {(order.status === 'Completed' || order.status === 'Cancelled') && (
-                    <TouchableOpacity
-                      style={styles.deleteOrderBtn}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        handleDeleteOrder(order._id);
-                      }}
-                    >
-                      <MaterialCommunityIcons name="trash-can-outline" size={18} color={DANGER} />
-                    </TouchableOpacity>
-                  )}
-                </View>
+                <TouchableOpacity
+                  style={[styles.deleteOrderBtn, !canDelete && styles.deleteOrderBtnDisabled]}
+                  disabled={!canDelete}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleDeleteOrder(order._id);
+                  }}
+                  accessibilityState={{ disabled: !canDelete }}
+                  accessibilityLabel={
+                    canDelete ? 'Delete order' : 'Delete order, available when older than 1 month'
+                  }>
+                  <MaterialCommunityIcons
+                    name="trash-can-outline"
+                    size={18}
+                    color={canDelete ? DANGER : TEXT_GRAY}
+                  />
+                </TouchableOpacity>
               </View>
             </TouchableOpacity>
-          ))
+            );
+          })
         )}
       </ScrollView>
 
@@ -267,183 +529,179 @@ export default function ManageOrdersScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Update Order</Text>
-              <TouchableOpacity onPress={() => setEditModalVisible(false)}>
+              <TouchableOpacity
+                onPress={() => {
+                  setEditModalVisible(false);
+                  setPickupVerifiedPayload(null);
+                  setManualPickupCode('');
+                  setPickupScanVisible(false);
+                }}>
                 <MaterialCommunityIcons name="close" size={24} color={TEXT_DARK} />
               </TouchableOpacity>
             </View>
 
             {selectedOrder && (
-              <ScrollView>
-                <Text style={styles.label}>Order Status</Text>
-                <View style={styles.optionsRow}>
-                  {['Pending', 'Preparing', 'Ready', 'Completed', 'Cancelled'].map((s) => (
-                    <TouchableOpacity
-                      key={s}
-                      style={[styles.optionChip, selectedOrder.status === s && styles.optionChipActive]}
-                      onPress={() => {
-                        if (s === 'Cancelled') {
-                          Alert.alert(
-                            'Cancel Order',
-                            'Are you sure you want to cancel this order? This will restore the meal stock. Continue?',
-                            [
-                              { text: 'No', style: 'cancel' },
-                              { 
-                                text: 'Yes, Cancel', 
-                                style: 'destructive',
-                                onPress: () => handleUpdateOrder(selectedOrder._id, { status: s }) 
-                              }
-                            ]
-                          );
-                        } else {
-                          handleUpdateOrder(selectedOrder._id, { status: s });
-                        }
-                      }}
-                    >
-                      <Text style={[styles.optionText, selectedOrder.status === s && styles.optionTextActive]}>{s}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                <Text style={styles.label}>Payment Status</Text>
-                {selectedOrder.paymentMethod === 'Card' ? (
-                  <View style={styles.infoBox}>
-                    <MaterialCommunityIcons name="check-circle" size={18} color={SUCCESS} />
-                    <Text style={styles.infoBoxText}>Card payments are automatically verified and set to Paid.</Text>
+              <>
+                <ScrollView
+                  nestedScrollEnabled
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={styles.modalScrollContent}>
+                  <Text style={styles.label}>Items</Text>
+                  <View style={styles.modalItemsList}>
+                    {(selectedOrder.items ?? []).map((item: any, idx: number) => {
+                      const uri = orderLineImageUri(item);
+                      return (
+                        <View key={idx} style={styles.modalOrderLineRow}>
+                          {uri ? (
+                            <Image source={{ uri }} style={styles.modalOrderLineThumb} />
+                          ) : (
+                            <View style={[styles.orderLineThumbPlaceholder, styles.modalOrderLineThumbPlaceholder]}>
+                              <MaterialCommunityIcons name="silverware-fork-knife" size={16} color={TEXT_GRAY} />
+                            </View>
+                          )}
+                          <Text style={styles.modalOrderLineText} numberOfLines={2}>
+                            {item.quantity}x {orderLineLabel(item)}
+                          </Text>
+                        </View>
+                      );
+                    })}
                   </View>
-                ) : (
+
+                  <Text style={styles.label}>Order Status</Text>
                   <View style={styles.optionsRow}>
-                    {['Pending', 'Paid', 'Failed'].map((s) => (
-                      <TouchableOpacity
-                        key={s}
-                        style={[styles.optionChip, selectedOrder.paymentStatus === s && styles.optionChipActive]}
-                        onPress={() => {
-                          if (s === 'Failed') {
-                            Alert.alert(
-                              'Payment Failed',
-                              'Marking this payment as Failed will automatically Cancel the order and restore the meal stock. Continue?',
-                              [
-                                { text: 'Cancel', style: 'cancel' },
-                                { 
-                                  text: 'Yes, Mark Failed', 
-                                  style: 'destructive',
-                                  onPress: () => handleUpdateOrder(selectedOrder._id, { paymentStatus: s }) 
-                                }
-                              ]
-                            );
-                          } else {
-                            handleUpdateOrder(selectedOrder._id, { paymentStatus: s });
-                          }
-                        }}
-                      >
-                        <Text style={[styles.optionText, selectedOrder.paymentStatus === s && styles.optionTextActive]}>{s}</Text>
-                      </TouchableOpacity>
-                    ))}
+                    {ORDER_STATUS_OPTIONS.map((s) => {
+                      const allowed = !updating && isStatusSelectable(s, selectedOrder.status);
+                      return (
+                        <TouchableOpacity
+                          key={s}
+                          disabled={updating || !allowed}
+                          style={[
+                            styles.optionChip,
+                            draftStatus === s && styles.optionChipActive,
+                            !allowed && styles.optionChipDisabled,
+                          ]}
+                          onPress={() => setDraftStatus(s)}>
+                          <Text
+                            style={[
+                              styles.optionText,
+                              draftStatus === s && styles.optionTextActive,
+                              !allowed && styles.optionChipDisabledText,
+                            ]}>
+                            {s}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
-                )}
 
-                <Text style={styles.label}>Order Confirmation Photo</Text>
-                {selectedOrder.orderPhoto ? (
-                  <View style={styles.photoContainer}>
-                    <Image source={{ uri: selectedOrder.orderPhoto }} style={styles.photoPreview} />
-                    <TouchableOpacity style={styles.changePhotoBtn} onPress={() => uploadOrderPhoto(selectedOrder._id)}>
-                      <Text style={styles.changePhotoText}>Change Photo</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <TouchableOpacity style={styles.uploadBtn} onPress={() => uploadOrderPhoto(selectedOrder._id)}>
-                    <MaterialCommunityIcons name="camera-plus-outline" size={32} color={PRIMARY} />
-                    <Text style={styles.uploadText}>Upload Photo</Text>
-                  </TouchableOpacity>
-                )}
+                  {showPickupVerifyUi ? (
+                    <View style={styles.pickupVerifyBlock}>
+                      <Text style={styles.label}>Complete pickup</Text>
+                      <Text style={styles.hintMuted}>
+                        Scan the QR from the customer&apos;s app or enter the order number, then verify.
+                      </Text>
+                      {pickupVerifiedPayload &&
+                      pickupCodeMatchesOrder(selectedOrder.orderId, pickupVerifiedPayload) ? (
+                        <View style={styles.pickupVerifiedPill}>
+                          <MaterialCommunityIcons name="check-decagram" size={20} color={SUCCESS} />
+                          <Text style={styles.pickupVerifiedText}>Pickup verified — you can complete the order.</Text>
+                        </View>
+                      ) : (
+                        <>
+                          {Platform.OS !== 'web' ? (
+                            <TouchableOpacity
+                              style={styles.scanQrBtn}
+                              onPress={() => setPickupScanVisible(true)}
+                              disabled={updating}>
+                              <MaterialCommunityIcons name="qrcode-scan" size={22} color="#fff" />
+                              <Text style={styles.scanQrBtnText}>Scan pickup QR</Text>
+                            </TouchableOpacity>
+                          ) : (
+                            <Text style={styles.webScanHint}>On web, enter the order number below.</Text>
+                          )}
+                          <Text style={[styles.label, { marginTop: 12 }]}>Or enter order number</Text>
+                          <TextInput
+                            style={styles.pickupInput}
+                            value={manualPickupCode}
+                            onChangeText={setManualPickupCode}
+                            placeholder="e.g. ORD-1234-001"
+                            placeholderTextColor="#A0AEC0"
+                            autoCapitalize="characters"
+                            editable={!updating}
+                          />
+                          <TouchableOpacity
+                            style={styles.verifyManualBtn}
+                            onPress={verifyManualPickup}
+                            disabled={updating || !manualPickupCode.trim()}>
+                            <Text style={styles.verifyManualBtnText}>Verify match</Text>
+                          </TouchableOpacity>
+                        </>
+                      )}
+                    </View>
+                  ) : null}
 
-                {selectedOrder.paymentMethod === 'Bank Transfer' && (
-                  <View style={styles.slipSection}>
-                    <Text style={styles.label}>Bank Slip</Text>
-                    <PaymentSlipView
-                      orderId={selectedOrder._id}
-                      onDeleteSuccess={() => {
-                        fetchOrders();
-                        setEditModalVisible(false);
-                      }}
-                      paymentMethod={selectedOrder.paymentMethod}
-                      paymentStatus={selectedOrder.paymentStatus}
-                    />
-                  </View>
-                )}
-
-                {selectedOrder.paymentMethod === 'Card' && selectedOrder.paymentStatus === 'Failed' && (
-                  <View style={styles.slipSection}>
-                    <Text style={styles.label}>Payment Status: Failed</Text>
-                    <TouchableOpacity
-                      style={styles.deletePaymentBtn}
-                      onPress={() => handleDeletePayment(selectedOrder._id)}
-                    >
-                      <MaterialCommunityIcons name="credit-card-remove-outline" size={20} color="#fff" />
-                      <Text style={styles.deletePaymentBtnText}>Delete Failed Card Record</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </ScrollView>
+                  {showConfirmationPhotoUi ? (
+                    <>
+                      <Text style={styles.label}>Order confirmation photo</Text>
+                      <Text style={styles.hintMuted}>
+                        Required before you can mark this order Ready.
+                      </Text>
+                      {selectedOrder.orderPhoto ? (
+                        <View style={styles.photoContainer}>
+                          <Image source={{ uri: selectedOrder.orderPhoto }} style={styles.photoPreview} />
+                          <TouchableOpacity
+                            style={styles.changePhotoBtn}
+                            onPress={() => uploadOrderPhoto(selectedOrder._id)}
+                            disabled={updating}>
+                            <Text style={styles.changePhotoText}>Change Photo</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          style={styles.uploadBtn}
+                          onPress={() => uploadOrderPhoto(selectedOrder._id)}
+                          disabled={updating}>
+                          <MaterialCommunityIcons name="camera-plus-outline" size={32} color={PRIMARY} />
+                          <Text style={styles.uploadText}>Upload Photo</Text>
+                        </TouchableOpacity>
+                      )}
+                    </>
+                  ) : null}
+                  <View style={{ height: 12 }} />
+                </ScrollView>
+                <TouchableOpacity
+                  style={[
+                    styles.modalSaveBtn,
+                    ((!statusDirty || updating || completeNeedsVerifiedPickup) && styles.modalSaveBtnDisabled),
+                  ]}
+                  disabled={!statusDirty || updating || completeNeedsVerifiedPickup}
+                  onPress={submitDraftStatus}
+                  activeOpacity={0.85}>
+                  {updating ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.modalSaveBtnText}>Save changes</Text>
+                  )}
+                </TouchableOpacity>
+              </>
             )}
           </View>
         </View>
       </Modal>
+
+      {selectedOrder ? (
+        <OwnerPickupQrScannerModal
+          visible={pickupScanVisible}
+          expectedOrderId={selectedOrder.orderId}
+          onClose={() => setPickupScanVisible(false)}
+          onMatched={(raw) => {
+            setPickupVerifiedPayload(raw);
+            setPickupScanVisible(false);
+          }}
+        />
+      ) : null}
     </SafeAreaView>
-  );
-}
-
-function PaymentSlipView({ orderId, onDeleteSuccess, paymentMethod, paymentStatus }: any) {
-  const [payment, setPayment] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchPayment = async () => {
-      try {
-        const res = await api.get(`payments/order/${orderId}`);
-        setPayment(res.data);
-      } catch (err) {
-        console.error('Fetch payment error:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchPayment();
-  }, [orderId]);
-
-  const handleDelete = async () => {
-    Alert.alert(
-      'Delete Bank Slip',
-      'Are you sure you want to delete this bank slip record?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await api.delete(`payments/${payment._id}`);
-              onDeleteSuccess();
-              Alert.alert('Success', 'Payment record deleted.');
-            } catch (err) {
-              Alert.alert('Error', 'Failed to delete payment.');
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  if (loading) return <ActivityIndicator color={PRIMARY} />;
-  if (!payment || !payment.paymentSlip) return <Text style={{ color: TEXT_GRAY }}>No slip uploaded.</Text>;
-
-  return (
-    <View>
-      <Image source={{ uri: payment.paymentSlip }} style={styles.photoPreview} resizeMode="contain" />
-      <TouchableOpacity style={styles.deletePaymentInlineBtn} onPress={handleDelete}>
-        <MaterialCommunityIcons name="trash-can-outline" size={16} color={DANGER} />
-        <Text style={styles.deletePaymentInlineText}>Delete Bank Slip Record</Text>
-      </TouchableOpacity>
-    </View>
   );
 }
 
@@ -472,8 +730,57 @@ const styles = StyleSheet.create({
     color: PRIMARY,
     fontWeight: '600',
   },
+  filterBar: {
+    paddingVertical: 10,
+    backgroundColor: SURFACE,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
+  },
+  filterBarContent: {
+    paddingHorizontal: 16,
+    gap: 8,
+    alignItems: 'center',
+    flexDirection: 'row',
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: '#F0F4F4',
+    borderWidth: 1,
+    borderColor: '#E2ECEC',
+  },
+  filterChipActive: {
+    backgroundColor: PRIMARY,
+    borderColor: PRIMARY,
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: TEXT_DARK,
+  },
+  filterChipTextActive: {
+    color: '#fff',
+  },
   scrollContent: {
     padding: 16,
+    paddingTop: 12,
+  },
+  clearFilterBtn: {
+    marginTop: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  clearFilterBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: PRIMARY,
   },
   emptyState: {
     alignItems: 'center',
@@ -488,19 +795,47 @@ const styles = StyleSheet.create({
   },
   orderCard: {
     backgroundColor: SURFACE,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
   },
   orderHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    gap: 8,
+  },
+  orderHeaderBadges: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    maxWidth: '52%',
+    justifyContent: 'flex-end',
+  },
+  pickupLateBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: COLORS.warningSoft,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(15,91,87,0.12)',
+  },
+  pickupLateBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.textDark,
+    letterSpacing: 0.2,
   },
   orderId: {
     fontSize: 16,
@@ -534,11 +869,64 @@ const styles = StyleSheet.create({
   },
   itemsList: {
     marginTop: 10,
+    gap: 8,
   },
-  itemText: {
+  orderLineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  orderLineThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#F0F2F5',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E8ECF0',
+  },
+  orderLineThumbPlaceholder: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#F5F7F7',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E8ECF0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  orderLineText: {
+    flex: 1,
     fontSize: 14,
-    color: TEXT_GRAY,
+    color: TEXT_DARK,
+    fontWeight: '600',
+    lineHeight: 19,
+  },
+  modalItemsList: {
+    gap: 10,
     marginBottom: 4,
+  },
+  modalOrderLineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  modalOrderLineThumb: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: '#F0F2F5',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E8ECF0',
+  },
+  modalOrderLineThumbPlaceholder: {
+    width: 40,
+    height: 40,
+  },
+  modalOrderLineText: {
+    flex: 1,
+    fontSize: 14,
+    color: TEXT_DARK,
+    fontWeight: '600',
   },
   divider: {
     height: 1,
@@ -561,63 +949,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 2,
   },
-  nonRefundableText: {
-    fontSize: 10,
-    color: DANGER,
-    marginTop: 2,
-    fontWeight: '600',
-  },
-  paymentInfo: {
-    alignItems: 'flex-end',
-  },
-  paymentMethod: {
-    fontSize: 11,
-    color: TEXT_GRAY,
-    marginTop: 4,
-  },
-  paymentStatusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  paymentStatusText: {
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
   deleteOrderBtn: {
     marginTop: 8,
-    padding: 5,
+    padding: 8,
     backgroundColor: '#FFF5F5',
     borderRadius: 6,
     borderWidth: 1,
     borderColor: '#FED7D7',
   },
-  deletePaymentBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: DANGER,
-    padding: 12,
-    borderRadius: 8,
-    justifyContent: 'center',
-    marginTop: 10,
-  },
-  deletePaymentBtnText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    marginLeft: 8,
-  },
-  deletePaymentInlineBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 10,
-    alignSelf: 'center',
-    padding: 5,
-  },
-  deletePaymentInlineText: {
-    color: DANGER,
-    fontSize: 12,
-    fontWeight: '600',
-    marginLeft: 5,
+  deleteOrderBtnDisabled: {
+    backgroundColor: '#F5F6F7',
+    borderColor: '#E8EAED',
+    opacity: 0.65,
   },
   modalOverlay: {
     flex: 1,
@@ -630,6 +973,10 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     padding: 20,
     maxHeight: '90%',
+  },
+  modalScrollContent: {
+    flexGrow: 1,
+    paddingBottom: 8,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -649,6 +996,78 @@ const styles = StyleSheet.create({
     marginTop: 15,
     marginBottom: 10,
   },
+  hintMuted: {
+    fontSize: 13,
+    color: TEXT_GRAY,
+    marginTop: -4,
+    marginBottom: 10,
+    lineHeight: 18,
+  },
+  pickupVerifyBlock: {
+    marginTop: 4,
+  },
+  pickupVerifiedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#E8F8EF',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#C6EFD8',
+    marginTop: 6,
+  },
+  pickupVerifiedText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    color: TEXT_DARK,
+  },
+  scanQrBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: PRIMARY,
+    paddingVertical: 14,
+    borderRadius: 14,
+    marginTop: 6,
+  },
+  scanQrBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  webScanHint: {
+    fontSize: 13,
+    color: TEXT_GRAY,
+    marginTop: 6,
+  },
+  pickupInput: {
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: TEXT_DARK,
+    backgroundColor: '#F7FAFC',
+    marginTop: 6,
+  },
+  verifyManualBtn: {
+    marginTop: 10,
+    backgroundColor: '#E7F3F2',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(15,91,87,0.2)',
+  },
+  verifyManualBtnText: {
+    color: PRIMARY,
+    fontSize: 15,
+    fontWeight: '800',
+  },
   optionsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -665,6 +1084,14 @@ const styles = StyleSheet.create({
   optionChipActive: {
     borderColor: PRIMARY,
     backgroundColor: PRIMARY,
+  },
+  optionChipDisabled: {
+    opacity: 0.42,
+    backgroundColor: '#F0F0F0',
+    borderColor: '#E8E8E8',
+  },
+  optionChipDisabledText: {
+    color: '#B2BEC3',
   },
   optionText: {
     fontSize: 13,
@@ -708,26 +1135,21 @@ const styles = StyleSheet.create({
     color: PRIMARY,
     fontWeight: 'bold',
   },
-  slipSection: {
-    marginTop: 20,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-  },
-  infoBox: {
-    flexDirection: 'row',
+  modalSaveBtn: {
+    marginTop: 8,
+    backgroundColor: PRIMARY,
+    paddingVertical: 14,
+    borderRadius: 14,
     alignItems: 'center',
-    backgroundColor: '#F0FDF4',
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#DCFCE7',
+    justifyContent: 'center',
   },
-  infoBoxText: {
-    fontSize: 13,
-    color: SUCCESS,
-    marginLeft: 8,
-    fontWeight: '600',
-    flex: 1,
+  modalSaveBtnDisabled: {
+    backgroundColor: '#A8C9C7',
+    opacity: 0.85,
+  },
+  modalSaveBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '800',
   },
 });

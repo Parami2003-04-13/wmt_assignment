@@ -683,16 +683,6 @@ export default function StallManagement() {
                 <TouchableOpacity
                   style={styles.menuActionBtn}
                   activeOpacity={0.85}
-                  onPress={() => router.push({
-                    pathname: '/owner/manage-orders',
-                    params: { stallId: stallId, stallName: stall.name }
-                  })}>
-                  <MaterialCommunityIcons name="receipt-text-outline" size={18} color={COLORS.primary} />
-                  <Text style={styles.menuActionText}>Orders</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.menuActionBtn}
-                  activeOpacity={0.85}
                   onPress={() => setStallEditVisible(true)}>
                   <MaterialCommunityIcons name="bank-outline" size={18} color={COLORS.primary} />
                   <Text style={styles.menuActionText}>Edit Details</Text>
