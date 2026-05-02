@@ -41,8 +41,13 @@ const OrderSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['Pay at Canteen', 'Online'],
+    enum: ['Pay at Stall', 'Card', 'Bank Transfer'],
     required: true
+  },
+  paymentStatus: {
+    type: String,
+    enum: ['Pending', 'Paid', 'Failed'],
+    default: 'Pending'
   },
   status: {
     type: String,
@@ -52,6 +57,15 @@ const OrderSchema = new mongoose.Schema({
   orderId: {
     type: String,
     unique: true,
+    required: true
+  },
+  orderPhoto: {
+    type: String,
+    default: ''
+  },
+  stall: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Stall',
     required: true
   },
   createdAt: {

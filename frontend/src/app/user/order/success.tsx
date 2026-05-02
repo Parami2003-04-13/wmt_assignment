@@ -43,7 +43,9 @@ export default function OrderSuccessScreen() {
         </View>
 
         <Text style={styles.infoText}>
-          Please show this Order ID at the canteen counter when you pickup your meal.
+          Please show this Order ID at the stall counter when you pickup your meal.
+          {"\n"}
+          <Text style={styles.nonRefundableText}>* All payments are non-refundable.</Text>
         </Text>
       </View>
 
@@ -155,5 +157,10 @@ const styles = StyleSheet.create({
     color: PRIMARY,
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  nonRefundableText: {
+    color: '#E74C3C',
+    fontWeight: 'bold',
+    fontSize: 12,
   },
 });
