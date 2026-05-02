@@ -159,7 +159,7 @@ export default function LoginScreen() {
             style={[styles.signupBtnOutline, { backgroundColor: COLORS.primary, borderColor: COLORS.primary, marginBottom: 12 }]} 
             onPress={() => router.push('/signup')}
           >
-            <Text style={[styles.signupBtnText, { color: '#fff' }]}>Sign Up as Student</Text>
+            <Text style={[styles.signupBtnText, { color: '#fff' }]}>Sign Up as Customer</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.signupBtnOutline} onPress={() => router.push('/signup_owner')}>

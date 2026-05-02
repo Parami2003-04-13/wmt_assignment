@@ -77,7 +77,7 @@ export default function SignupScreen() {
         name, 
         email: email.toLowerCase(), 
         password,
-        role: 'user' // Default to student/user role
+        role: 'user' // Default to customer role
       });
       
       Alert.alert('Success', 'Account created successfully! Please login.', [
