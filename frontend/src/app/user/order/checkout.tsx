@@ -22,6 +22,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 
 import dayjs from 'dayjs';
 import api, { getStoredUser } from '../../../services/api';
+import { ensureRemoteImageUrl } from '../../../services/uploadImage';
 
 const PRIMARY = '#0F5B57';
 const TEXT_DARK = '#2D3436';
@@ -184,13 +185,29 @@ export default function CheckoutScreen() {
 
       /** Bank transfers are queued for staff verification — no Order until approved */
       if (paymentMethod === 'Bank Transfer') {
+        let paymentSlipUrl = bankSlip;
+        if (paymentSlipUrl) {
+          try {
+            paymentSlipUrl = await ensureRemoteImageUrl(paymentSlipUrl, 'payments/bank_slips');
+          } catch (uploadErr: any) {
+            console.error(uploadErr);
+            Alert.alert(
+              'Upload failed',
+              uploadErr?.response?.data?.message ||
+                uploadErr?.message ||
+                'Could not upload your payment slip. Try again.'
+            );
+            return;
+          }
+        }
+
         const pendingRes = await api.post('pending-bank-transfers', {
           userId: user.id,
           stallId,
           items: itemsPayload,
           totalAmount: finalTotal,
           pickupTime: pickupTime.toISOString(),
-          paymentSlip: bankSlip,
+          paymentSlip: paymentSlipUrl,
         });
 
         clearCart();

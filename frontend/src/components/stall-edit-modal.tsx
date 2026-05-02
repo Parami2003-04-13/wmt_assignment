@@ -19,6 +19,7 @@ import DateTimePicker, {
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import api from '../services/api';
+import { ensureRemoteImageUrl } from '../services/uploadImage';
 import { COLORS } from '../theme/colors';
 
 const Text = (props: any) => (
@@ -122,11 +123,16 @@ export default function StallEditModal({
       allowsEditing: true,
       aspect: kind === 'profile' ? [1, 1] : [16, 9],
       quality: 0.9,
+      base64: true,
     });
-    if (!result.canceled && result.assets?.[0]?.uri) {
-      const uri = result.assets[0].uri;
-      if (kind === 'profile') setProfilePhoto(uri);
-      else setCoverPhoto(uri);
+    if (!result.canceled && result.assets?.[0]) {
+      const a = result.assets[0];
+      const uri =
+        a.base64 != null ? `data:image/jpeg;base64,${a.base64}` : a.uri != null ? a.uri : null;
+      if (uri) {
+        if (kind === 'profile') setProfilePhoto(uri);
+        else setCoverPhoto(uri);
+      }
     }
   };
 
@@ -253,6 +259,22 @@ export default function StallEditModal({
 
     setSaving(true);
     try {
+      if (typeof payload.profilePhoto === 'string' && payload.profilePhoto) {
+        const url = await ensureRemoteImageUrl(payload.profilePhoto, 'stall/profile_edit');
+        if (!url) {
+          Alert.alert('Upload failed', 'Could not upload the profile photo.');
+          return;
+        }
+        payload.profilePhoto = url;
+      }
+      if (typeof payload.coverPhoto === 'string' && payload.coverPhoto) {
+        const url = await ensureRemoteImageUrl(payload.coverPhoto, 'stall/cover_edit');
+        if (!url) {
+          Alert.alert('Upload failed', 'Could not upload the cover photo.');
+          return;
+        }
+        payload.coverPhoto = url;
+      }
       await api.patch(`/stalls/${stallId}`, payload);
       onSaved();
       Alert.alert('Saved', hoursOnly ? 'Opening hours were updated.' : 'Stall details were updated.');

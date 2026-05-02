@@ -7,7 +7,7 @@ const app = express();
 
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '25mb' }));
 
 // Request logger
 app.use((req, res, next) => {
@@ -70,6 +70,7 @@ const supportTicketRoutes = require('./routes/supportTicketRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const pendingBankRoutes = require('./routes/pendingBankRoutes');
 const mealRoutes = require('./routes/mealRoutes');
+const uploadRoutes = require('./routes/uploadRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -81,6 +82,7 @@ app.use('/api/support-tickets', supportTicketRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/pending-bank-transfers', pendingBankRoutes);
 app.use('/api/meals', mealRoutes);
+app.use('/api/uploads', uploadRoutes);
 
 
 
