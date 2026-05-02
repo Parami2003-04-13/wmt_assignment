@@ -9,7 +9,7 @@ const { protect } = require('../middleware/authMiddleware'); // Your auth protec
 // @access  Private (Logged-in users only)
 router.post('/', protect, async (req, res) => {
     try {
-        const { meal, rating, comment } = req.body;
+        const { meal, rating, comment, image } = req.body;
 
         // 1. Check if the user already reviewed this meal
         const alreadyReviewed = await Review.findOne({
@@ -26,7 +26,8 @@ router.post('/', protect, async (req, res) => {
             user: req.user.id,    // Provided by 'protect' middleware
             meal: meal,           // The ID of the food
             rating: Number(rating),
-            comment: comment
+            comment: comment,
+            image: image ? String(image).trim() : null
         });
 
         // 3. Save to MongoDB
@@ -91,7 +92,7 @@ router.get('/meal/:mealId', async (req, res) => {
 // @access  Private (Owner only)
 router.put('/:id', protect, async (req, res) => {
     try {
-        const { rating, comment } = req.body;
+        const { rating, comment, image } = req.body;
 
         // 1. Find the review
         const review = await Review.findById(req.params.id);
@@ -108,6 +109,9 @@ router.put('/:id', protect, async (req, res) => {
         // 3. Update the fields and the updatedAt timestamp
         review.rating = rating || review.rating;
         review.comment = comment || review.comment;
+        if (image !== undefined) {
+            review.image = image ? String(image).trim() : null;
+        }
         review.updatedAt = Date.now(); // Manual update of your new field
 
         const updatedReview = await review.save();

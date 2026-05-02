@@ -10,8 +10,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
+  Modal,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import StarRating from '../../components/StarRating';
 import api, { getStoredUser } from '../../services/api';
 
@@ -25,6 +29,30 @@ const CreateReviewScreen = () => {
   const [reviews, setReviews] = useState<any[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [reviewId, setReviewId] = useState<string | null>(null);
+  const [image, setImage] = useState<string | null>(null);
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Allow photo library access to choose a review image.');
+      return;
+    }
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.8,
+      base64: true,
+    });
+
+    if (!result.canceled) {
+      if (result.assets[0].base64) {
+        setImage(`data:image/jpeg;base64,${result.assets[0].base64}`);
+      } else if (result.assets[0].uri) {
+        setImage(result.assets[0].uri);
+      }
+    }
+  };
 
   useEffect(() => {
     fetchReviews();
@@ -54,6 +82,7 @@ const CreateReviewScreen = () => {
           setReviewId(myReview._id);
           setRating(myReview.rating);
           setComment(myReview.comment);
+          setImage(myReview.image || null);
         }
       }
     } catch (err) {
@@ -80,18 +109,22 @@ const CreateReviewScreen = () => {
         await api.put(`/reviews/${reviewId}`, {
           rating,
           comment: comment.trim(),
+          image,
         });
+        await fetchReviews();
         Alert.alert('Success', 'Your review has been updated!', [
-          { text: 'OK', onPress: () => router.back() },
+          { text: 'OK' },
         ]);
       } else {
         await api.post('/reviews', {
           meal: mealId,
           rating,
           comment: comment.trim(),
+          image,
         });
+        await fetchReviews();
         Alert.alert('Success', 'Thank you for your review!', [
-          { text: 'OK', onPress: () => router.back() },
+          { text: 'OK' },
         ]);
       }
     } catch (error: any) {
@@ -115,6 +148,7 @@ const CreateReviewScreen = () => {
         setReviewId(null);
         setRating(0);
         setComment('');
+        setImage(null);
         fetchReviews();
       } catch (err) {
         Alert.alert('Error', 'Failed to delete review.');
@@ -165,6 +199,23 @@ const CreateReviewScreen = () => {
           />
         </View>
 
+        <View style={styles.imageUploadSection}>
+          <Text style={styles.label}>Add a Photo (Optional)</Text>
+          {image ? (
+            <View style={styles.imagePreviewContainer}>
+              <Image source={{ uri: image }} style={styles.imagePreview} resizeMode="contain" />
+              <TouchableOpacity style={styles.removeImageBtn} onPress={() => setImage(null)}>
+                <MaterialCommunityIcons name="close" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity style={styles.uploadImageBtn} onPress={pickImage}>
+              <MaterialCommunityIcons name="camera-plus" size={24} color="#7f8c8d" />
+              <Text style={styles.uploadImageText}>Upload Image</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
         <TouchableOpacity
           style={[styles.submitButton, loading && styles.disabledButton]}
           onPress={handleSubmit}
@@ -207,12 +258,36 @@ const CreateReviewScreen = () => {
                             <StarRating rating={r.rating} size={16} readonly />
                         </View>
                         <Text style={styles.reviewCardComment}>{r.comment}</Text>
+                        {r.image ? (
+                            <TouchableOpacity activeOpacity={0.9} onPress={() => setFullscreenImage(r.image)}>
+                                <Image source={{ uri: r.image }} style={styles.reviewCardImage} resizeMode="contain" />
+                            </TouchableOpacity>
+                        ) : null}
                         <Text style={styles.reviewCardDate}>{new Date(r.createdAt).toLocaleDateString()}</Text>
                     </View>
                 ))
             )}
         </View>
       </ScrollView>
+
+      {/* Fullscreen Image Modal */}
+      <Modal visible={!!fullscreenImage} transparent={true} animationType="fade">
+          <View style={styles.fullscreenContainer}>
+              <TouchableOpacity 
+                style={styles.fullscreenCloseBtn} 
+                onPress={() => setFullscreenImage(null)}
+              >
+                  <MaterialCommunityIcons name="close" size={30} color="#fff" />
+              </TouchableOpacity>
+              {fullscreenImage && (
+                  <Image 
+                    source={{ uri: fullscreenImage }} 
+                    style={styles.fullscreenImage} 
+                    resizeMode="contain" 
+                  />
+              )}
+          </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -355,6 +430,13 @@ const styles = StyleSheet.create({
       lineHeight: 22,
       marginBottom: 12,
   },
+  reviewCardImage: {
+      width: '100%',
+      height: 200,
+      borderRadius: 12,
+      marginBottom: 12,
+      backgroundColor: '#f1f2f6',
+  },
   reviewCardDate: {
       fontSize: 12,
       color: '#95a5a6',
@@ -370,6 +452,66 @@ const styles = StyleSheet.create({
       textAlign: 'center',
       fontSize: 14,
       lineHeight: 20,
+  },
+  imageUploadSection: {
+    marginBottom: 30,
+  },
+  uploadImageBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    borderStyle: 'dashed',
+  },
+  uploadImageText: {
+    color: '#7f8c8d',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 10,
+  },
+  imagePreviewContainer: {
+    position: 'relative',
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  imagePreview: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#f1f2f6',
+  },
+  removeImageBtn: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 15,
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fullscreenContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullscreenImage: {
+    width: '100%',
+    height: '100%',
+  },
+  fullscreenCloseBtn: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    padding: 10,
   }
 });
 
