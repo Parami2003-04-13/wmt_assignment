@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dimensions,
   Image,
@@ -35,6 +35,7 @@ export default function MealDetailsModal({ visible, onClose, meal }: MealDetails
   const { addToCart } = useCart();
   // fetch review stats from api
   const [stats, setStats] = useState<{ averageRating: number; reviewCount: number }>({ averageRating: 0, reviewCount: 0 });
+  const [quantity, setQuantity] = useState(1);
 
   useEffect(() => {
     if (visible && meal?._id) {
@@ -44,12 +45,34 @@ export default function MealDetailsModal({ visible, onClose, meal }: MealDetails
     }
   }, [visible, meal?._id]);
 
+  // Reset quantity when modal opens for a new meal
+  useEffect(() => {
+    if (visible) {
+      setQuantity(1);
+    }
+  }, [visible, meal?._id]);
+
   if (!meal) return null;
 
+  const isOutOfStock = (meal.quantity ?? 0) <= 0;
+
   const handleAddToCart = () => {
-    addToCart(meal);
+    if (isOutOfStock) return;
+    addToCart(meal, quantity);
     onClose();
     router.push('/user/cart');
+  };
+
+  const increment = () => {
+    if (quantity < (meal.quantity ?? 0)) {
+      setQuantity(q => q + 1);
+    }
+  };
+
+  const decrement = () => {
+    if (quantity > 1) {
+      setQuantity(q => q - 1);
+    }
   };
 
   return (
@@ -87,17 +110,52 @@ export default function MealDetailsModal({ visible, onClose, meal }: MealDetails
               )}
 
               <View style={styles.qtyBadge}>
-                <MaterialCommunityIcons name="tag-outline" size={14} color={PRIMARY} />
-                <Text style={styles.qtyText}>{meal.quantity ?? 0} available</Text>
+                <MaterialCommunityIcons name="tag-outline" size={14} color={isOutOfStock ? '#EE5253' : PRIMARY} />
+                <Text style={[styles.qtyText, isOutOfStock && { color: '#EE5253' }]}>
+                  {isOutOfStock ? 'Out of Stock' : `${meal.quantity ?? 0} available`}
+                </Text>
               </View>
 
               <Text style={styles.sectionTitle}>Description</Text>
               <Text style={styles.description}>{meal.description}</Text>
 
+              {!isOutOfStock && (
+                <View style={styles.quantitySection}>
+                  <Text style={styles.sectionTitle}>Select Quantity</Text>
+                  <View style={styles.quantityPicker}>
+                    <TouchableOpacity 
+                      style={styles.qtyBtn} 
+                      onPress={decrement}
+                      disabled={quantity <= 1}
+                    >
+                      <MaterialCommunityIcons name="minus" size={20} color={quantity <= 1 ? '#CCC' : PRIMARY} />
+                    </TouchableOpacity>
+                    
+                    <View style={styles.qtyValueContainer}>
+                      <Text style={styles.qtyValue}>{quantity}</Text>
+                    </View>
+
+                    <TouchableOpacity 
+                      style={styles.qtyBtn} 
+                      onPress={increment}
+                      disabled={quantity >= (meal.quantity ?? 0)}
+                    >
+                      <MaterialCommunityIcons name="plus" size={20} color={quantity >= (meal.quantity ?? 0) ? '#CCC' : PRIMARY} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
               <View style={styles.actionRow}>
-                <TouchableOpacity style={styles.orderBtn} onPress={handleAddToCart}>
+                <TouchableOpacity 
+                  style={[styles.orderBtn, isOutOfStock && styles.disabledBtn]} 
+                  onPress={handleAddToCart}
+                  disabled={isOutOfStock}
+                >
                   <MaterialCommunityIcons name="cart-outline" size={22} color="#fff" />
-                  <Text style={styles.orderBtnText}>Add to cart</Text>
+                  <Text style={styles.orderBtnText}>
+                    {isOutOfStock ? 'Currently Unavailable' : 'Add to cart'}
+                  </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity 
@@ -129,7 +187,7 @@ const styles = StyleSheet.create({
   },
   content: {
     width: '100%',
-    maxHeight: '85%',
+    maxHeight: '90%',
     backgroundColor: '#fff',
     borderRadius: 24,
     overflow: 'hidden',
@@ -199,12 +257,46 @@ const styles = StyleSheet.create({
     marginBottom: 20
   },
   qtyText: { fontSize: 13, color: PRIMARY, fontWeight: '700', marginLeft: 6 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: TEXT_DARK, marginBottom: 10 },
-  description: { fontSize: 15, color: TEXT_GRAY, lineHeight: 22, marginBottom: 30 },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: TEXT_DARK, marginBottom: 12 },
+  description: { fontSize: 15, color: TEXT_GRAY, lineHeight: 22, marginBottom: 20 },
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+  quantitySection: {
+    marginBottom: 24,
+  },
+  quantityPicker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8F9FA',
+    borderRadius: 14,
+    padding: 8,
+    alignSelf: 'flex-start',
+  },
+  qtyBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  qtyValueContainer: {
+    paddingHorizontal: 20,
+    minWidth: 50,
+    alignItems: 'center',
+  },
+  qtyValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: TEXT_DARK,
   },
   orderBtn: {
     flex: 1,
@@ -219,6 +311,11 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 10,
+  },
+  disabledBtn: {
+    backgroundColor: '#A0A0A0',
+    shadowOpacity: 0,
+    elevation: 0,
   },
   orderBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16, marginLeft: 10 },
   reviewBtn: {

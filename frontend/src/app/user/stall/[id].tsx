@@ -40,6 +40,7 @@ export default function UserStallDetails() {
   const [selectedMeal, setSelectedMeal] = useState<any>(null);
   const [mealVisible, setMealVisible] = useState(false);
   const [ticketVisible, setTicketVisible] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [unreadTickets, setUnreadTickets] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
@@ -230,8 +231,10 @@ export default function UserStallDetails() {
                   </Text>
                   <View style={styles.mealMeta}>
                     <Text style={styles.mealPrice}>Rs. {meal.price}</Text>
-                    <View style={styles.qtyPill}>
-                      <Text style={styles.qtyPillText}>{meal.quantity ?? 0} left</Text>
+                    <View style={[styles.qtyPill, meal.quantity <= 0 && styles.qtyPillSoldOut]}>
+                      <Text style={[styles.qtyPillText, meal.quantity <= 0 && styles.qtyPillTextSoldOut]}>
+                        {meal.quantity <= 0 ? 'Sold Out' : `${meal.quantity ?? 0} left`}
+                      </Text>
                     </View>
                   </View>
                 </View>
@@ -342,7 +345,9 @@ const styles = StyleSheet.create({
   mealMeta: { marginTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   mealPrice: { fontSize: 14, fontWeight: '900', color: COLORS.primary },
   qtyPill: { backgroundColor: COLORS.background, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border },
+  qtyPillSoldOut: { backgroundColor: '#FDECEC', borderColor: '#F8D7DA' },
   qtyPillText: { fontSize: 11, fontWeight: '800', color: COLORS.textGray },
+  qtyPillTextSoldOut: { color: '#EE5253' },
 
   emptyWrap: { alignItems: 'center', paddingVertical: 24, paddingHorizontal: 20 },
   emptyTitle: { marginTop: 12, fontSize: 16, fontWeight: '800', color: COLORS.textDark },

@@ -705,7 +705,7 @@ app.delete('/api/stalls/:id', async (req, res) => {
 
 // Create Meal
 app.post('/api/meals', async (req, res) => {
-  const { name, description, price, quantity, image, stallId } = req.body;
+  const { name, description, price, quantity, category, image, stallId } = req.body;
 
   if (!name || !description || price === undefined || quantity === undefined || !stallId) {
     return res.status(400).json({ message: 'Missing required fields' });
@@ -728,6 +728,7 @@ app.post('/api/meals', async (req, res) => {
       description,
       price,
       quantity,
+      category,
       image: String(image).trim(),
       stall: stallId,
     });
@@ -766,12 +767,13 @@ app.patch('/api/meals/:id', async (req, res) => {
       }
     }
 
-    const { name, description, price, quantity, image } = req.body;
+    const { name, description, price, quantity, category, image } = req.body;
     const update = {};
     if (name !== undefined) update.name = name;
     if (description !== undefined) update.description = description;
     if (price !== undefined) update.price = price;
     if (quantity !== undefined) update.quantity = quantity;
+    if (category !== undefined) update.category = category;
     if (image !== undefined) update.image = image;
 
     const nextImage =
