@@ -7,6 +7,29 @@ const { authUserFromRequest } = require('../utils/authRequest');
 
 const router = express.Router();
 
+function normalizePickupCode(raw) {
+  if (raw === null || raw === undefined) return '';
+  let s = String(raw).trim();
+  if (!s) return '';
+  try {
+    const j = JSON.parse(s);
+    if (j && typeof j.orderId === 'string') s = j.orderId;
+  } catch (_) {
+    /* keep s */
+  }
+  return s.replace(/\s+/g, '').toUpperCase();
+}
+
+function pickupCodeMatchesOrder(order, scannedRaw) {
+  const expected = normalizePickupCode(order.orderId);
+  if (!expected) return false;
+  const n = normalizePickupCode(scannedRaw);
+  if (!n) return false;
+  if (n === expected) return true;
+  if (n.includes(expected)) return true;
+  return false;
+}
+
 // Create Order
 router.post('/', async (req, res) => {
   const { 
@@ -91,6 +114,7 @@ router.get('/user/:userId', async (req, res) => {
 
     const orders = await Order.find({ user: req.params.userId })
       .populate('stall', 'name')
+      .populate('items.meal', 'name image')
       .sort({ createdAt: -1 });
     res.json(orders);
   } catch (err) {
@@ -103,6 +127,7 @@ router.get('/stall/:stallId', async (req, res) => {
   try {
     const orders = await Order.find({ stall: req.params.stallId })
       .populate('user', 'name email')
+      .populate('items.meal', 'name image')
       .sort({ createdAt: -1 });
     res.json(orders);
   } catch (err) {
@@ -112,11 +137,29 @@ router.get('/stall/:stallId', async (req, res) => {
 
 // Update Order (Status, Payment Status, Order Photo)
 router.patch('/:id', async (req, res) => {
-  const { status, paymentStatus, orderPhoto } = req.body;
+  const { status, paymentStatus, orderPhoto, pickupVerification } = req.body;
   
   try {
     const existingOrder = await Order.findById(req.params.id);
     if (!existingOrder) return res.status(404).json({ message: 'Order not found' });
+
+    if (status === 'Ready' && existingOrder.status !== 'Ready') {
+      const photoToUse = orderPhoto !== undefined ? orderPhoto : existingOrder.orderPhoto;
+      if (!photoToUse || !String(photoToUse).trim()) {
+        return res.status(400).json({ message: 'Order confirmation photo is required before marking Ready.' });
+      }
+    }
+
+    if (status === 'Completed' && existingOrder.status !== 'Completed') {
+      if (existingOrder.status !== 'Ready') {
+        return res.status(400).json({ message: 'Order must be Ready before marking Completed.' });
+      }
+      if (!pickupVerification || !pickupCodeMatchesOrder(existingOrder, pickupVerification)) {
+        return res.status(400).json({
+          message: 'Pickup verification failed. Scan the customer QR or enter the order number.',
+        });
+      }
+    }
 
     const update = {};
     if (status) update.status = status;
@@ -138,11 +181,15 @@ router.patch('/:id', async (req, res) => {
       }
     }
 
-    const order = await Order.findByIdAndUpdate(req.params.id, { $set: update }, { new: true });
-    
+    await Order.findByIdAndUpdate(req.params.id, { $set: update }, { new: true });
+
     if (paymentStatus) {
       await Payment.findOneAndUpdate({ order: req.params.id }, { $set: { status: paymentStatus } });
     }
+
+    const order = await Order.findById(req.params.id)
+      .populate('items.meal', 'name image')
+      .lean();
 
     res.json(order);
   } catch (err) {

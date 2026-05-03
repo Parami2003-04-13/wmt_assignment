@@ -9,10 +9,13 @@ import {
   RefreshControl,
   ActivityIndicator,
   Platform,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import QRCode from 'react-native-qrcode-svg';
 import api, { getStoredUser } from '../../services/api';
 import dayjs from 'dayjs';
 
@@ -29,11 +32,27 @@ const Text = (props: any) => (
   <RNText {...props} style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]} />
 );
 
+function orderLineLabel(item: any) {
+  return item.meal?.name ?? item.name ?? 'Meal';
+}
+
+function orderLineImageUri(item: any): string | null {
+  const raw = item.meal?.image;
+  const s = typeof raw === 'string' ? raw.trim() : '';
+  return s ? s : null;
+}
+
 export default function UserOrdersScreen() {
   const router = useRouter();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [pickupQrOrder, setPickupQrOrder] = useState<any | null>(null);
+
+  const pickupQrPayload =
+    pickupQrOrder && pickupQrOrder.orderId
+      ? JSON.stringify({ orderId: String(pickupQrOrder.orderId).trim() })
+      : '';
 
   const fetchOrders = async () => {
     try {
@@ -61,6 +80,7 @@ export default function UserOrdersScreen() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Pending': return WARNING;
+      case 'Processing': return '#3498DB';
       case 'Preparing': return PRIMARY;
       case 'Ready': return SUCCESS;
       case 'Completed': return TEXT_GRAY;
@@ -99,7 +119,7 @@ export default function UserOrdersScreen() {
         ) : orders.length === 0 ? (
           <View style={styles.emptyState}>
             <MaterialCommunityIcons name="clipboard-text-outline" size={64} color={TEXT_GRAY} />
-            <Text style={styles.emptyText}>You haven&apos;t placed any orders yet.</Text>
+            <Text style={styles.emptyText}>{"You haven't placed any orders yet."}</Text>
             <TouchableOpacity style={styles.orderNowBtn} onPress={() => router.push('/user/dashboard')}>
               <Text style={styles.orderNowText}>Order Now</Text>
             </TouchableOpacity>
@@ -123,9 +143,23 @@ export default function UserOrdersScreen() {
               </View>
 
               <View style={styles.itemsList}>
-                {order.items.map((item: any, idx: number) => (
-                  <Text key={idx} style={styles.itemText}>{item.quantity}x {item.name}</Text>
-                ))}
+                {(order.items ?? []).map((item: any, idx: number) => {
+                  const uri = orderLineImageUri(item);
+                  return (
+                    <View key={idx} style={styles.orderLineRow}>
+                      {uri ? (
+                        <Image source={{ uri }} style={styles.orderLineThumb} />
+                      ) : (
+                        <View style={styles.orderLineThumbPlaceholder}>
+                          <MaterialCommunityIcons name="silverware-fork-knife" size={18} color={TEXT_GRAY} />
+                        </View>
+                      )}
+                      <Text style={styles.orderLineText} numberOfLines={2}>
+                        {item.quantity}x {orderLineLabel(item)}
+                      </Text>
+                    </View>
+                  );
+                })}
               </View>
 
               <View style={styles.divider} />
@@ -146,6 +180,18 @@ export default function UserOrdersScreen() {
                 </View>
               </View>
 
+              {order.status === 'Ready' ? (
+                <TouchableOpacity
+                  style={styles.scanQrBtn}
+                  activeOpacity={0.88}
+                  onPress={() => setPickupQrOrder(order)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Scan QR — show pickup code for stall staff">
+                  <MaterialCommunityIcons name="qrcode-scan" size={20} color="#fff" />
+                  <Text style={styles.scanQrBtnText}>Scan QR</Text>
+                </TouchableOpacity>
+              ) : null}
+
               {order.orderPhoto ? (
                 <View style={styles.orderPhotoSection}>
                   <Text style={styles.photoLabel}>Order Confirmation Photo:</Text>
@@ -156,6 +202,35 @@ export default function UserOrdersScreen() {
           ))
         )}
       </ScrollView>
+
+      <Modal
+        visible={pickupQrOrder !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPickupQrOrder(null)}>
+        <Pressable style={styles.qrModalBackdrop} onPress={() => setPickupQrOrder(null)}>
+          <Pressable style={styles.qrModalCard} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.qrModalHeader}>
+              <Text style={styles.qrModalTitle}>Pickup QR</Text>
+              <TouchableOpacity onPress={() => setPickupQrOrder(null)} accessibilityLabel="Close">
+                <MaterialCommunityIcons name="close" size={26} color={TEXT_DARK} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.qrModalHint}>
+              Brighten your screen if needed. Stall staff scans this QR to verify pickup for order{' '}
+              <Text style={styles.qrModalOrderStrong}>{pickupQrOrder?.orderId ?? ''}</Text>.
+            </Text>
+            {pickupQrPayload ? (
+              <View style={styles.pickupQrBox}>
+                <QRCode value={pickupQrPayload} size={200} />
+              </View>
+            ) : (
+              <Text style={styles.qrModalFallback}>Unable to generate code for this order.</Text>
+            )}
+            <Text style={styles.pickupOrderNo}>{pickupQrOrder?.orderId}</Text>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -253,11 +328,71 @@ const styles = StyleSheet.create({
   },
   itemsList: {
     marginTop: 10,
+    gap: 8,
   },
-  itemText: {
+  orderLineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  orderLineThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#F0F2F5',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E8ECF0',
+  },
+  orderLineThumbPlaceholder: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#F5F7F7',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E8ECF0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  orderLineText: {
+    flex: 1,
     fontSize: 14,
     color: TEXT_DARK,
-    marginBottom: 4,
+    fontWeight: '600',
+    lineHeight: 19,
+  },
+  pickupQrSection: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  pickupQrTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: TEXT_DARK,
+    alignSelf: 'flex-start',
+  },
+  pickupQrHint: {
+    fontSize: 12,
+    color: TEXT_GRAY,
+    marginTop: 4,
+    marginBottom: 12,
+    alignSelf: 'flex-start',
+    lineHeight: 17,
+  },
+  pickupQrBox: {
+    backgroundColor: '#fff',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E8ECF0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickupOrderNo: {
+    marginTop: 10,
+    fontSize: 14,
+    fontWeight: '800',
+    color: PRIMARY,
+    letterSpacing: 0.6,
   },
   divider: {
     height: 1,
@@ -318,5 +453,62 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 8,
     backgroundColor: '#F7FAFC',
+  },
+  scanQrBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: SUCCESS,
+    marginTop: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+  },
+  scanQrBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  qrModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  qrModalCard: {
+    backgroundColor: SURFACE,
+    borderRadius: 16,
+    padding: 20,
+    maxWidth: 360,
+    alignSelf: 'center',
+    width: '100%',
+  },
+  qrModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  qrModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: TEXT_DARK,
+  },
+  qrModalHint: {
+    fontSize: 13,
+    color: TEXT_GRAY,
+    lineHeight: 19,
+    marginBottom: 16,
+  },
+  qrModalOrderStrong: {
+    fontWeight: '800',
+    color: PRIMARY,
+  },
+  qrModalFallback: {
+    fontSize: 14,
+    color: DANGER,
+    textAlign: 'center',
+    marginVertical: 24,
   },
 });
