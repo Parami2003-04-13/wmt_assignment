@@ -19,6 +19,7 @@ import DateTimePicker, {
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import api from '../services/api';
+import { ensureRemoteImageUrl } from '../services/uploadImage';
 import { COLORS } from '../theme/colors';
 
 const Text = (props: any) => (
@@ -71,9 +72,18 @@ interface StallEditModalProps {
   onSaved: () => void;
   stallId: string;
   initial: StallEditPayload | null;
+  /** When true (e.g. stall staff), only opening/closing times may be edited or sent to the API */
+  hoursOnly?: boolean;
 }
 
-export default function StallEditModal({ visible, onClose, onSaved, stallId, initial }: StallEditModalProps) {
+export default function StallEditModal({
+  visible,
+  onClose,
+  onSaved,
+  stallId,
+  initial,
+  hoursOnly = false,
+}: StallEditModalProps) {
   const [phone, setPhone] = useState('');
   const [description, setDescription] = useState('');
   const [openingTime, setOpeningTime] = useState('');
@@ -113,11 +123,16 @@ export default function StallEditModal({ visible, onClose, onSaved, stallId, ini
       allowsEditing: true,
       aspect: kind === 'profile' ? [1, 1] : [16, 9],
       quality: 0.9,
+      base64: true,
     });
-    if (!result.canceled && result.assets?.[0]?.uri) {
-      const uri = result.assets[0].uri;
-      if (kind === 'profile') setProfilePhoto(uri);
-      else setCoverPhoto(uri);
+    if (!result.canceled && result.assets?.[0]) {
+      const a = result.assets[0];
+      const uri =
+        a.base64 != null ? `data:image/jpeg;base64,${a.base64}` : a.uri != null ? a.uri : null;
+      if (uri) {
+        if (kind === 'profile') setProfilePhoto(uri);
+        else setCoverPhoto(uri);
+      }
     }
   };
 
@@ -154,49 +169,51 @@ export default function StallEditModal({ visible, onClose, onSaved, stallId, ini
   const handleSave = async () => {
     const payload: Record<string, any> = {};
 
-    // Only include fields that have changed
-    const p = phone.trim();
-    if (p !== (initial?.phone ?? '').trim()) {
-      if (!p) {
-        Alert.alert('Required', 'Please enter a phone number.');
-        return;
+    if (!hoursOnly) {
+      // Only include fields that have changed
+      const p = phone.trim();
+      if (p !== (initial?.phone ?? '').trim()) {
+        if (!p) {
+          Alert.alert('Required', 'Please enter a phone number.');
+          return;
+        }
+        payload.phone = p;
       }
-      payload.phone = p;
-    }
 
-    const d = description.trim();
-    if (d !== (initial?.description ?? '').trim()) {
-      payload.description = d;
-    }
+      const d = description.trim();
+      if (d !== (initial?.description ?? '').trim()) {
+        payload.description = d;
+      }
 
-    const prof = profilePhoto.trim();
-    if (prof && prof !== (initial?.profilePhoto ?? '').trim()) {
-      payload.profilePhoto = prof;
-    }
+      const prof = profilePhoto.trim();
+      if (prof && prof !== (initial?.profilePhoto ?? '').trim()) {
+        payload.profilePhoto = prof;
+      }
 
-    const cov = coverPhoto.trim();
-    if (cov && cov !== (initial?.coverPhoto ?? '').trim()) {
-      payload.coverPhoto = cov;
-    }
+      const cov = coverPhoto.trim();
+      if (cov && cov !== (initial?.coverPhoto ?? '').trim()) {
+        payload.coverPhoto = cov;
+      }
 
-    const bName = bankName.trim();
-    if (bName !== (initial?.bankName ?? '').trim()) {
-      payload.bankName = bName;
-    }
+      const bName = bankName.trim();
+      if (bName !== (initial?.bankName ?? '').trim()) {
+        payload.bankName = bName;
+      }
 
-    const accNum = accountNumber.trim();
-    if (accNum !== (initial?.accountNumber ?? '').trim()) {
-      payload.accountNumber = accNum;
-    }
+      const accNum = accountNumber.trim();
+      if (accNum !== (initial?.accountNumber ?? '').trim()) {
+        payload.accountNumber = accNum;
+      }
 
-    const accName = accountName.trim();
-    if (accName !== (initial?.accountName ?? '').trim()) {
-      payload.accountName = accName;
-    }
+      const accName = accountName.trim();
+      if (accName !== (initial?.accountName ?? '').trim()) {
+        payload.accountName = accName;
+      }
 
-    const bBranch = branchName.trim();
-    if (bBranch !== (initial?.branchName ?? '').trim()) {
-      payload.branchName = bBranch;
+      const bBranch = branchName.trim();
+      if (bBranch !== (initial?.branchName ?? '').trim()) {
+        payload.branchName = bBranch;
+      }
     }
 
     const oTrim = openingTime.trim();
@@ -242,9 +259,25 @@ export default function StallEditModal({ visible, onClose, onSaved, stallId, ini
 
     setSaving(true);
     try {
+      if (typeof payload.profilePhoto === 'string' && payload.profilePhoto) {
+        const url = await ensureRemoteImageUrl(payload.profilePhoto, 'stall/profile_edit');
+        if (!url) {
+          Alert.alert('Upload failed', 'Could not upload the profile photo.');
+          return;
+        }
+        payload.profilePhoto = url;
+      }
+      if (typeof payload.coverPhoto === 'string' && payload.coverPhoto) {
+        const url = await ensureRemoteImageUrl(payload.coverPhoto, 'stall/cover_edit');
+        if (!url) {
+          Alert.alert('Upload failed', 'Could not upload the cover photo.');
+          return;
+        }
+        payload.coverPhoto = url;
+      }
       await api.patch(`/stalls/${stallId}`, payload);
       onSaved();
-      Alert.alert('Saved', 'Stall details were updated.');
+      Alert.alert('Saved', hoursOnly ? 'Opening hours were updated.' : 'Stall details were updated.');
       onClose();
     } catch (e: any) {
       Alert.alert('Save failed', e.response?.data?.message || 'Could not update stall.');
@@ -259,13 +292,15 @@ export default function StallEditModal({ visible, onClose, onSaved, stallId, ini
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={styles.root}>
         <View style={styles.header}>
-          <Text style={styles.title}>Edit stall details</Text>
+          <Text style={styles.title}>{hoursOnly ? 'Opening hours' : 'Edit stall details'}</Text>
           <TouchableOpacity onPress={onClose} hitSlop={12}>
             <MaterialCommunityIcons name="close" size={28} color={COLORS.textDark} />
           </TouchableOpacity>
         </View>
 
         <ScrollView style={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          {!hoursOnly ? (
+            <>
           <Text style={styles.label}>
             Phone <Text style={styles.req}>*</Text>
           </Text>
@@ -334,7 +369,10 @@ export default function StallEditModal({ visible, onClose, onSaved, stallId, ini
             </View>
           </View>
 
-          <Text style={[styles.label, styles.mt]}>Business hours</Text>
+            </>
+          ) : null}
+
+          <Text style={[styles.label, hoursOnly ? {} : styles.mt]}>Business hours</Text>
           <Text style={styles.hint}>
             Pick open and close times (24h). If you set both, status follows the Asia/Colombo clock. Tap “Clear scheduled
             hours” to use manual status only. Manual toggle disables auto until you save hours again.
@@ -430,6 +468,8 @@ export default function StallEditModal({ visible, onClose, onSaved, stallId, ini
             <Text style={styles.clearLinkText}>Clear scheduled hours</Text>
           </TouchableOpacity>
 
+          {!hoursOnly ? (
+            <>
           <Text style={[styles.label, styles.mt]}>Bank Details (For Online Payments)</Text>
           <Text style={styles.hint}>Provide bank details so customers can pay via bank transfer.</Text>
           
@@ -469,6 +509,9 @@ export default function StallEditModal({ visible, onClose, onSaved, stallId, ini
             keyboardType="numeric"
             style={styles.input}
           />
+
+            </>
+          ) : null}
 
           <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.7 }]} disabled={saving} onPress={handleSave}>
             {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Save</Text>}

@@ -88,7 +88,7 @@ export default function StallManagement() {
     try {
       const response = await api.get(`/support-tickets/unread-count/staff/${stallId}`);
       setUnreadTickets(response.data.count);
-    } catch (err) {
+    } catch {
       console.error('Fetch unread error');
     }
   }, [stallId]);
@@ -134,8 +134,17 @@ export default function StallManagement() {
   }, [fetchStallDetails, fetchMeals, fetchUnread]);
 
   const handleStaffLogout = async () => {
-    await clearAuthStorage();
-    router.replace('/login');
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        onPress: async () => {
+          await clearAuthStorage();
+          router.replace('/login');
+        },
+        style: 'destructive',
+      },
+    ]);
   };
 
   const handleDeleteMeal = (mealId: string) => {
@@ -214,9 +223,13 @@ export default function StallManagement() {
     if (!stall || statusBusy) return;
     const isOpen = stall.status === 'Open';
     const next = isOpen ? 'Closed' : 'Open';
+    const staffHere =
+      currentUser?.role === 'stall staff' && String(currentUser.staffStallId) === String(stallId);
     Alert.alert(
       `${isOpen ? 'Close' : 'Open'} stall?`,
-      'Manual mode pauses automatic open/closed from business hours until you save hours again in Edit stall details.',
+      staffHere
+        ? 'Manual mode pauses automatic open/closed from business hours until you save opening hours again.'
+        : 'Manual mode pauses automatic open/closed from business hours until you save hours again in Stall settings.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -595,6 +608,17 @@ export default function StallManagement() {
               </View>
             ) : null}
 
+            {isStaffViewer ? (
+              <TouchableOpacity
+                style={styles.stallEditLink}
+                activeOpacity={0.85}
+                onPress={() => setStallEditVisible(true)}>
+                <MaterialCommunityIcons name="clock-edit-outline" size={20} color={COLORS.primary} />
+                <Text style={styles.stallEditLinkText}>Edit opening hours</Text>
+                <MaterialCommunityIcons name="chevron-right" size={22} color={COLORS.textGray} />
+              </TouchableOpacity>
+            ) : null}
+
             <View style={styles.infoCards}>
               <View style={styles.infoCard}>
                 <View style={styles.infoIconBg}>
@@ -626,7 +650,8 @@ export default function StallManagement() {
                   <View style={styles.staffInfoBanner}>
                     <MaterialCommunityIcons name="shield-account-outline" size={22} color={COLORS.primary} />
                     <Text style={styles.staffInfoBannerText}>
-                      Staff account: editing description, phone, hours, and stall photos requires the stall owner&apos;s login.
+                      Staff account: only opening hours can be changed here — use &quot;Opening hours&quot; above. Other stall
+                      details need the stall owner&apos;s login.
                     </Text>
                   </View>
                 </>
@@ -679,6 +704,30 @@ export default function StallManagement() {
                   }}>
                   <MaterialCommunityIcons name="silverware-fork-knife" size={18} color={COLORS.primary} />
                   <Text style={styles.menuActionText}>Manage meals</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuActionBtn}
+                  activeOpacity={0.85}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/owner/manage-orders',
+                      params: { stallId: String(stallId), stallName: stall?.name ?? '' },
+                    })
+                  }>
+                  <MaterialCommunityIcons name="receipt-text-outline" size={18} color={COLORS.primary} />
+                  <Text style={styles.menuActionText}>Manage orders</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuActionBtn}
+                  activeOpacity={0.85}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/owner/manage-payments',
+                      params: { stallId: String(stallId), stallName: stall?.name ?? '' },
+                    })
+                  }>
+                  <MaterialCommunityIcons name="credit-card-outline" size={18} color={COLORS.primary} />
+                  <Text style={styles.menuActionText}>Manage payments</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.menuActionBtn}
@@ -736,6 +785,7 @@ export default function StallManagement() {
           fetchStallDetails();
         }}
         stallId={stallId as string}
+        hoursOnly={isStaffViewer}
         initial={
           stall
             ? {

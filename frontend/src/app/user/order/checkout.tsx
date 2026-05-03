@@ -22,6 +22,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 
 import dayjs from 'dayjs';
 import api, { getStoredUser } from '../../../services/api';
+import { ensureRemoteImageUrl } from '../../../services/uploadImage';
 
 const PRIMARY = '#0F5B57';
 const TEXT_DARK = '#2D3436';
@@ -172,19 +173,68 @@ export default function CheckoutScreen() {
         return;
       }
 
+      const stallIdRaw = cartItems[0].meal.stall._id || cartItems[0].meal.stall;
+      const stallId = String(stallIdRaw);
+
+      const itemsPayload = cartItems.map((item) => ({
+        meal: item.meal._id,
+        name: item.meal.name,
+        quantity: item.quantity,
+        price: item.meal.price,
+      }));
+
+      /** Bank transfers are queued for staff verification — no Order until approved */
+      if (paymentMethod === 'Bank Transfer') {
+        let paymentSlipUrl = bankSlip;
+        if (paymentSlipUrl) {
+          try {
+            paymentSlipUrl = await ensureRemoteImageUrl(paymentSlipUrl, 'payments/bank_slips');
+          } catch (uploadErr: any) {
+            console.error(uploadErr);
+            Alert.alert(
+              'Upload failed',
+              uploadErr?.response?.data?.message ||
+                uploadErr?.message ||
+                'Could not upload your payment slip. Try again.'
+            );
+            return;
+          }
+        }
+
+        const pendingRes = await api.post('pending-bank-transfers', {
+          userId: user.id,
+          stallId,
+          items: itemsPayload,
+          totalAmount: finalTotal,
+          pickupTime: pickupTime.toISOString(),
+          paymentSlip: paymentSlipUrl,
+        });
+
+        clearCart();
+        const submissionId =
+          pendingRes?.data?.id != null
+            ? String(pendingRes.data.id)
+            : pendingRes?.data?._id != null
+              ? String(pendingRes.data._id)
+              : '';
+        router.replace({
+          pathname: '/user/order/success',
+          params: {
+            paymentMethod: 'Bank Transfer',
+            verificationPending: '1',
+            submissionId,
+          },
+        });
+        return;
+      }
+
       const orderData = {
         userId: user.id,
-        stallId: cartItems[0].meal.stall._id || cartItems[0].meal.stall,
-        items: cartItems.map(item => ({
-          meal: item.meal._id,
-          name: item.meal.name,
-          quantity: item.quantity,
-          price: item.meal.price
-        })),
+        stallId,
+        items: itemsPayload,
         totalAmount: finalTotal,
         pickupTime: pickupTime.toISOString(),
         paymentMethod,
-        paymentSlip: paymentMethod === 'Bank Transfer' ? bankSlip : undefined,
         cardHolderName: paymentMethod === 'Card' ? cardDetails.holderName : undefined,
         cardLastFour: paymentMethod === 'Card' ? cardDetails.number.replace(/\s/g, '').slice(-4) : undefined,
       };
@@ -196,12 +246,24 @@ export default function CheckoutScreen() {
       clearCart();
       router.replace({
         pathname: '/user/order/success',
-        params: { orderId: newOrder.orderId }
+        params: { orderId: newOrder.orderId },
       });
 
     } catch (error: any) {
-      console.error('Failed to place order:', error);
-      Alert.alert('Order Failed', error.response?.data?.message || 'Something went wrong while placing your order.');
+      if (__DEV__) {
+        console.warn('Checkout request failed:', error?.message ?? error);
+      }
+      const serverMsg = error.response?.data?.message;
+      const isBank = paymentMethod === 'Bank Transfer';
+      if (isBank) {
+        Alert.alert(
+          'Could not send your slip',
+          serverMsg ||
+            'Check your connection and try again. After it is sent successfully, stall staff will verify your transfer and you will be notified.',
+        );
+      } else {
+        Alert.alert('Order Failed', serverMsg || 'Something went wrong while placing your order.');
+      }
     } finally {
       setLoading(false);
     }
@@ -268,7 +330,6 @@ export default function CheckoutScreen() {
         {/* Payment Method */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Payment Method</Text>
-          <Text style={styles.nonRefundableHint}>* All payments are non-refundable once placed.</Text>
 
           <TouchableOpacity
             style={[styles.paymentOption, paymentMethod === 'Pay at Stall' ? styles.paymentSelected : null]}
@@ -369,6 +430,15 @@ export default function CheckoutScreen() {
               <Text style={styles.paymentDesc}>Transfer to stall account and upload slip</Text>
             </View>
           </TouchableOpacity>
+
+          {paymentMethod === 'Bank Transfer' ? (
+            <View style={styles.bankPolicyBanner}>
+              <MaterialCommunityIcons name="information-outline" size={20} color={PRIMARY} />
+              <Text style={styles.bankPolicyBannerText}>
+                Payment stays pending until stall staff verify your slip. We notify you when your order is created — no meal stock is held until then.
+              </Text>
+            </View>
+          ) : null}
 
           {paymentMethod === 'Bank Transfer' && stallBankDetails && (
             <View style={styles.subSection}>
@@ -598,6 +668,26 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingLeft: 36,
   },
+  bankPolicyBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: 10,
+    marginLeft: 36,
+    marginRight: 0,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: '#EAF5F5',
+    borderWidth: 1,
+    borderColor: PRIMARY + '33',
+  },
+  bankPolicyBannerText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 19,
+    color: TEXT_DARK,
+    fontWeight: '600',
+  },
   input: {
     borderWidth: 1,
     borderColor: '#E2E8F0',
@@ -653,12 +743,6 @@ const styles = StyleSheet.create({
   removeText: {
     color: DANGER,
     fontSize: 12,
-    fontWeight: '600',
-  },
-  nonRefundableHint: {
-    fontSize: 12,
-    color: DANGER,
-    marginBottom: 10,
     fontWeight: '600',
   },
   cardLogos: {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text as RNText,
@@ -42,12 +42,55 @@ function orderLineImageUri(item: any): string | null {
   return s ? s : null;
 }
 
+/** Friendly label so bank + Pending is not mistaken for “failed”. */
+function paymentStatusLabel(order: any): string {
+  const raw = order?.paymentStatus;
+  const pm = order?.paymentMethod;
+  const s = typeof raw === 'string' ? raw : '';
+  if (pm === 'Bank Transfer' && s === 'Pending') return 'Awaiting verification';
+  return s || '—';
+}
+
+type UserOrderFilterKey =
+  | 'all'
+  | 'active'
+  | 'Pending'
+  | 'Processing'
+  | 'Preparing'
+  | 'Ready'
+  | 'Completed'
+  | 'Cancelled';
+
+const USER_ORDER_FILTER_OPTIONS: { key: UserOrderFilterKey; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'active', label: 'In progress' },
+  { key: 'Pending', label: 'Pending' },
+  { key: 'Processing', label: 'Processing' },
+  { key: 'Preparing', label: 'Preparing' },
+  { key: 'Ready', label: 'Ready' },
+  { key: 'Completed', label: 'Completed' },
+  { key: 'Cancelled', label: 'Cancelled' },
+];
+
+function orderMatchesUserFilter(order: { status?: string }, filter: UserOrderFilterKey): boolean {
+  const s = order.status ?? '';
+  if (filter === 'all') return true;
+  if (filter === 'active') return s !== 'Completed' && s !== 'Cancelled';
+  return s === filter;
+}
+
 export default function UserOrdersScreen() {
   const router = useRouter();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [pickupQrOrder, setPickupQrOrder] = useState<any | null>(null);
+  const [statusFilter, setStatusFilter] = useState<UserOrderFilterKey>('all');
+
+  const filteredOrders = useMemo(
+    () => orders.filter((o) => orderMatchesUserFilter(o, statusFilter)),
+    [orders, statusFilter]
+  );
 
   const pickupQrPayload =
     pickupQrOrder && pickupQrOrder.orderId
@@ -59,7 +102,7 @@ export default function UserOrdersScreen() {
       const user = await getStoredUser();
       if (!user) return;
       const res = await api.get(`orders/user/${user.id}`);
-      setOrders(res.data);
+      setOrders(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Fetch orders error:', err);
     } finally {
@@ -110,6 +153,34 @@ export default function UserOrdersScreen() {
         </TouchableOpacity>
       </View>
 
+      {!loading && orders.length > 0 ? (
+        <View style={styles.filterBar}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterBarContent}
+            keyboardShouldPersistTaps="handled">
+            {USER_ORDER_FILTER_OPTIONS.map((opt) => {
+              const active = statusFilter === opt.key;
+              return (
+                <TouchableOpacity
+                  key={opt.key}
+                  style={[styles.filterChip, active && styles.filterChipActive]}
+                  onPress={() => setStatusFilter(opt.key)}
+                  activeOpacity={0.85}>
+                  <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{opt.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+          {statusFilter !== 'all' ? (
+            <Text style={styles.filterHint}>
+              Showing {filteredOrders.length} of {orders.length}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -124,8 +195,16 @@ export default function UserOrdersScreen() {
               <Text style={styles.orderNowText}>Order Now</Text>
             </TouchableOpacity>
           </View>
+        ) : filteredOrders.length === 0 ? (
+          <View style={styles.emptyState}>
+            <MaterialCommunityIcons name="filter-variant" size={56} color={TEXT_GRAY} />
+            <Text style={styles.emptyText}>No orders match this filter.</Text>
+            <TouchableOpacity style={styles.clearFilterBtn} onPress={() => setStatusFilter('all')} activeOpacity={0.85}>
+              <Text style={styles.clearFilterBtnText}>Show all orders</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
-          orders.map((order) => (
+          filteredOrders.map((order) => (
             <View key={order._id} style={styles.orderCard}>
               <View style={styles.orderHeader}>
                 <View>
@@ -168,17 +247,20 @@ export default function UserOrdersScreen() {
                 <View>
                   <Text style={styles.totalLabel}>Total Amount</Text>
                   <Text style={styles.totalValue}>Rs. {order.totalAmount}</Text>
-                  <Text style={styles.nonRefundableText}>Non-refundable</Text>
                 </View>
                 <View style={styles.paymentInfo}>
                   <Text style={styles.paymentMethod}>{order.paymentMethod}</Text>
                   <View style={[styles.paymentStatusBadge, { backgroundColor: getPaymentStatusColor(order.paymentStatus) + '15' }]}>
                     <Text style={[styles.paymentStatusText, { color: getPaymentStatusColor(order.paymentStatus) }]}>
-                      {order.paymentStatus}
+                      {paymentStatusLabel(order)}
                     </Text>
                   </View>
                 </View>
               </View>
+
+              {order.paymentMethod === 'Bank Transfer' && order.paymentStatus === 'Pending' ? (
+                <Text style={styles.bankVerifyHint}>Staff are verifying your transfer; you will be notified when payment is confirmed.</Text>
+              ) : null}
 
               {order.status === 'Ready' ? (
                 <TouchableOpacity
@@ -254,6 +336,62 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: TEXT_DARK,
+  },
+  filterBar: {
+    paddingTop: 10,
+    paddingBottom: 6,
+    backgroundColor: SURFACE,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E2E8F0',
+  },
+  filterBarContent: {
+    paddingHorizontal: 16,
+    gap: 8,
+    alignItems: 'center',
+    flexDirection: 'row',
+  },
+  filterChip: {
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: '#F0F4F4',
+    borderWidth: 1,
+    borderColor: '#E2ECEC',
+  },
+  filterChipActive: {
+    backgroundColor: PRIMARY,
+    borderColor: PRIMARY,
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: TEXT_DARK,
+  },
+  filterChipTextActive: {
+    color: '#fff',
+  },
+  filterHint: {
+    paddingHorizontal: 20,
+    paddingTop: 6,
+    paddingBottom: 2,
+    fontSize: 12,
+    fontWeight: '600',
+    color: TEXT_GRAY,
+  },
+  clearFilterBtn: {
+    marginTop: 18,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: PRIMARY + '18',
+    borderWidth: 1,
+    borderColor: PRIMARY + '55',
+  },
+  clearFilterBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: PRIMARY,
   },
   scrollContent: {
     padding: 16,
@@ -413,12 +551,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: PRIMARY,
   },
-  nonRefundableText: {
-    fontSize: 10,
-    color: DANGER,
-    marginTop: 2,
-    fontWeight: '600',
-  },
   paymentInfo: {
     alignItems: 'flex-end',
   },
@@ -435,6 +567,13 @@ const styles = StyleSheet.create({
   paymentStatusText: {
     fontSize: 11,
     fontWeight: 'bold',
+  },
+  bankVerifyHint: {
+    fontSize: 12,
+    color: TEXT_GRAY,
+    marginTop: 10,
+    lineHeight: 17,
+    fontWeight: '600',
   },
   orderPhotoSection: {
     marginTop: 15,

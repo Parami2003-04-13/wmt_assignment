@@ -12,12 +12,14 @@ import {
   Alert,
   Modal,
   TextInput,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../../services/api';
+import { ensureRemoteImageUrl } from '../../services/uploadImage';
 import { COLORS } from '../../theme/colors';
 import { OwnerPickupQrScannerModal } from '../../components/OwnerPickupQrScanner';
 import { pickupCodeMatchesOrder } from '../../utils/pickupVerification';
@@ -120,6 +122,33 @@ function orderHasConfirmationPhoto(order: { orderPhoto?: string } | null) {
   return !!order && String(order.orderPhoto ?? '').trim().length > 0;
 }
 
+function normalizeUserPhoneForTel(raw: unknown): string | null {
+  if (raw == null) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+  const compact = s.replace(/[^\d+]/g, '');
+  return compact || null;
+}
+
+async function openCustomerDialer(phone: unknown) {
+  const compact = normalizeUserPhoneForTel(phone);
+  if (!compact) {
+    Alert.alert('No phone number', 'This customer does not have a phone number on file.');
+    return;
+  }
+  const url = `tel:${compact}`;
+  try {
+    const supported = await Linking.canOpenURL(url);
+    if (supported) {
+      await Linking.openURL(url);
+    } else {
+      Alert.alert('Cannot place call', 'This device cannot open the phone app.');
+    }
+  } catch {
+    Alert.alert('Cannot place call', 'Unable to start a call.');
+  }
+}
+
 /** Late pickup first; late block ordered by status priority, then pickup time. Non-late: pickup time only. */
 function sortOrdersForManageList(list: any[]): any[] {
   return [...list].sort((a, b) => {
@@ -198,7 +227,9 @@ export default function ManageOrdersScreen() {
       const updated = res.data;
       fetchOrders();
       setSelectedOrder((prev) =>
-        prev && prev._id === orderId ? { ...prev, ...updated, user: prev.user ?? updated.user } : prev
+        prev && prev._id === orderId
+          ? { ...prev, ...updated, user: updated.user ?? prev.user }
+          : prev
       );
       if (updates.status !== undefined) {
         setDraftStatus(updated.status);
@@ -261,14 +292,35 @@ export default function ManageOrdersScreen() {
 
     if (!result.canceled && result.assets[0].base64) {
       const base64 = `data:image/jpeg;base64,${result.assets[0].base64}`;
-      handleUpdateOrder(orderId, { orderPhoto: base64 });
+      try {
+        const url = await ensureRemoteImageUrl(base64, 'orders/handoff_photo');
+        if (url) {
+          handleUpdateOrder(orderId, { orderPhoto: url });
+        }
+      } catch (uploadErr: any) {
+        console.error(uploadErr);
+        Alert.alert(
+          'Upload failed',
+          uploadErr?.response?.data?.message ||
+            uploadErr?.message ||
+            'Could not upload the order photo.'
+        );
+      }
     }
+  };
+
+  /** Pay at stall — customer presented matching pickup proof; mark payment received. */
+  const verifyPayAtStallPaymentAfterPickupProof = (order: any) => {
+    if (!order || order.paymentMethod !== 'Pay at Stall') return;
+    if (order.paymentStatus === 'Paid') return;
+    void handleUpdateOrder(order._id, { paymentStatus: 'Paid' });
   };
 
   const verifyManualPickup = () => {
     if (!selectedOrder) return;
     if (pickupCodeMatchesOrder(selectedOrder.orderId, manualPickupCode)) {
       setPickupVerifiedPayload(manualPickupCode.trim());
+      verifyPayAtStallPaymentAfterPickupProof(selectedOrder);
     } else {
       Alert.alert('No match', 'That order number does not match this order.');
     }
@@ -465,9 +517,27 @@ export default function ManageOrdersScreen() {
                 </View>
               </View>
 
-              <View style={styles.userRow}>
-                <MaterialCommunityIcons name="account-outline" size={16} color={TEXT_GRAY} />
-                <Text style={styles.userName}>{order.user?.name || 'Customer'}</Text>
+              <View style={styles.userBlock}>
+                <View style={styles.userRow}>
+                  <MaterialCommunityIcons name="account-outline" size={16} color={TEXT_GRAY} />
+                  <Text style={styles.userName}>{order.user?.name || 'Customer'}</Text>
+                </View>
+                {normalizeUserPhoneForTel(order.user?.phone) ? (
+                  <TouchableOpacity
+                    style={styles.userPhoneRow}
+                    activeOpacity={0.75}
+                    onPress={() => openCustomerDialer(order.user?.phone)}
+                    accessibilityRole="link"
+                    accessibilityLabel={`Call customer at ${order.user?.phone}`}>
+                    <MaterialCommunityIcons name="phone-outline" size={16} color={PRIMARY} />
+                    <Text style={styles.userPhoneText}>{order.user?.phone}</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.userPhoneRow}>
+                    <MaterialCommunityIcons name="phone-off-outline" size={16} color={TEXT_GRAY} />
+                    <Text style={styles.userPhoneMuted}>No phone on file</Text>
+                  </View>
+                )}
               </View>
 
               <View style={styles.itemsList}>
@@ -567,6 +637,31 @@ export default function ManageOrdersScreen() {
                       );
                     })}
                   </View>
+
+                  <Text style={styles.label}>Customer</Text>
+                  <Text style={styles.modalCustomerName}>
+                    {selectedOrder.user?.name || 'Customer'}
+                  </Text>
+                  {selectedOrder.user?.email ? (
+                    <Text style={styles.modalCustomerEmail}>{selectedOrder.user.email}</Text>
+                  ) : null}
+                  {normalizeUserPhoneForTel(selectedOrder.user?.phone) ? (
+                    <TouchableOpacity
+                      style={styles.modalPhoneTap}
+                      activeOpacity={0.75}
+                      onPress={() => openCustomerDialer(selectedOrder.user?.phone)}
+                      accessibilityRole="link"
+                      accessibilityLabel={`Call ${selectedOrder.user?.phone}`}>
+                      <MaterialCommunityIcons name="phone-outline" size={18} color={PRIMARY} />
+                      <Text style={styles.modalPhoneText}>{selectedOrder.user?.phone}</Text>
+                      <MaterialCommunityIcons name="chevron-right" size={18} color={TEXT_GRAY} />
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={[styles.modalPhoneTap, styles.modalPhoneTapDisabled]}>
+                      <MaterialCommunityIcons name="phone-off-outline" size={18} color={TEXT_GRAY} />
+                      <Text style={styles.userPhoneMuted}>No phone on file</Text>
+                    </View>
+                  )}
 
                   <Text style={styles.label}>Order Status</Text>
                   <View style={styles.optionsRow}>
@@ -698,6 +793,7 @@ export default function ManageOrdersScreen() {
           onMatched={(raw) => {
             setPickupVerifiedPayload(raw);
             setPickupScanVisible(false);
+            if (selectedOrder) verifyPayAtStallPaymentAfterPickupProof(selectedOrder);
           }}
         />
       ) : null}
@@ -856,16 +952,68 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
+  userBlock: {
+    marginTop: 10,
+    gap: 6,
+  },
   userRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
   },
   userName: {
     fontSize: 14,
     color: TEXT_DARK,
     marginLeft: 6,
     fontWeight: '600',
+  },
+  userPhoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginLeft: 22,
+  },
+  userPhoneText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: PRIMARY,
+    textDecorationLine: 'underline',
+  },
+  userPhoneMuted: {
+    fontSize: 13,
+    color: TEXT_GRAY,
+    fontWeight: '500',
+  },
+  modalCustomerName: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: TEXT_DARK,
+    marginBottom: 4,
+  },
+  modalCustomerEmail: {
+    fontSize: 14,
+    color: TEXT_GRAY,
+    marginBottom: 10,
+  },
+  modalPhoneTap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: PRIMARY + '10',
+    borderWidth: 1,
+    borderColor: PRIMARY + '35',
+  },
+  modalPhoneTapDisabled: {
+    backgroundColor: '#F5F7F7',
+    borderColor: '#E8ECF0',
+  },
+  modalPhoneText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '800',
+    color: PRIMARY,
   },
   itemsList: {
     marginTop: 10,
