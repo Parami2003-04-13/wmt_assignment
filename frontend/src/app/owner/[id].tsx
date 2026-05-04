@@ -58,6 +58,7 @@ export default function StallManagement() {
   const [menuManageOpen, setMenuManageOpen] = useState(false);
   const [selectedManageCategory, setSelectedManageCategory] = useState<string | null>(null);
   const [availBusyId, setAvailBusyId] = useState<string | null>(null);
+  const [pendingPaymentsCount, setPendingPaymentsCount] = useState(0);
   const [deleteStallBusy, setDeleteStallBusy] = useState(false);
   /** Quantity before marking unavailable (qty→0); restored when toggled back on instead of defaulting to 25. */
   const qtyBeforeUnavailableRef = useRef<Record<string, number>>({});
@@ -96,12 +97,23 @@ export default function StallManagement() {
     }
   }, [stallId]);
 
+  const fetchPendingPaymentsCount = useCallback(async () => {
+    if (!stallId) return;
+    try {
+      const response = await api.get(`/pending-bank-transfers/count/stall/${stallId}`);
+      setPendingPaymentsCount(response.data.count);
+    } catch {
+      console.error('Fetch pending payments count error');
+    }
+  }, [stallId]);
+
   useEffect(() => {
     setLoading(true);
     fetchStallDetails();
     fetchMeals();
     fetchUnread();
-  }, [stallId, fetchStallDetails, fetchMeals, fetchUnread]);
+    fetchPendingPaymentsCount();
+  }, [stallId, fetchStallDetails, fetchMeals, fetchUnread, fetchPendingPaymentsCount]);
 
   useEffect(() => {
     let alive = true;
@@ -130,11 +142,11 @@ export default function StallManagement() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([fetchStallDetails(), fetchMeals(), fetchUnread()]);
+      await Promise.all([fetchStallDetails(), fetchMeals(), fetchUnread(), fetchPendingPaymentsCount()]);
     } finally {
       setRefreshing(false);
     }
-  }, [fetchStallDetails, fetchMeals, fetchUnread]);
+  }, [fetchStallDetails, fetchMeals, fetchUnread, fetchPendingPaymentsCount]);
 
   const handleStaffLogout = async () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
@@ -813,7 +825,14 @@ export default function StallManagement() {
                       params: { stallId: String(stallId), stallName: stall?.name ?? '' },
                     })
                   }>
-                  <MaterialCommunityIcons name="credit-card-outline" size={18} color={COLORS.primary} />
+                  <View style={{ position: 'relative' }}>
+                    <MaterialCommunityIcons name="credit-card-outline" size={18} color={COLORS.primary} />
+                    {pendingPaymentsCount > 0 ? (
+                      <View style={styles.badge}>
+                        <Text style={styles.badgeText}>{pendingPaymentsCount}</Text>
+                      </View>
+                    ) : null}
+                  </View>
                   <Text style={styles.menuActionText}>Manage payments</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -1260,6 +1279,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     color: '#fff',
+  },
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#FF4757',
+    borderRadius: 9,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    zIndex: 10,
+    borderWidth: 1.5,
+    borderColor: '#fff',
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   /** Match `user/stall` category chips */
   manageCategoriesScroll: {
