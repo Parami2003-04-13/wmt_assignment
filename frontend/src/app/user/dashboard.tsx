@@ -38,6 +38,9 @@ const BG = '#F5F7F7';
 
 const COLOMBO_TZ = 'Asia/Colombo';
 
+/** Local fallback when stall has no photos (remote placeholders often fail on device networks). */
+const STALL_IMAGE_FALLBACK = require('../../../assets/images/campusbites-logo-minimal.png');
+
 /** Minutes since midnight for Asia/Colombo (stall hours semantics). */
 function getColomboMinutesSinceMidnight(now: Date): number {
   const parts = new Intl.DateTimeFormat('en-GB', {
@@ -556,11 +559,12 @@ export default function UserDashboard() {
                   typeof stall.profilePhoto === 'string' ? stall.profilePhoto.trim() : '';
                 const hasCover = !!coverStr;
                 const hasProfile = !!profileStr;
-                const heroUri = hasCover
-                  ? coverStr
+                const heroSource = hasCover
+                  ? { uri: coverStr }
                   : hasProfile
-                    ? profileStr
-                    : 'https://via.placeholder.com/400?text=Stall';
+                    ? { uri: profileStr }
+                    : STALL_IMAGE_FALLBACK;
+                /** Corner badge only when both exist (otherwise hero already shows the lone photo). */
                 const showProfileOnCard = hasProfile && hasCover;
                 return (
                   <TouchableOpacity
@@ -569,7 +573,7 @@ export default function UserDashboard() {
                     onPress={() => router.push(`/user/stall/${stall._id}`)}
                     activeOpacity={0.92}>
                     <View style={styles.stallBrowseImageWrap}>
-                      <Image source={{ uri: heroUri }} style={styles.stallBrowseImage} resizeMode="cover" />
+                      <Image source={heroSource} style={styles.stallBrowseImage} resizeMode="cover" />
                       <View style={styles.stallBrowseScrim} />
                       <View
                         style={[

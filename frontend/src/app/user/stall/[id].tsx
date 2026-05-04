@@ -35,6 +35,8 @@ const PRESET_MEAL_CATEGORIES = ['Breakfast', 'Lunch', 'Snacks', 'Drinks'] as con
 
 const UNCATEGORIZED_LABEL = 'Uncategorized';
 
+const STALL_PROFILE_FALLBACK = require('../../../../assets/images/campusbites-logo-minimal.png');
+
 const CHIP_INACTIVE_BG = '#E8F4F3';
 const CHIP_BORDER = '#C5E8E6';
 
@@ -114,11 +116,15 @@ export default function UserStallDetails() {
   const isOpen = stall?.status === 'Open';
   const statusColor = isOpen ? COLOR_OPEN : COLOR_CLOSED;
 
-  //cover and profile image
+  //cover and profile image (trim so spaces / bad strings do not break Image)
+  const coverTrim =
+    typeof stall?.coverPhoto === 'string' ? stall.coverPhoto.trim() : '';
+  const profileTrim =
+    typeof stall?.profilePhoto === 'string' ? stall.profilePhoto.trim() : '';
   const coverUri =
-    stall?.coverPhoto ||
+    coverTrim ||
     'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=1000';
-  const profileUri = stall?.profilePhoto || 'https://via.placeholder.com/150';
+  const profileSource = profileTrim ? { uri: profileTrim } : STALL_PROFILE_FALLBACK;
 
   //meal category buckets
   const mealCategoryBuckets = useMemo(() => {
@@ -310,7 +316,7 @@ export default function UserStallDetails() {
 
           <View style={styles.profileHeader}>
             <View style={styles.avatarRing}>
-              <Image source={{ uri: profileUri }} style={styles.profileAvatar} />
+              <Image source={profileSource} style={styles.profileAvatar} />
             </View>
             <View style={styles.titleColumn}>
               <View style={styles.titleStatusRow}>
