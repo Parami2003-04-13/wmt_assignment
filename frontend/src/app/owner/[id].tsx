@@ -58,6 +58,7 @@ export default function StallManagement() {
   const [menuManageOpen, setMenuManageOpen] = useState(false);
   const [selectedManageCategory, setSelectedManageCategory] = useState<string | null>(null);
   const [availBusyId, setAvailBusyId] = useState<string | null>(null);
+  const [pendingPaymentsCount, setPendingPaymentsCount] = useState(0);
   const [deleteStallBusy, setDeleteStallBusy] = useState(false);
   /** Quantity before marking unavailable (qty→0); restored when toggled back on instead of defaulting to 25. */
   const qtyBeforeUnavailableRef = useRef<Record<string, number>>({});
@@ -1254,26 +1255,6 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#fff',
   },
-  badge: {
-    position: 'absolute',
-    top: -6,
-    right: -6,
-    backgroundColor: COLORS.danger,
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-    borderWidth: 1.5,
-    borderColor: '#fff',
-  },
-  badgeText: {
-    color: '#fff',
-    fontSize: 9,
-    fontWeight: '900',
-    textAlign: 'center',
-  },
 
   /** Menu management — same cover + sheet stack as main stall detail */
   manageRootScroll: { flex: 1, backgroundColor: COLORS.background },
@@ -1298,6 +1279,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     color: '#fff',
+  },
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#FF4757',
+    borderRadius: 9,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    zIndex: 10,
+    borderWidth: 1.5,
+    borderColor: '#fff',
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   /** Match `user/stall` category chips */
   manageCategoriesScroll: {

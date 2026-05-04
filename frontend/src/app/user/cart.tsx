@@ -50,7 +50,6 @@ export default function CartScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {cartItems.length === 0 ? (
-          {/* UI: Empty Cart State - Shows when no items are in the cart */}
           <View style={styles.emptyContainer}>
             <MaterialCommunityIcons name="cart-remove" size={64} color="#CBD5E1" />
             <Text style={styles.emptyTitle}>Your cart is empty</Text>
@@ -60,7 +59,6 @@ export default function CartScreen() {
             </TouchableOpacity>
           </View>
         ) : (
-          /* UI: Cart Items List - Maps through the cart items and displays their details */
           cartItems.map((item) => (
             <View key={item.meal._id} style={styles.cartItem}>
               <Image source={{ uri: item.meal.image || 'https://via.placeholder.com/150' }} style={styles.itemImage} />
