@@ -87,6 +87,7 @@ export default function UserOrdersScreen() {
   const [pickupQrOrder, setPickupQrOrder] = useState<any | null>(null);
   const [statusFilter, setStatusFilter] = useState<UserOrderFilterKey>('all');
 
+  // Logic: Filters the orders based on the selected status chip ('All', 'Pending', etc).
   const filteredOrders = useMemo(
     () => orders.filter((o) => orderMatchesUserFilter(o, statusFilter)),
     [orders, statusFilter]
@@ -97,6 +98,7 @@ export default function UserOrdersScreen() {
       ? JSON.stringify({ orderId: String(pickupQrOrder.orderId).trim() })
       : '';
 
+  // Fetching Logic: Calls the backend API to retrieve all orders for the current user.
   const fetchOrders = async () => {
     try {
       const user = await getStoredUser();
@@ -143,6 +145,7 @@ export default function UserOrdersScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      {/* UI: Header Section with Back Button, Title, and Refresh Icon */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <MaterialCommunityIcons name="arrow-left" size={24} color={TEXT_DARK} />
@@ -153,6 +156,7 @@ export default function UserOrdersScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* UI: Filter Bar - Horizontal scrollable list of status filters */}
       {!loading && orders.length > 0 ? (
         <View style={styles.filterBar}>
           <ScrollView
@@ -185,6 +189,7 @@ export default function UserOrdersScreen() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
+        {/* UI: Conditional Rendering based on state (Loading, Empty, No Filter Match, or Order List) */}
         {loading ? (
           <ActivityIndicator color={PRIMARY} style={{ marginTop: 50 }} />
         ) : orders.length === 0 ? (
@@ -204,6 +209,7 @@ export default function UserOrdersScreen() {
             </TouchableOpacity>
           </View>
         ) : (
+          /* UI: Order Card List - Maps through filtered orders and displays each as a card */
           filteredOrders.map((order) => (
             <View key={order._id} style={styles.orderCard}>
               <View style={styles.orderHeader}>
@@ -262,6 +268,7 @@ export default function UserOrdersScreen() {
                 <Text style={styles.bankVerifyHint}>Staff are verifying your transfer; you will be notified when payment is confirmed.</Text>
               ) : null}
 
+              {/* UI: QR Code Button - Only visible when order status is 'Ready' */}
               {order.status === 'Ready' ? (
                 <TouchableOpacity
                   style={styles.scanQrBtn}
@@ -285,6 +292,7 @@ export default function UserOrdersScreen() {
         )}
       </ScrollView>
 
+      {/* UI: QR Code Modal - Displays the pickup QR code when a user clicks the Scan QR button */}
       <Modal
         visible={pickupQrOrder !== null}
         transparent

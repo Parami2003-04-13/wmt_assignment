@@ -1,11 +1,14 @@
+// Database Model for Notifications
+// Defines the schema (database table) for storing system notifications.
 const mongoose = require('mongoose');
 
 const NotificationSchema = new mongoose.Schema(
   {
+    // Database Connection/Relational mapping: Links this notification to a specific 'User'.
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      required: true, // Validation: Notification must belong to a user
       index: true,
     },
     title: { type: String, required: true, trim: true },

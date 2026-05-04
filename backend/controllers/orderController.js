@@ -52,7 +52,8 @@ function pickupCodeMatchesOrder(order, scannedRaw) {
   return false;
 }
 
-// Create Order
+// Create Order Logic
+// Handles validation of user inputs, checks payment methods, and initiates the order creation process.
 exports.createOrder = async (req, res) => {
   const { 
     userId, 
@@ -68,6 +69,7 @@ exports.createOrder = async (req, res) => {
     cardLastFour // Optional, for card
   } = req.body;
 
+  // Validation: Ensure all necessary fields are provided in the request body.
   if (!userId || !stallId || !items || items.length === 0 || !totalAmount || !pickupTime || !paymentMethod) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
@@ -87,6 +89,7 @@ exports.createOrder = async (req, res) => {
 
     const { orderPaymentStatus, paymentRecordStatus } = defaultPaymentStatuses(paymentMethod);
 
+    // Service Layer Call / Database Connection: Commits the new order and associated payment to the database.
     const { order: newOrder } = await placeOrderCommit({
       userId,
       stallId,
@@ -111,6 +114,7 @@ exports.createOrder = async (req, res) => {
 };
 
 // Get orders by user
+// Database Fetching: Retrieves a list of orders specific to the currently logged-in user.
 exports.getOrdersByUser = async (req, res) => {
   try {
     const auth = await authUserFromRequest(req);
@@ -118,6 +122,8 @@ exports.getOrdersByUser = async (req, res) => {
       return res.status(403).json({ message: 'Unauthorized' });
     }
 
+    // Database Query: Finds orders by 'user' ID.
+    // 'populate' is used to join data from the 'Stall' and 'Meal' collections to get readable names and images.
     const orders = await Order.find({ user: req.params.userId })
       .populate('stall', 'name')
       .populate('items.meal', 'name image')
@@ -129,6 +135,7 @@ exports.getOrdersByUser = async (req, res) => {
 };
 
 // Get orders by stall (for owner/staff)
+// Database Fetching: Retrieves a list of orders specific to a stall.
 exports.getOrdersByStall = async (req, res) => {
   try {
     const orders = await Order.find({ stall: req.params.stallId })
@@ -142,10 +149,12 @@ exports.getOrdersByStall = async (req, res) => {
 };
 
 // Update Order (Status, Payment Status, Order Photo)
+// Logic: Handles complex state transitions (e.g., Pending -> Ready) and performs validations like requiring photos or pickup verification.
 exports.updateOrder = async (req, res) => {
   const { status, paymentStatus, orderPhoto, pickupVerification } = req.body;
   
   try {
+    // Database Fetching: Retrieve the existing order to validate state transitions.
     const existingOrder = await Order.findById(req.params.id);
     if (!existingOrder) return res.status(404).json({ message: 'Order not found' });
 
@@ -201,6 +210,7 @@ exports.updateOrder = async (req, res) => {
       }
     }
 
+    // Database Update: Save the updated fields back to the MongoDB 'Orders' table.
     await Order.findByIdAndUpdate(req.params.id, { $set: update }, { new: true });
 
     if ('paymentStatus' in update && update.paymentStatus) {
@@ -259,6 +269,7 @@ exports.updateOrder = async (req, res) => {
 };
 
 // Delete Order (Allowed for stall managers for past orders)
+// Database Connection: Removes an order and its associated payment record from the database.
 exports.deleteOrder = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);

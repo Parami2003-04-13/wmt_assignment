@@ -17,9 +17,13 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+// CartContext Provider
+// Logic: Manages the global state of the user's shopping cart across the frontend application.
 export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
 
+  // Add Item to Cart Logic
+  // Validation: Ensures a user cannot add items from different stalls into the same cart.
   const addToCart = (meal: any, quantity: number = 1) => {
     if (cartItems.length > 0) {
       const existingStallId = cartItems[0].meal.stall?._id || cartItems[0].meal.stall;
@@ -59,10 +63,13 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     setCartItems((prevItems) => prevItems.filter((item) => item.meal._id !== mealId));
   };
 
+  // Clear Cart Logic
   const clearCart = () => {
     setCartItems([]);
   };
 
+  // Update Item Quantity Logic
+  // Validation: If quantity drops to 0 or below, it removes the item entirely.
   const updateQuantity = (mealId: string, quantity: number) => {
     setCartItems((prevItems) => {
       if (quantity <= 0) {
@@ -74,6 +81,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
+  // Calculate Cart Total Logic
+  // Computes the total price of all items currently in the cart by iterating over the items.
   const cartTotal = cartItems.reduce(
     (total, item) => total + (item.meal.price * item.quantity),
     0

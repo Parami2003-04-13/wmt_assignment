@@ -1,13 +1,17 @@
+// Database Model for Orders
+// This defines the schema (similar to a database table) and validation rules for orders in MongoDB.
 const mongoose = require('mongoose');
 
 const OrderSchema = new mongoose.Schema({
+  // Database Connection/Relational mapping: Links this order to a specific 'User' document.
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: true // Validation: An order must have a user attached.
   },
   items: [
     {
+      // Relational mapping: Links each item to a 'Meal' document.
       meal: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Meal',
@@ -39,6 +43,7 @@ const OrderSchema = new mongoose.Schema({
   studentIdImage: {
     type: String
   },
+  // Validation: 'enum' restricts the value to only the strings specified in the array.
   paymentMethod: {
     type: String,
     enum: ['Pay at Stall', 'Card', 'Bank Transfer'],
@@ -63,6 +68,7 @@ const OrderSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  // Relational mapping: Links this order to a specific 'Stall' document.
   stall: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Stall',

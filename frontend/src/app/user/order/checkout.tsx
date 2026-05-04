@@ -63,6 +63,7 @@ export default function CheckoutScreen() {
     }
   }, [cartItems]);
 
+  // Fetching Logic: Retrieves stall bank details based on the stall ID.
   const fetchStallDetails = async (stallId: string) => {
     try {
       const res = await api.get(`stalls/${stallId}`);
@@ -85,6 +86,7 @@ export default function CheckoutScreen() {
     }
   };
 
+  // Validation: Ensures the user selects a pickup time that is at least 20 minutes in the future.
   const validateTime = (selectedTime: Date) => {
     const minTime = dayjs().add(20, 'minute');
     if (dayjs(selectedTime).isBefore(minTime)) {
@@ -109,6 +111,7 @@ export default function CheckoutScreen() {
 
 
 
+  // Main Checkout Logic
   const handlePlaceOrder = async () => {
     if (!validateTime(pickupTime)) {
       Alert.alert('Invalid Time', 'Please select a pickup time at least 20 minutes from now.');
@@ -117,6 +120,7 @@ export default function CheckoutScreen() {
 
     setLoading(true);
 
+    // Validation: Checks if card details are valid (16 digits, correct expiry, correct CVV)
     if (paymentMethod === 'Card') {
       const rawNumber = cardDetails.number.replace(/\s/g, '');
       if (!rawNumber || rawNumber.length !== 16) {
@@ -201,6 +205,7 @@ export default function CheckoutScreen() {
           }
         }
 
+        // Network Request: Submits a pending bank transfer for staff approval.
         const pendingRes = await api.post('pending-bank-transfers', {
           userId: user.id,
           stallId,
@@ -239,6 +244,7 @@ export default function CheckoutScreen() {
         cardLastFour: paymentMethod === 'Card' ? cardDetails.number.replace(/\s/g, '').slice(-4) : undefined,
       };
 
+      // Network Request: Creates a standard order (for 'Card' and 'Pay at Stall').
       const response = await api.post('orders', orderData);
 
       const newOrder = response.data;
@@ -272,6 +278,7 @@ export default function CheckoutScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      {/* UI: Header Section */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <MaterialCommunityIcons name="arrow-left" size={24} color={TEXT_DARK} />
@@ -281,7 +288,7 @@ export default function CheckoutScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Order Summary */}
+        {/* UI: Order Summary Section - Displays items and total amount */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Order Summary</Text>
           {cartItems.map((item) => (
@@ -299,7 +306,7 @@ export default function CheckoutScreen() {
 
         </View>
 
-        {/* Pickup Time */}
+        {/* UI: Pickup Time Section - Allows user to select when they want to pick up the order */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Pickup Time</Text>
           <TouchableOpacity
@@ -327,7 +334,7 @@ export default function CheckoutScreen() {
           )}
         </View>
 
-        {/* Payment Method */}
+        {/* UI: Payment Method Section - Provides options for 'Pay at Stall', 'Card', and 'Bank Transfer' */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Payment Method</Text>
 
@@ -440,6 +447,7 @@ export default function CheckoutScreen() {
             </View>
           ) : null}
 
+          {/* UI: Bank Transfer Details & Upload - Shown only if 'Bank Transfer' is selected */}
           {paymentMethod === 'Bank Transfer' && stallBankDetails && (
             <View style={styles.subSection}>
               <View style={styles.bankInfoBox}>
@@ -475,6 +483,7 @@ export default function CheckoutScreen() {
 
       </ScrollView>
 
+      {/* UI: Footer Section - The main Call-To-Action button to place the order */}
       <View style={styles.footer}>
         <TouchableOpacity
           style={[styles.placeOrderBtn, loading ? styles.disabledBtn : null]}

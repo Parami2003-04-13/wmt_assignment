@@ -1,3 +1,5 @@
+// Order Service Layer
+// Handles complex business logic and database operations for creating an order.
 const Order = require('../models/Order');
 const Payment = require('../models/Payment');
 const Meal = require('../models/Meal');
@@ -38,6 +40,7 @@ async function placeOrderCommit({
     paymentStatus: orderPaymentStatus,
   });
 
+  // Database Connection: Saves the newly created order to the MongoDB database.
   await newOrder.save();
 
   const newPayment = new Payment({
@@ -51,8 +54,10 @@ async function placeOrderCommit({
     cardLastFour: cardLastFour || '',
   });
 
+  // Database Connection: Saves the associated payment record.
   await newPayment.save();
 
+  // Logic/Database Update: Iterates through each ordered item and decrements the meal stock quantity.
   for (const item of items) {
     await Meal.findByIdAndUpdate(item.meal, {
       $inc: { quantity: -item.quantity },

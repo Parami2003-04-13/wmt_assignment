@@ -1,3 +1,5 @@
+// Database Connection Setup
+// Connects the Node.js backend to the MongoDB database using Mongoose.
 const mongoose = require('mongoose');
 
 let cached = global.__mongoCache;
@@ -10,6 +12,7 @@ if (!cached) {
  * instead of stacking new connects (which causes intermittent failures).
  */
 async function connectDB() {
+  // Logic: Retrieves the MongoDB connection string from environment variables.
   const mongoUri = process.env.MONGO_URI;
   if (!mongoUri) {
     throw new Error('MONGO_URI is not defined');
