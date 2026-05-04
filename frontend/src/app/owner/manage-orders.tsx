@@ -225,7 +225,7 @@ export default function ManageOrdersScreen() {
       const res = await api.patch(`orders/${orderId}`, updates);
       const updated = res.data;
       fetchOrders();
-      setSelectedOrder((prev) =>
+      setSelectedOrder((prev: any) =>
         prev && prev._id === orderId
           ? { ...prev, ...updated, user: updated.user ?? prev.user }
           : prev

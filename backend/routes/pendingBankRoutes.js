@@ -108,6 +108,40 @@ router.get('/stall/:stallId', async (req, res) => {
   }
 });
 
+router.get('/count/stall/:stallId', async (req, res) => {
+  try {
+    const stallId = req.params.stallId;
+    if (!mongoose.Types.ObjectId.isValid(stallId)) {
+      return res.json({ count: 0 });
+    }
+
+    const auth = await authUserFromRequest(req);
+    if (!auth) {
+      return res.status(401).json({ message: 'Not authorized' });
+    }
+
+    const { ok } = await stallCanManageMeals(
+      stallId,
+      auth._id.toString(),
+      auth.role,
+      auth.staffStallId ? String(auth.staffStallId) : null
+    );
+    if (!ok) {
+      return res.status(403).json({ message: 'Cannot view count for this stall.' });
+    }
+
+    const count = await PendingBankTransfer.countDocuments({
+      stall: stallId,
+      status: 'PendingReview',
+    });
+
+    res.json({ count });
+  } catch (err) {
+    console.error('Count pending bank transfers error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 router.patch('/:id/approve', async (req, res) => {
   try {
     const pending = await PendingBankTransfer.findById(req.params.id);

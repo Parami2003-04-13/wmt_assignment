@@ -58,6 +58,7 @@ export default function StallManagement() {
   const [menuManageOpen, setMenuManageOpen] = useState(false);
   const [selectedManageCategory, setSelectedManageCategory] = useState<string | null>(null);
   const [availBusyId, setAvailBusyId] = useState<string | null>(null);
+  const [pendingPaymentsCount, setPendingPaymentsCount] = useState(0);
 
   const stallId = Array.isArray(id) ? id[0] : id;
 
@@ -93,12 +94,23 @@ export default function StallManagement() {
     }
   }, [stallId]);
 
+  const fetchPendingPaymentsCount = useCallback(async () => {
+    if (!stallId) return;
+    try {
+      const response = await api.get(`/pending-bank-transfers/count/stall/${stallId}`);
+      setPendingPaymentsCount(response.data.count);
+    } catch {
+      console.error('Fetch pending payments count error');
+    }
+  }, [stallId]);
+
   useEffect(() => {
     setLoading(true);
     fetchStallDetails();
     fetchMeals();
     fetchUnread();
-  }, [stallId, fetchStallDetails, fetchMeals, fetchUnread]);
+    fetchPendingPaymentsCount();
+  }, [stallId, fetchStallDetails, fetchMeals, fetchUnread, fetchPendingPaymentsCount]);
 
   useEffect(() => {
     let alive = true;
@@ -127,11 +139,11 @@ export default function StallManagement() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([fetchStallDetails(), fetchMeals(), fetchUnread()]);
+      await Promise.all([fetchStallDetails(), fetchMeals(), fetchUnread(), fetchPendingPaymentsCount()]);
     } finally {
       setRefreshing(false);
     }
-  }, [fetchStallDetails, fetchMeals, fetchUnread]);
+  }, [fetchStallDetails, fetchMeals, fetchUnread, fetchPendingPaymentsCount]);
 
   const handleStaffLogout = async () => {
     await clearAuthStorage();
@@ -717,7 +729,14 @@ export default function StallManagement() {
                       params: { stallId: String(stallId), stallName: stall?.name ?? '' },
                     })
                   }>
-                  <MaterialCommunityIcons name="credit-card-outline" size={18} color={COLORS.primary} />
+                  <View style={{ position: 'relative' }}>
+                    <MaterialCommunityIcons name="credit-card-outline" size={18} color={COLORS.primary} />
+                    {pendingPaymentsCount > 0 ? (
+                      <View style={styles.badge}>
+                        <Text style={styles.badgeText}>{pendingPaymentsCount}</Text>
+                      </View>
+                    ) : null}
+                  </View>
                   <Text style={styles.menuActionText}>Manage payments</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -1117,6 +1136,26 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.danger,
     borderWidth: 1.5,
     borderColor: '#fff',
+  },
+  badge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: COLORS.danger,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#fff',
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '900',
+    textAlign: 'center',
   },
 
   /** Menu management — same cover + sheet stack as main stall detail */
