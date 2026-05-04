@@ -37,6 +37,7 @@ export default function OrderSuccessScreen() {
   const isBankTransfer = paymentMethod === 'Bank Transfer';
   const verificationPending = normalizeParam(params.verificationPending as string | string[] | undefined) === '1';
   const submissionIdRaw = normalizeParam(params.submissionId as string | string[] | undefined);
+  // UI Logic: Parses URL parameters to determine whether the user completed a normal order or just submitted a bank transfer for verification.
   const submissionRefTail =
     submissionIdRaw.length >= 6 ? submissionIdRaw.slice(-6).toUpperCase() : submissionIdRaw.toUpperCase();
 
@@ -56,6 +57,7 @@ export default function OrderSuccessScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* UI: Main Content Area - Shows success icon, title, and descriptive text */}
       <View style={styles.content}>
         <View
           style={[
@@ -72,6 +74,7 @@ export default function OrderSuccessScreen() {
         <Text style={styles.title}>{titleText}</Text>
         <Text style={styles.subtitle}>{subtitleText}</Text>
 
+        {/* UI: Order ID / Reference Card - Highlights the unique identifier for the order or submission */}
         {showSubmissionRef ? (
           <View style={styles.orderIdCard}>
             <Text style={styles.orderIdLabel}>Reference</Text>
@@ -100,6 +103,7 @@ export default function OrderSuccessScreen() {
         </Text>
       </View>
 
+      {/* UI: Footer Buttons - Navigation options post-success */}
       <View style={styles.footer}>
         <TouchableOpacity 
           style={styles.doneBtn} 

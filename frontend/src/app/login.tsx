@@ -89,9 +89,10 @@ export default function LoginScreen() {
       >
         <View style={styles.header}>
           <View style={styles.logoContainer}>
-            <Image 
-              source={{ uri: 'file:///C:/Users/malsh/.gemini/antigravity/brain/55884d5d-4c4e-4152-aaec-d5b451480081/campusbites_logo_1774873960810.png' }} 
-              style={styles.logo} 
+            <Image
+              source={require('../../assets/images/campusbites-logo-minimal.png')}
+              style={styles.logo}
+              resizeMode="contain"
             />
           </View>
           <Text style={styles.appTitle}>CampusBites</Text>
@@ -149,9 +150,7 @@ export default function LoginScreen() {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.forgotBtn}>
-            <Text style={styles.forgotText}>Forgot Password?</Text>
-          </TouchableOpacity>
+         
 
           <View style={{ height: 2, backgroundColor: '#E1E4E8', marginVertical: 30, opacity: 0.5 }} />
 
@@ -159,7 +158,7 @@ export default function LoginScreen() {
             style={[styles.signupBtnOutline, { backgroundColor: COLORS.primary, borderColor: COLORS.primary, marginBottom: 12 }]} 
             onPress={() => router.push('/signup')}
           >
-            <Text style={[styles.signupBtnText, { color: '#fff' }]}>Sign Up as Student</Text>
+            <Text style={[styles.signupBtnText, { color: '#fff' }]}>Sign Up as Customer</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.signupBtnOutline} onPress={() => router.push('/signup_owner')}>
@@ -191,21 +190,23 @@ const styles = StyleSheet.create({
   logoContainer: {
     width: 100,
     height: 100,
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.surface,
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
-    shadowColor: COLORS.primaryDark,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 15,
-    elevation: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
   logo: {
-    width: 100,
-    height: 100,
-    borderRadius: 24,
+    width: 88,
+    height: 88,
+    borderRadius: 20,
   },
   appTitle: {
     fontSize: 28,

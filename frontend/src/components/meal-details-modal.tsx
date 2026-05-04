@@ -120,23 +120,6 @@ export default function MealDetailsModal({ visible, onClose, meal }: MealDetails
               <Text style={styles.sectionTitle}>Description</Text>
               <Text style={styles.description}>{meal.description}</Text>
 
-              <View style={styles.actionRow}>
-                <TouchableOpacity style={styles.orderBtn} onPress={handleAddToCart}>
-                  <MaterialCommunityIcons name="cart-outline" size={22} color="#fff" />
-                  <Text style={styles.orderBtnText}>Add to cart</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  style={styles.reviewBtn} 
-                  onPress={() => {
-                    onClose();
-                    router.push({ pathname: '/user/add-review', params: { mealId: meal._id } });
-                  }}
-                > 
-                  <MaterialCommunityIcons name="star-outline" size={22} color={PRIMARY} />
-                  <Text style={styles.reviewBtnText}>Add Review</Text>
-                </TouchableOpacity>
-              </View>
               {!isOutOfStock && (
                 <View style={styles.quantitySection}>
                   <Text style={styles.sectionTitle}>Select Quantity</Text>
@@ -173,6 +156,17 @@ export default function MealDetailsModal({ visible, onClose, meal }: MealDetails
                 <Text style={styles.orderBtnText}>
                   {isOutOfStock ? 'Currently Unavailable' : 'Add to cart'}
                 </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.reviewBtn} 
+                onPress={() => {
+                  onClose();
+                  router.push({ pathname: '/user/add-review', params: { mealId: meal._id } });
+                }}
+              > 
+                <MaterialCommunityIcons name="star-outline" size={22} color={PRIMARY} />
+                <Text style={styles.reviewBtnText}>Add Review</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -262,7 +256,7 @@ const styles = StyleSheet.create({
     marginBottom: 20
   },
   qtyText: { fontSize: 13, color: PRIMARY, fontWeight: '700', marginLeft: 6 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: TEXT_DARK, marginBottom: 12 },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: TEXT_DARK, marginBottom: 12, textAlign: 'center' },
   description: { fontSize: 15, color: TEXT_GRAY, lineHeight: 22, marginBottom: 20 },
   actionRow: {
     flexDirection: 'row',
@@ -278,7 +272,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8F9FA',
     borderRadius: 14,
     padding: 8,
-    alignSelf: 'flex-start',
+    alignSelf: 'center',
   },
   qtyBtn: {
     width: 40,
@@ -304,7 +298,7 @@ const styles = StyleSheet.create({
     color: TEXT_DARK,
   },
   orderBtn: {
-    flex: 1,
+    width: '100%',
     backgroundColor: PRIMARY,
     flexDirection: 'row',
     justifyContent: 'center',
@@ -324,7 +318,8 @@ const styles = StyleSheet.create({
   },
   orderBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16, marginLeft: 10 },
   reviewBtn: {
-    flex: 1,
+    width: '100%',
+    marginTop: 12,
     backgroundColor: PRIMARY_SOFT,
     flexDirection: 'row',
     padding: 16,

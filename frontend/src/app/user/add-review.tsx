@@ -18,6 +18,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import StarRating from '../../components/StarRating';
 import api, { getStoredUser } from '../../services/api';
+import { ensureRemoteImageUrl } from '../../services/uploadImage';
 
 const CreateReviewScreen = () => {
   const router = useRouter();
@@ -119,11 +120,31 @@ const CreateReviewScreen = () => {
 
     setLoading(true);
     try {
+      const trimmedReviewImage = typeof image === 'string' ? image.trim() : '';
+      let imageForApi: string | null = trimmedReviewImage || null;
+      if (imageForApi) {
+        try {
+          imageForApi = await ensureRemoteImageUrl(imageForApi, 'reviews');
+        } catch (uploadErr: any) {
+          console.error(uploadErr);
+          Alert.alert(
+            'Upload failed',
+            uploadErr?.response?.data?.message ||
+              uploadErr?.message ||
+              'Could not upload the review photo.'
+          );
+          setLoading(false);
+          return;
+        }
+      } else {
+        imageForApi = null;
+      }
+
       if (isEditing && reviewId) {
         await api.put(`/reviews/${reviewId}`, {
           rating,
           comment: comment.trim(),
-          image,
+          image: imageForApi,
         });
         await fetchReviews();
         Alert.alert('Success', 'Your review has been updated!', [
@@ -134,7 +155,7 @@ const CreateReviewScreen = () => {
           meal: mealId,
           rating,
           comment: comment.trim(),
-          image,
+          image: imageForApi,
         });
         await fetchReviews();
         Alert.alert('Success', 'Thank you for your review!', [

@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "wmt_assignment",
+    "name": "CampusBites",
     "slug": "wmt_assignment",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/campusbites-logo-minimal.png",
     "scheme": "wmtassignment",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -12,14 +12,16 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#E7F3F2",
+        "foregroundImage": "./assets/images/campusbites-logo-minimal.png"
       },
       "predictiveBackGestureEnabled": false,
       "usesCleartextTraffic": true,
-      "package": "com.anonymous.wmt_assignment"
+      "package": "com.anonymous.wmt_assignment",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "output": "static",
@@ -30,10 +32,10 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#E7F3F2",
           "android": {
-            "image": "./assets/images/splash-icon.png",
-            "imageWidth": 76
+            "image": "./assets/images/campusbites-logo-minimal.png",
+            "imageWidth": 120
           }
         }
       ],
@@ -48,6 +50,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f22e5a15-c93a-40de-8230-7029708b118a"
+      }
     }
   }
 }

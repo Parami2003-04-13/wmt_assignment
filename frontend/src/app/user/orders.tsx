@@ -32,10 +32,12 @@ const Text = (props: any) => (
   <RNText {...props} style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]} />
 );
 
+// Behavior: Extracts a safe display name for a meal item, falling back to 'Meal' if undefined.
 function orderLineLabel(item: any) {
   return item.meal?.name ?? item.name ?? 'Meal';
 }
 
+// Behavior: Safely extracts the image URI for a meal item.
 function orderLineImageUri(item: any): string | null {
   const raw = item.meal?.image;
   const s = typeof raw === 'string' ? raw.trim() : '';
@@ -43,6 +45,7 @@ function orderLineImageUri(item: any): string | null {
 }
 
 /** Friendly label so bank + Pending is not mistaken for “failed”. */
+// Behavior: Returns a user-friendly string for the payment status, specifically clarifying pending bank transfers.
 function paymentStatusLabel(order: any): string {
   const raw = order?.paymentStatus;
   const pm = order?.paymentMethod;
@@ -72,6 +75,7 @@ const USER_ORDER_FILTER_OPTIONS: { key: UserOrderFilterKey; label: string }[] = 
   { key: 'Cancelled', label: 'Cancelled' },
 ];
 
+// Behavior: Evaluates if an order matches the currently selected UI filter (e.g., 'active', 'Completed', etc.).
 function orderMatchesUserFilter(order: { status?: string }, filter: UserOrderFilterKey): boolean {
   const s = order.status ?? '';
   if (filter === 'all') return true;
@@ -87,6 +91,7 @@ export default function UserOrdersScreen() {
   const [pickupQrOrder, setPickupQrOrder] = useState<any | null>(null);
   const [statusFilter, setStatusFilter] = useState<UserOrderFilterKey>('all');
 
+  // Logic: Filters the orders based on the selected status chip ('All', 'Pending', etc).
   const filteredOrders = useMemo(
     () => orders.filter((o) => orderMatchesUserFilter(o, statusFilter)),
     [orders, statusFilter]
@@ -97,6 +102,7 @@ export default function UserOrdersScreen() {
       ? JSON.stringify({ orderId: String(pickupQrOrder.orderId).trim() })
       : '';
 
+  // Fetching Logic: Calls the backend API to retrieve all orders for the current user.
   const fetchOrders = async () => {
     try {
       const user = await getStoredUser();
@@ -115,11 +121,13 @@ export default function UserOrdersScreen() {
     fetchOrders();
   }, []);
 
+  // Behavior: Triggered when the user pulls down the list. Sets refreshing state and re-fetches orders.
   const onRefresh = () => {
     setRefreshing(true);
     fetchOrders();
   };
 
+  // Behavior: Maps a given order status string to its corresponding theme color.
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Pending': return WARNING;
@@ -132,6 +140,7 @@ export default function UserOrdersScreen() {
     }
   };
 
+  // Behavior: Maps a given payment status string to its corresponding theme color.
   const getPaymentStatusColor = (status: string) => {
     switch (status) {
       case 'Paid': return SUCCESS;
@@ -143,6 +152,7 @@ export default function UserOrdersScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      {/* UI: Header Section with Back Button, Title, and Refresh Icon */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <MaterialCommunityIcons name="arrow-left" size={24} color={TEXT_DARK} />
@@ -153,6 +163,7 @@ export default function UserOrdersScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* UI: Filter Bar - Horizontal scrollable list of status filters */}
       {!loading && orders.length > 0 ? (
         <View style={styles.filterBar}>
           <ScrollView
@@ -185,6 +196,7 @@ export default function UserOrdersScreen() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
+        {/* UI: Conditional Rendering based on state (Loading, Empty, No Filter Match, or Order List) */}
         {loading ? (
           <ActivityIndicator color={PRIMARY} style={{ marginTop: 50 }} />
         ) : orders.length === 0 ? (
@@ -204,6 +216,7 @@ export default function UserOrdersScreen() {
             </TouchableOpacity>
           </View>
         ) : (
+          /* UI: Order Card List - Maps through filtered orders and displays each as a card */
           filteredOrders.map((order) => (
             <View key={order._id} style={styles.orderCard}>
               <View style={styles.orderHeader}>
@@ -262,6 +275,7 @@ export default function UserOrdersScreen() {
                 <Text style={styles.bankVerifyHint}>Staff are verifying your transfer; you will be notified when payment is confirmed.</Text>
               ) : null}
 
+              {/* UI: QR Code Button - Only visible when order status is 'Ready' */}
               {order.status === 'Ready' ? (
                 <TouchableOpacity
                   style={styles.scanQrBtn}
@@ -285,6 +299,7 @@ export default function UserOrdersScreen() {
         )}
       </ScrollView>
 
+      {/* UI: QR Code Modal - Displays the pickup QR code when a user clicks the Scan QR button */}
       <Modal
         visible={pickupQrOrder !== null}
         transparent

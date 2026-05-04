@@ -38,6 +38,7 @@ export default function AdminApprovalDashboard() {
   const [activeTab, setActiveTab] = useState<'pending' | 'approved'>('pending');
 
   useEffect(() => {
+    //check if user is admin
     let isMounted = true;
     const checkRole = async () => {
       const user = await getStoredUser();
@@ -60,12 +61,14 @@ export default function AdminApprovalDashboard() {
   }, []);
 
   useEffect(() => {
+    //set edit phone and address
     if (selectedStall) {
       setEditPhone(String(selectedStall.phone ?? ''));
       setEditAddress(String(selectedStall.address ?? ''));
     }
   }, [selectedStall]);
 
+  //fetch all stalls
   const fetchAllStalls = async () => {
     try {
       const response = await api.get('/stalls');
@@ -74,7 +77,7 @@ export default function AdminApprovalDashboard() {
       console.error('Fetch all stalls error:', error);
     }
   };
-
+//handle reject
   const handleReject = async () => {
     if (!selectedStall) return;
     
@@ -97,6 +100,7 @@ export default function AdminApprovalDashboard() {
     ]);
   };
 
+  //handle approve
   const handleApprove = async () => {
     if (!selectedStall) return;
     setApproving(true);
@@ -112,11 +116,13 @@ export default function AdminApprovalDashboard() {
     }
   };
 
+  //handle open stall
   const handleOpenStall = (stall: any) => {
     setSelectedStall(stall);
     setModalVisible(true);
   };
 
+  //handle save contact
   const handleSaveContact = async () => {
     if (!selectedStall) return;
     const phone = editPhone.trim();
@@ -125,7 +131,7 @@ export default function AdminApprovalDashboard() {
       Alert.alert('Required', 'Phone and address cannot be empty.');
       return;
     }
-
+//save contact
     setSavingContact(true);
     try {
       const { data } = await api.patch(`/stalls/${selectedStall._id}`, {
@@ -143,6 +149,7 @@ export default function AdminApprovalDashboard() {
     }
   };
 
+  //handle logout
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
       { text: 'Cancel', style: 'cancel' },
@@ -165,6 +172,7 @@ export default function AdminApprovalDashboard() {
 
   const firstName = userName.trim().split(/\s+/)[0] || userName;
 
+  //loading
   if (loading) {
     return (
       <View style={styles.loadingWrap}>
@@ -174,10 +182,11 @@ export default function AdminApprovalDashboard() {
     );
   }
 
+  //admin approval dashboard
   return (
+    //admin approval dashboard
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.primaryDark} translucent={false} />
-
       <View style={styles.hero}>
         <View style={styles.heroTopRow}>
           <View style={{ flex: 1 }}>
@@ -189,7 +198,6 @@ export default function AdminApprovalDashboard() {
             <MaterialCommunityIcons name="logout" size={22} color="#fff" />
           </TouchableOpacity>
         </View>
-
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{pendingCount}</Text>
@@ -204,7 +212,6 @@ export default function AdminApprovalDashboard() {
             <Text style={styles.statLabel}>Total</Text>
           </View>
         </View>
-
         <View style={styles.tabsWrap}>
           <Pressable
             onPress={() => setActiveTab('pending')}
@@ -224,7 +231,6 @@ export default function AdminApprovalDashboard() {
           </Pressable>
         </View>
       </View>
-
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           {activeTab === 'pending' ? (

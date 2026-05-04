@@ -19,6 +19,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../../services/api';
+import { ensureRemoteImageUrl } from '../../services/uploadImage';
 import { COLORS } from '../../theme/colors';
 import { OwnerPickupQrScannerModal } from '../../components/OwnerPickupQrScanner';
 import { pickupCodeMatchesOrder } from '../../utils/pickupVerification';
@@ -291,7 +292,20 @@ export default function ManageOrdersScreen() {
 
     if (!result.canceled && result.assets[0].base64) {
       const base64 = `data:image/jpeg;base64,${result.assets[0].base64}`;
-      handleUpdateOrder(orderId, { orderPhoto: base64 });
+      try {
+        const url = await ensureRemoteImageUrl(base64, 'orders/handoff_photo');
+        if (url) {
+          handleUpdateOrder(orderId, { orderPhoto: url });
+        }
+      } catch (uploadErr: any) {
+        console.error(uploadErr);
+        Alert.alert(
+          'Upload failed',
+          uploadErr?.response?.data?.message ||
+            uploadErr?.message ||
+            'Could not upload the order photo.'
+        );
+      }
     }
   };
 

@@ -18,8 +18,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import api from '../../../services/api';
 import MealDetailsModal from '../../../components/meal-details-modal';
+import StallLocationMapView from '../../../components/stall-location-map-view';
 import UserSupportTicketModal from '../../../components/user-support-ticket-modal';
 import { COLORS } from '../../../theme/colors';
+import { hasValidStallCoordinates, openStallInMaps } from '../../../utils/stallLocation';
 
 const Text = (props: any) => (
   <RNText {...props} style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]} />
@@ -33,10 +35,10 @@ const PRESET_MEAL_CATEGORIES = ['Breakfast', 'Lunch', 'Snacks', 'Drinks'] as con
 
 const UNCATEGORIZED_LABEL = 'Uncategorized';
 
+const STALL_PROFILE_FALLBACK = require('../../../../assets/images/campusbites-logo-minimal.png');
+
 const CHIP_INACTIVE_BG = '#E8F4F3';
 const CHIP_BORDER = '#C5E8E6';
-const CALORIE_ORANGE_BG = '#FFF4ED';
-const CALORIE_ORANGE_TEXT = '#C45C31';
 
 /** Display "HH:mm" (24h) as a short readable time. */
 function formatOpenTime(raw: string | null | undefined): string {
@@ -50,7 +52,8 @@ function formatOpenTime(raw: string | null | undefined): string {
   const h12 = h % 12 || 12;
   return `${h12}:${min} ${ampm}`;
 }
-
+ 
+//stalls details page
 export default function UserStallDetails() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -67,6 +70,7 @@ export default function UserStallDetails() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [unreadSupportTickets, setUnreadTickets] = useState(0);
 
+  
   const fetchAll = useCallback(async () => {
     if (!stallId) return;
     const [stallRes, mealsRes, unreadRes] = await Promise.all([
@@ -79,6 +83,7 @@ export default function UserStallDetails() {
     setUnreadTickets(unreadRes.data.count);
   }, [stallId]);
 
+  //fetch all data for stall page
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -107,15 +112,21 @@ export default function UserStallDetails() {
     }
   }, [fetchAll]);
 
+  //check if stall is open or closed
   const isOpen = stall?.status === 'Open';
   const statusColor = isOpen ? COLOR_OPEN : COLOR_CLOSED;
-  const statusBg = isOpen ? '#DCF5ED' : '#FDECEC';
 
+  //cover and profile image (trim so spaces / bad strings do not break Image)
+  const coverTrim =
+    typeof stall?.coverPhoto === 'string' ? stall.coverPhoto.trim() : '';
+  const profileTrim =
+    typeof stall?.profilePhoto === 'string' ? stall.profilePhoto.trim() : '';
   const coverUri =
-    stall?.coverPhoto ||
+    coverTrim ||
     'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=1000';
-  const profileUri = stall?.profilePhoto || 'https://via.placeholder.com/150';
+  const profileSource = profileTrim ? { uri: profileTrim } : STALL_PROFILE_FALLBACK;
 
+  //meal category buckets
   const mealCategoryBuckets = useMemo(() => {
     const extras = new Set<string>();
     let hasUncategorized = false;
@@ -137,6 +148,7 @@ export default function UserStallDetails() {
     return list;
   }, [mealCategoryBuckets]);
 
+  //filtered sorted meals
   const filteredSortedMeals = useMemo(() => {
     let m = [...meals];
     if (selectedCategory === UNCATEGORIZED_LABEL) {
@@ -148,6 +160,7 @@ export default function UserStallDetails() {
     return m;
   }, [meals, selectedCategory]);
 
+  //grouped entries
   const groupedEntries = useMemo(() => {
     if (selectedCategory) return [] as [string, any[]][];
     const map: Record<string, any[]> = {};
@@ -195,6 +208,7 @@ export default function UserStallDetails() {
     }
   };
 
+  //dial stall phone number
   const dialStall = () => {
     const raw = stall?.phone;
     if (!raw || typeof raw !== 'string') return;
@@ -203,52 +217,47 @@ export default function UserStallDetails() {
     Linking.openURL(`tel:${digits}`).catch(() => {});
   };
 
-  const renderMealCard = (meal: any) => {
+  //meal row
+  const renderMealRow = (meal: any, isLast: boolean) => {
     const soldOut = (meal.quantity ?? 0) <= 0;
+    const qty = Number(meal.quantity ?? 0);
+    const desc =
+      (typeof meal.description === 'string' && meal.description.trim()) || '';
     return (
-      <View key={meal._id} style={styles.mealCard}>
-        <Pressable style={styles.mealCardMain} onPress={() => openMeal(meal)}>
+      <React.Fragment key={meal._id}>
+        <Pressable
+          style={({ pressed }) => [styles.mealRow, pressed && styles.mealRowPressed]}
+          onPress={() => openMeal(meal)}
+          android_ripple={{ color: 'rgba(15, 91, 87, 0.06)' }}
+        >
           <Image
             source={{ uri: meal.image || 'https://via.placeholder.com/160' }}
             style={styles.mealThumb}
           />
-          <View style={styles.mealCardBody}>
-            <View style={styles.mealTitleRow}>
-              <Text style={styles.mealName} numberOfLines={1}>
-                {meal.name}
-              </Text>
-              <Text style={styles.mealPrice}>Rs. {meal.price}</Text>
-            </View>
-            <Text style={styles.mealDesc} numberOfLines={2}>
-              {meal.description || ' '}
+          <View style={styles.mealRowBody}>
+            <Text style={styles.mealName} numberOfLines={2}>
+              {meal.name}
             </Text>
-            <View style={styles.mealCardFooter}>
-              <View style={styles.mealMetaLeft}>
-                {String(meal?.category ?? '').trim() ? (
-                  <View style={styles.mealCatTag}>
-                    <Text style={styles.mealCatTagText}>{String(meal.category).trim()}</Text>
-                  </View>
-                ) : (
-                  <View style={[styles.mealCatTag, styles.mealCatTagMuted]}>
-                    <Text style={styles.mealCatTagTextMuted}>{UNCATEGORIZED_LABEL}</Text>
-                  </View>
-                )}
-                <View style={[styles.stockPill, soldOut && styles.stockPillMuted]}>
-                  <Text style={[styles.stockPillText, soldOut && styles.stockPillTextMuted]}>
-                    {soldOut ? 'Sold out' : `${meal.quantity} left`}
-                  </Text>
-                </View>
-              </View>
-            </View>
+            <Text style={styles.mealPriceRow}>Rs. {meal.price}</Text>
+            {desc ? (
+              <Text style={styles.mealDescRow} numberOfLines={1}>
+                {desc}
+              </Text>
+            ) : null}
+            <Text
+              style={[styles.mealStockRow, soldOut && styles.mealStockRowMuted]}
+              numberOfLines={1}>
+              {soldOut ? 'Sold out' : `${qty} available`}
+            </Text>
           </View>
+          <MaterialCommunityIcons name="chevron-right" size={22} color={COLORS.border} />
         </Pressable>
-        <Pressable style={styles.viewPill} onPress={() => openMeal(meal)}>
-          <Text style={styles.viewPillText}>View</Text>
-        </Pressable>
-      </View>
+        {!isLast ? <View style={styles.mealRowDivider} /> : null}
+      </React.Fragment>
     );
   };
 
+  //loading
   if (loading && !stall) {
     return (
       <View style={styles.loadingContainer}>
@@ -263,6 +272,7 @@ export default function UserStallDetails() {
   const bottomReserve = Math.max(insets.bottom, 12) + 24;
 
   return (
+    //stalls details page
     <View style={styles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} translucent={false} />
 
@@ -283,6 +293,7 @@ export default function UserStallDetails() {
         </View>
       </View>
 
+    
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: bottomReserve }}
@@ -298,64 +309,103 @@ export default function UserStallDetails() {
         <View style={styles.heroWrap}>
           <Image source={{ uri: coverUri }} style={styles.heroImage} />
           <View style={styles.heroOverlay} />
-          <View style={styles.ratingPill}>
-            <MaterialCommunityIcons name="star" size={16} color="#FFB800" />
-            <Text style={styles.ratingPillText}>Ratings on dishes</Text>
-          </View>
         </View>
 
         <View style={styles.sheet}>
           <View style={styles.sheetHandle} />
 
-          <View style={styles.profileRow}>
+          <View style={styles.profileHeader}>
             <View style={styles.avatarRing}>
-              <Image source={{ uri: profileUri }} style={styles.profileAvatar} />
+              <Image source={profileSource} style={styles.profileAvatar} />
             </View>
-            <View style={styles.titleBlock}>
-              <Text style={styles.stallTitle} numberOfLines={2}>
-                {stall.name}
-              </Text>
-              <View style={[styles.statusPill, { backgroundColor: statusBg }]}>
-                <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-                <Text style={[styles.statusPillText, { color: statusColor }]}>{isOpen ? 'Open' : 'Closed'}</Text>
+            <View style={styles.titleColumn}>
+              <View style={styles.titleStatusRow}>
+                <Text style={styles.stallTitle} numberOfLines={2}>
+                  {stall.name}
+                </Text>
+                <View
+                  style={[
+                    styles.statusPill,
+                    isOpen ? styles.statusPillOpen : styles.statusPillClosed,
+                  ]}>
+                  
+                  <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+                  <Text style={[styles.statusPillText, { color: statusColor }]}>
+                    {isOpen ? 'Open' : 'Closed'}
+                  </Text>
+                </View>
               </View>
+              <Text style={styles.stallTagline} numberOfLines={4}>
+                {(typeof stall.description === 'string' && stall.description.trim()) ||
+                  'No description provided.'}
+              </Text>
             </View>
           </View>
 
-          <Text style={styles.stallTagline}>{stall.description || 'No description provided.'}</Text>
-
-          <View style={styles.metaRow}>
-            <View style={styles.metaIconBg}>
-              <MaterialCommunityIcons name="clock-outline" size={18} color={COLORS.primary} />
-            </View>
-            <View style={styles.metaTextCol}>
-              <Text style={styles.metaLabel}>Open hours</Text>
-              <Text style={styles.metaValue}>{hoursLine || 'Hours not listed'}</Text>
-            </View>
-          </View>
-
-          {!!stall.phone && (
-            <Pressable style={styles.metaRow} onPress={dialStall}>
+          <View style={styles.infoCard}>
+            <View style={styles.metaRow}>
               <View style={styles.metaIconBg}>
-                <MaterialCommunityIcons name="phone-outline" size={18} color={COLORS.primary} />
+                <MaterialCommunityIcons name="clock-outline" size={18} color={COLORS.primary} />
               </View>
               <View style={styles.metaTextCol}>
-                <Text style={styles.metaLabel}>Phone</Text>
-                <Text style={[styles.metaValue, styles.metaValueLink]}>{stall.phone}</Text>
+                <Text style={styles.metaLabel}>Open hours</Text>
+                <Text style={styles.metaValue}>{hoursLine || 'Hours not listed'}</Text>
               </View>
-              <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.textGray} />
-            </Pressable>
-          )}
-
-          {!!stall.address && (
-            <View style={styles.locationRow}>
-              <MaterialCommunityIcons name="map-marker-outline" size={18} color={COLORS.textGray} />
-              <Text style={styles.locationText} numberOfLines={2}>
-                {stall.address}
-              </Text>
             </View>
-          )}
 
+            {!!stall.phone && (
+              <Pressable style={styles.metaRow} onPress={dialStall}>
+                <View style={styles.metaIconBg}>
+                  <MaterialCommunityIcons name="phone-outline" size={18} color={COLORS.primary} />
+                </View>
+                <View style={styles.metaTextCol}>
+                  <Text style={styles.metaLabel}>Phone</Text>
+                  <Text style={[styles.metaValue, styles.metaValueLink]}>{stall.phone}</Text>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.textGray} />
+              </Pressable>
+            )}
+
+            {!!stall.address && (
+              <View style={styles.metaRow}>
+                <View style={styles.metaIconBg}>
+                  <MaterialCommunityIcons name="map-marker-outline" size={18} color={COLORS.primary} />
+                </View>
+                <View style={styles.metaTextCol}>
+                  <Text style={styles.metaLabel}>Address</Text>
+                  <Text style={styles.metaValue}>{stall.address}</Text>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {hasValidStallCoordinates(stall.latitude, stall.longitude) ? (
+            <View style={styles.mapSection}>
+              <Text style={styles.sectionHeading}>Location map</Text>
+              <View style={styles.mapCard}>
+                <View style={styles.mapEmbed}>
+                  <StallLocationMapView
+                    latitude={Number(stall.latitude)}
+                    longitude={Number(stall.longitude)}
+                    zoom={16}
+                  />
+                </View>
+                <Pressable
+                  style={styles.openMapsBtn}
+                  onPress={() =>
+                    Linking.openURL(
+                      openStallInMaps(Number(stall.latitude), Number(stall.longitude))
+                    )
+                  }
+                >
+                  <MaterialCommunityIcons name="map-search-outline" size={20} color="#fff" />
+                  <Text style={styles.openMapsBtnText}>Open in Maps</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
+
+          <Text style={styles.sectionHeading}>Menu</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -399,13 +449,19 @@ export default function UserStallDetails() {
             groupedEntries.map(([cat, list]) => (
               <View key={cat} style={styles.menuSection}>
                 <Text style={styles.menuSectionTitle}>{cat}</Text>
-                <View style={styles.mealsList}>{list.map((m) => renderMealCard(m))}</View>
+                <View style={styles.menuGroupSurface}>
+                  {list.map((m, idx) => renderMealRow(m, idx === list.length - 1))}
+                </View>
               </View>
             ))
           ) : (
             <View style={styles.menuSection}>
               <Text style={styles.menuSectionTitle}>{selectedCategory || 'Menu'}</Text>
-              <View style={styles.mealsList}>{filteredSortedMeals.map((m) => renderMealCard(m))}</View>
+              <View style={styles.menuGroupSurface}>
+                {filteredSortedMeals.map((m, idx) =>
+                  renderMealRow(m, idx === filteredSortedMeals.length - 1)
+                )}
+              </View>
             </View>
           )}
         </View>
@@ -417,8 +473,12 @@ export default function UserStallDetails() {
   );
 }
 
+//css styles
+
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: COLORS.surface },
+  //screen
+  screen: { flex: 1, backgroundColor: COLORS.background },
+  //loading container
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -427,21 +487,30 @@ const styles = StyleSheet.create({
   },
   loadingText: { marginTop: 12, fontSize: 15, color: COLORS.textGray },
 
+  //top bar
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 4,
-    paddingBottom: 10,
+    paddingHorizontal: 8,
+    paddingBottom: 12,
     backgroundColor: COLORS.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: 'rgba(15, 91, 87, 0.08)',
+    shadowColor: COLORS.primaryDark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
+  //top bar side
   topBarSide: {
     width: 112,
     flexDirection: 'row',
     alignItems: 'center',
   },
+  //top bar side right
   topBarSideRight: { justifyContent: 'flex-end', gap: 2 },
+  //top bar icon
   topBarIcon: {
     width: 40,
     height: 40,
@@ -449,16 +518,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  //wordmark wrap
   wordmarkWrap: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   wordmark: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: '900',
     color: COLORS.primary,
-    letterSpacing: -0.3,
+    letterSpacing: -0.4,
   },
   supportDot: {
     position: 'absolute',
@@ -473,149 +543,219 @@ const styles = StyleSheet.create({
   },
 
   heroWrap: {
-    height: 200,
+    height: 228,
     width: '100%',
     backgroundColor: COLORS.primarySoft,
     position: 'relative',
+    overflow: 'hidden',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
   },
   heroImage: { width: '100%', height: '100%', resizeMode: 'cover' },
-  heroOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(15, 91, 87, 0.18)' },
-  ratingPill: {
-    position: 'absolute',
-    right: 16,
-    bottom: 28,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: COLORS.surface,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  ratingPillText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: COLORS.textDark,
-  },
+  heroOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(11, 63, 60, 0.22)' },
 
   sheet: {
-    marginTop: -24,
+    marginTop: -28,
+    marginHorizontal: 10,
+    marginBottom: 8,
     backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    paddingHorizontal: 20,
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
+    paddingHorizontal: 18,
     paddingTop: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
+    paddingBottom: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(15, 91, 87, 0.1)',
+    shadowColor: COLORS.primaryDark,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
     elevation: 10,
   },
   sheetHandle: {
     alignSelf: 'center',
-    width: 40,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: COLORS.border,
-    marginBottom: 14,
-    opacity: 0.85,
+    width: 42,
+    height: 4,
+    borderRadius: 99,
+    backgroundColor: '#D8DCDE',
+    marginBottom: 16,
   },
 
-  profileRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 12 },
-  avatarRing: {
-    width: 76,
-    height: 76,
-    borderRadius: 20,
-    padding: 3,
-    backgroundColor: COLORS.surface,
-    borderWidth: 2,
-    borderColor: COLORS.primarySoft,
+  /** Logo left + title, badge & tagline in column — matches stall header reference */
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 16,
+    paddingTop: 2,
+    marginBottom: 4,
   },
-  profileAvatar: { width: '100%', height: '100%', borderRadius: 16, backgroundColor: COLORS.primarySoft },
-  titleBlock: { flex: 1, minWidth: 0 },
+  avatarRing: {
+    width: 72,
+    height: 72,
+    borderRadius: 18,
+    padding: 2,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  profileAvatar: { width: '100%', height: '100%', borderRadius: 15, backgroundColor: COLORS.primarySoft },
+  titleColumn: { flex: 1, minWidth: 0, paddingTop: 2 },
+  titleStatusRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 10,
+  },
   stallTitle: {
+    flexShrink: 1,
+    minWidth: 0,
     fontSize: 22,
     fontWeight: '900',
-    color: COLORS.primary,
-    letterSpacing: -0.3,
-    marginBottom: 8,
+    color: COLORS.primaryDark,
+    letterSpacing: -0.4,
+    marginRight: 4,
   },
   statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderRadius: 999,
-    alignSelf: 'flex-start',
+    flexShrink: 0,
+  },
+  statusPillOpen: {
+    backgroundColor: '#DCF5ED',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 172, 132, 0.28)',
+  },
+  statusPillClosed: {
+    backgroundColor: '#FDEDF0',
+    borderWidth: 1,
+    borderColor: 'rgba(238, 82, 83, 0.22)',
   },
   statusDot: { width: 7, height: 7, borderRadius: 4 },
   statusPillText: { fontSize: 12, fontWeight: '800' },
 
   stallTagline: {
-    fontSize: 15,
+    marginTop: 10,
+    fontSize: 14,
     color: COLORS.textGray,
-    lineHeight: 22,
-    marginBottom: 14,
+    lineHeight: 20,
+    fontWeight: '500',
+    marginBottom: 16,
+  },
+
+  infoCard: {
+    gap: 10,
+    marginBottom: 4,
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: 12,
+    paddingVertical: 13,
     paddingHorizontal: 14,
-    borderRadius: 14,
-    marginBottom: 8,
+    borderRadius: 16,
     backgroundColor: COLORS.background,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
   metaIconBg: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
     backgroundColor: COLORS.primarySoft,
     justifyContent: 'center',
     alignItems: 'center',
   },
   metaTextCol: { flex: 1, minWidth: 0 },
-  metaLabel: { fontSize: 11, fontWeight: '800', color: COLORS.textGray, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 },
+  metaLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: COLORS.textGray,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 3,
+  },
   metaValue: { fontSize: 15, color: COLORS.textDark, fontWeight: '700', lineHeight: 20 },
   metaValueLink: { color: COLORS.primary },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginTop: 8,
-    marginBottom: 18,
-    paddingHorizontal: 2,
-  },
-  locationText: { flex: 1, fontSize: 14, color: COLORS.textGray, fontWeight: '600', lineHeight: 20 },
 
-  categoriesScroll: { marginHorizontal: -20, marginBottom: 6 },
-  categoriesScrollContent: {
-    paddingHorizontal: 20,
-    paddingVertical: 4,
+  sectionHeading: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: COLORS.textDark,
+    letterSpacing: -0.2,
+    marginTop: 20,
+    marginBottom: 12,
+  },
+
+  mapSection: {
+    marginBottom: 4,
+  },
+  mapCard: {
+    borderRadius: 18,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+    marginBottom: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  mapEmbed: {
+    height: 200,
+    width: '100%',
+    backgroundColor: '#dfe8e7',
+  },
+  openMapsBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    backgroundColor: COLORS.primary,
+    borderBottomLeftRadius: 17,
+    borderBottomRightRadius: 17,
+  },
+  openMapsBtnText: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 15,
+  },
+
+  categoriesScroll: { marginHorizontal: -18, marginTop: -4, marginBottom: 10 },
+  categoriesScrollContent: {
+    paddingHorizontal: 18,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
   },
   categoryChip: {
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 11,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: CHIP_BORDER,
     backgroundColor: CHIP_INACTIVE_BG,
     marginRight: 10,
+    shadowColor: COLORS.primaryDark,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
   },
   categoryChipActive: {
     backgroundColor: COLORS.primary,
@@ -628,117 +768,79 @@ const styles = StyleSheet.create({
   },
   categoryTextActive: { color: '#fff' },
 
-  menuSection: { marginBottom: 8 },
+  menuSection: { marginBottom: 18 },
   menuSectionTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '900',
-    color: COLORS.primary,
-    marginBottom: 12,
-    marginTop: 4,
+    color: COLORS.primaryDark,
+    marginBottom: 10,
+    marginTop: 6,
+    letterSpacing: -0.25,
   },
 
-  mealsList: { gap: 12 },
-
-  mealCard: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: 10,
-    padding: 12,
-    borderRadius: 16,
+  menuGroupSurface: {
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(15, 91, 87, 0.12)',
     backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
+    overflow: 'hidden',
   },
-  mealCardMain: {
-    flex: 1,
+
+  mealRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    minWidth: 0,
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    gap: 14,
+    backgroundColor: COLORS.surface,
   },
-  mealThumb: { width: 72, height: 72, borderRadius: 14, backgroundColor: COLORS.primarySoft },
-  mealCardBody: { flex: 1, minWidth: 0 },
-  mealTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 8,
+  mealRowPressed: {
+    backgroundColor: 'rgba(15, 91, 87, 0.045)',
   },
+  mealThumb: {
+    width: 68,
+    height: 68,
+    borderRadius: 14,
+    backgroundColor: COLORS.primarySoft,
+  },
+  mealRowBody: { flex: 1, minWidth: 0 },
   mealName: {
-    flex: 1,
     fontSize: 15,
     fontWeight: '900',
-    color: COLORS.primary,
+    color: COLORS.textDark,
+    letterSpacing: -0.2,
+    lineHeight: 20,
+    marginBottom: 2,
   },
-  mealPrice: { fontSize: 15, fontWeight: '900', color: COLORS.primary },
-  mealDesc: { marginTop: 4, fontSize: 13, color: COLORS.textGray, lineHeight: 18 },
-  mealCardFooter: {
-    marginTop: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-  },
-  mealMetaLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  mealCatTag: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: COLORS.primarySoft,
-    borderWidth: 1,
-    borderColor: CHIP_BORDER,
-  },
-  mealCatTagMuted: {
-    backgroundColor: COLORS.background,
-    borderColor: COLORS.border,
-  },
-  mealCatTagText: {
-    fontSize: 11,
+  mealPriceRow: {
+    fontSize: 14,
     fontWeight: '800',
     color: COLORS.primary,
+    marginBottom: 2,
   },
-  mealCatTagTextMuted: {
-    fontSize: 11,
-    fontWeight: '800',
+  mealDescRow: {
+    fontSize: 13,
+    fontWeight: '500',
     color: COLORS.textGray,
+    lineHeight: 18,
+    marginBottom: 2,
   },
-  stockPill: {
-    alignSelf: 'flex-start',
-    backgroundColor: CALORIE_ORANGE_BG,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
+  mealStockRow: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: '700',
+    color: 'rgba(15, 91, 87, 0.65)',
+    letterSpacing: 0.1,
   },
-  stockPillMuted: {
-    backgroundColor: COLORS.background,
+  mealStockRowMuted: {
+    color: COLOR_CLOSED,
+    fontWeight: '600',
   },
-  stockPillText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: CALORIE_ORANGE_TEXT,
+  mealRowDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 16 + 68 + 14,
+    backgroundColor: 'rgba(15, 91, 87, 0.1)',
   },
-  stockPillTextMuted: { color: COLORS.textGray },
-
-  viewPill: {
-    alignSelf: 'center',
-    backgroundColor: COLORS.surface,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: COLORS.primary,
-  },
-  viewPillText: { fontSize: 13, fontWeight: '800', color: COLORS.primary },
 
   emptyWrap: { alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 },
   emptyTitle: { marginTop: 12, fontSize: 16, fontWeight: '800', color: COLORS.textDark },

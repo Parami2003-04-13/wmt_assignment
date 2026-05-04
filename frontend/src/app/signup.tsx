@@ -77,7 +77,7 @@ export default function SignupScreen() {
         name, 
         email: email.toLowerCase(), 
         password,
-        role: 'user' // Default to student/user role
+        role: 'user' // Default to customer role
       });
       
       Alert.alert('Success', 'Account created successfully! Please login.', [
@@ -102,9 +102,10 @@ export default function SignupScreen() {
             <MaterialCommunityIcons name="arrow-left" size={28} color={COLORS.textDark} />
           </TouchableOpacity>
           <View style={styles.logoContainer}>
-             <Image 
-              source={{ uri: 'file:///C:/Users/malsh/.gemini/antigravity/brain/55884d5d-4c4e-4152-aaec-d5b451480081/campusbites_logo_1774873960810.png' }} 
-              style={styles.logo} 
+            <Image
+              source={require('../../assets/images/campusbites-logo-minimal.png')}
+              style={styles.logo}
+              resizeMode="contain"
             />
           </View>
           <Text style={styles.appTitle}>Create Account</Text>
@@ -265,21 +266,23 @@ const styles = StyleSheet.create({
   logoContainer: {
     width: 80,
     height: 80,
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.surface,
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
-    shadowColor: COLORS.primaryDark,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
   },
   logo: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
+    width: 70,
+    height: 70,
+    borderRadius: 16,
   },
   appTitle: {
     fontSize: 28,

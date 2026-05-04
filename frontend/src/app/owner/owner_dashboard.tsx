@@ -21,6 +21,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import LeafletMap from '../../components/leaflet_map';
 import api, { clearAuthStorage, getStoredUser } from '../../services/api';
+import { ensureRemoteImageUrl } from '../../services/uploadImage';
 import { COLORS } from '../../theme/colors';
 
 const COLOR_OPEN = COLORS.success;
@@ -128,8 +129,33 @@ export default function OwnerDashboard() {
 
     setSaving(true);
     try {
+      let profilePhoto: string | null = stallData.profilePhoto;
+      let coverPhoto: string | null = stallData.coverPhoto;
+      let approvedDocument: string | null = stallData.approvedDocument;
+
+      try {
+        if (profilePhoto) {
+          profilePhoto = await ensureRemoteImageUrl(profilePhoto, 'stall/register/profile');
+        }
+        if (coverPhoto) {
+          coverPhoto = await ensureRemoteImageUrl(coverPhoto, 'stall/register/cover');
+        }
+        if (approvedDocument) {
+          approvedDocument = await ensureRemoteImageUrl(approvedDocument, 'stall/register/approval_docs');
+        }
+      } catch (uploadErr: any) {
+        Alert.alert(
+          'Upload failed',
+          uploadErr?.response?.data?.message || uploadErr?.message || 'Could not upload images.'
+        );
+        return;
+      }
+
       await api.post('/stalls', {
         ...stallData,
+        profilePhoto,
+        coverPhoto,
+        approvedDocument,
         latitude: region.latitude,
         longitude: region.longitude,
         managerId: userId,
@@ -160,13 +186,17 @@ export default function OwnerDashboard() {
       allowsEditing: true,
       aspect: type === 'profile' ? [1, 1] : type === 'cover' ? [16, 9] : undefined,
       quality: 1,
+      base64: true,
     });
 
     if (!result.canceled) {
-      if (type === 'profile') setStallData({ ...stallData, profilePhoto: result.assets[0].uri });
-      else if (type === 'cover')
-        setStallData({ ...stallData, coverPhoto: result.assets[0].uri });
-      else setStallData({ ...stallData, approvedDocument: result.assets[0].uri });
+      const a = result.assets[0];
+      const uri =
+        a.base64 != null ? `data:image/jpeg;base64,${a.base64}` : a.uri != null ? a.uri : null;
+      if (!uri) return;
+      if (type === 'profile') setStallData({ ...stallData, profilePhoto: uri });
+      else if (type === 'cover') setStallData({ ...stallData, coverPhoto: uri });
+      else setStallData({ ...stallData, approvedDocument: uri });
     }
   };
 
