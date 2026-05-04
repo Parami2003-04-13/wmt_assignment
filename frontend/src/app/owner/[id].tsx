@@ -58,6 +58,7 @@ export default function StallManagement() {
   const [menuManageOpen, setMenuManageOpen] = useState(false);
   const [selectedManageCategory, setSelectedManageCategory] = useState<string | null>(null);
   const [availBusyId, setAvailBusyId] = useState<string | null>(null);
+  const [deleteStallBusy, setDeleteStallBusy] = useState(false);
   /** Quantity before marking unavailable (qty→0); restored when toggled back on instead of defaulting to 25. */
   const qtyBeforeUnavailableRef = useRef<Record<string, number>>({});
 
@@ -228,6 +229,45 @@ export default function StallManagement() {
     } finally {
       setAvailBusyId(null);
     }
+  };
+
+  const handleDeleteStall = () => {
+    if (!stallId || deleteStallBusy) return;
+    Alert.alert(
+      'Delete stall',
+      'This removes the stall, all menu items, and staff accounts tied to this stall. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () =>
+            Alert.alert('Are you sure?', `Permanently delete “${stall?.name ?? 'this stall'}”?`, [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Delete stall',
+                style: 'destructive',
+                onPress: async () => {
+                  setDeleteStallBusy(true);
+                  try {
+                    await api.delete(`/stalls/${stallId}`);
+                    Alert.alert('Deleted', 'Your stall has been removed.', [
+                      { text: 'OK', onPress: () => router.replace('/owner/owner_dashboard') },
+                    ]);
+                  } catch (e: any) {
+                    Alert.alert(
+                      'Could not delete',
+                      e.response?.data?.message || 'Something went wrong. Try again.'
+                    );
+                  } finally {
+                    setDeleteStallBusy(false);
+                  }
+                },
+              },
+            ]),
+        },
+      ]
+    );
   };
 
   const confirmToggleStatus = () => {
@@ -704,6 +744,28 @@ export default function StallManagement() {
                     <Text style={styles.stallEditLinkText}>Hours, photos, phone & address</Text>
                     <MaterialCommunityIcons name="chevron-right" size={22} color={COLORS.textGray} />
                   </TouchableOpacity>
+                  {isStallOwner ? (
+                    <View style={styles.dangerZone}>
+                      <Text style={styles.dangerZoneTitle}>Danger zone</Text>
+                      <Text style={styles.dangerZoneBody}>
+                        Delete this stall if you no longer operate it here. Orders history may still exist on the platform.
+                      </Text>
+                      <TouchableOpacity
+                        style={[styles.deleteStallBtn, deleteStallBusy && { opacity: 0.65 }]}
+                        onPress={handleDeleteStall}
+                        disabled={deleteStallBusy}
+                        activeOpacity={0.88}>
+                        {deleteStallBusy ? (
+                          <ActivityIndicator color="#fff" />
+                        ) : (
+                          <>
+                            <MaterialCommunityIcons name="store-remove-outline" size={22} color="#fff" />
+                            <Text style={styles.deleteStallBtnText}>Delete stall</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  ) : null}
                 </>
               )}
             </View>
@@ -1091,6 +1153,28 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   staffInfoBannerText: { flex: 1, fontSize: 13, color: COLORS.textDark, lineHeight: 19, fontWeight: '600' },
+  dangerZone: {
+    marginTop: 20,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: '#FDECEC',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  dangerZoneTitle: { fontSize: 13, fontWeight: '900', color: COLORS.danger },
+  dangerZoneBody: { marginTop: 8, fontSize: 13, color: COLORS.textDark, lineHeight: 19 },
+  deleteStallBtn: {
+    marginTop: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    backgroundColor: COLORS.danger,
+  },
+  deleteStallBtnText: { fontSize: 15, fontWeight: '800', color: '#fff' },
 
   menuSectionHeader: {
     flexDirection: 'row',

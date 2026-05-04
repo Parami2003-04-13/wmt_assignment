@@ -187,7 +187,6 @@ export default function AdminApprovalDashboard() {
     //admin approval dashboard
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.primaryDark} translucent={false} />
-      //hero
       <View style={styles.hero}>
         <View style={styles.heroTopRow}>
           <View style={{ flex: 1 }}>
@@ -199,7 +198,6 @@ export default function AdminApprovalDashboard() {
             <MaterialCommunityIcons name="logout" size={22} color="#fff" />
           </TouchableOpacity>
         </View>
-        //stats row
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{pendingCount}</Text>
@@ -214,9 +212,7 @@ export default function AdminApprovalDashboard() {
             <Text style={styles.statLabel}>Total</Text>
           </View>
         </View>
-        //tabs wrap
         <View style={styles.tabsWrap}>
-          //pending tab
           <Pressable
             onPress={() => setActiveTab('pending')}
             style={[styles.tabBtn, activeTab === 'pending' && styles.tabBtnActive]}
@@ -225,7 +221,6 @@ export default function AdminApprovalDashboard() {
               Pending
             </Text>
           </Pressable>
-          //approved tab
           <Pressable
             onPress={() => setActiveTab('approved')}
             style={[styles.tabBtn, activeTab === 'approved' && styles.tabBtnActive]}
@@ -236,12 +231,10 @@ export default function AdminApprovalDashboard() {
           </Pressable>
         </View>
       </View>
-      //scroll view
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           {activeTab === 'pending' ? (
             <>
-              //pending approvals
               <Text style={styles.sectionTitle}>Pending approvals</Text>
               {pendingStalls.length === 0 ? (
                 <View style={styles.emptyCard}>
@@ -253,7 +246,6 @@ export default function AdminApprovalDashboard() {
                 </View>
               ) : (
                 pendingStalls.map((stall) => (
-                  //pending stall card
                   <TouchableOpacity
                     key={stall._id}
                     style={styles.stallCard}
@@ -280,7 +272,6 @@ export default function AdminApprovalDashboard() {
             </>
           ) : (
             <>
-              //approved stalls
               <Text style={styles.sectionTitle}>Approved stalls</Text>
               {approvedStalls.length === 0 ? (
                 <View style={styles.emptyCard}>

@@ -59,7 +59,7 @@ function getColomboMinutesSinceMidnight(now: Date): number {
 type CampusMealWindow = {
   category: 'Breakfast' | 'Lunch';
   title: string;
-  subtitle: string;
+  
   icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 };
 
@@ -73,7 +73,7 @@ function campusMealWindowFromNow(now: Date): CampusMealWindow | null {
     return {
       category: 'Breakfast',
       title: 'Breakfast picks',
-      subtitle: 'Morning menu · Colombo 6 AM – 11 AM',
+      
       icon: 'coffee-outline',
     };
   }
@@ -81,7 +81,7 @@ function campusMealWindowFromNow(now: Date): CampusMealWindow | null {
     return {
       category: 'Lunch',
       title: 'Lunch picks',
-      subtitle: 'Midday favourites · Colombo 11 AM – 4 PM',
+      
       icon: 'food-outline',
     };
   }
@@ -414,7 +414,7 @@ export default function UserDashboard() {
                 <View style={{ flex: 1, paddingRight: 8 }}>
                   <Text style={styles.rightNowKicker}>Right now</Text>
                   <Text style={styles.rightNowTitle}>{campusNowWindow.title}</Text>
-                  <Text style={styles.rightNowSub}>{campusNowWindow.subtitle}</Text>
+                  
                 </View>
                 <TouchableOpacity
                   style={styles.rightNowChevronWrap}
