@@ -73,7 +73,6 @@ export default function CheckoutScreen() {
     }
   };
 
-  // Behavior: Opens the device's image library to allow the user to pick a bank transfer slip image, then saves it as a base64 string.
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -98,7 +97,6 @@ export default function CheckoutScreen() {
     return true;
   };
 
-  // Behavior: Handles the time picker UI event, updating the state and running validation on the newly selected time.
   const onTimeChange = (event: any, selectedDate?: Date) => {
     setShowTimePicker(Platform.OS === 'ios');
     if (selectedDate) {
@@ -114,7 +112,6 @@ export default function CheckoutScreen() {
 
 
   // Main Checkout Logic
-  // Behavior: Validates inputs (time, card details, slip), handles mock payment delays for cards, formats the API payload, and submits the order or bank transfer request to the backend.
   const handlePlaceOrder = async () => {
     if (!validateTime(pickupTime)) {
       Alert.alert('Invalid Time', 'Please select a pickup time at least 20 minutes from now.');
@@ -281,7 +278,6 @@ export default function CheckoutScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      {/* UI: Header Section */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <MaterialCommunityIcons name="arrow-left" size={24} color={TEXT_DARK} />
@@ -291,7 +287,7 @@ export default function CheckoutScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* UI: Order Summary Section - Displays items and total amount */}
+        {/* Order Summary */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Order Summary</Text>
           {cartItems.map((item) => (
@@ -309,7 +305,7 @@ export default function CheckoutScreen() {
 
         </View>
 
-        {/* UI: Pickup Time Section - Allows user to select when they want to pick up the order */}
+        {/* Pickup Time */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Pickup Time</Text>
           <TouchableOpacity
@@ -337,7 +333,7 @@ export default function CheckoutScreen() {
           )}
         </View>
 
-        {/* UI: Payment Method Section - Provides options for 'Pay at Stall', 'Card', and 'Bank Transfer' */}
+        {/* Payment Method */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Payment Method</Text>
 
@@ -450,7 +446,6 @@ export default function CheckoutScreen() {
             </View>
           ) : null}
 
-          {/* UI: Bank Transfer Details & Upload - Shown only if 'Bank Transfer' is selected */}
           {paymentMethod === 'Bank Transfer' && stallBankDetails && (
             <View style={styles.subSection}>
               <View style={styles.bankInfoBox}>
@@ -486,7 +481,6 @@ export default function CheckoutScreen() {
 
       </ScrollView>
 
-      {/* UI: Footer Section - The main Call-To-Action button to place the order */}
       <View style={styles.footer}>
         <TouchableOpacity
           style={[styles.placeOrderBtn, loading ? styles.disabledBtn : null]}

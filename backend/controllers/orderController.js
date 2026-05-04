@@ -7,8 +7,6 @@ const { authUserFromRequest } = require('../utils/authRequest');
 const { placeOrderCommit, defaultPaymentStatuses } = require('../services/placeOrder');
 
 // Helper Functions
-
-// Behavior: Takes an order status and generates a user-friendly notification title and body.
 function customerMessageForOrderStatus(orderIdDisplay, stallName, newStatus) {
   const ord = orderIdDisplay || 'Your order';
   const place = stallName ? `${stallName}` : 'the stall';
@@ -31,7 +29,6 @@ function customerMessageForOrderStatus(orderIdDisplay, stallName, newStatus) {
   }
 }
 
-// Behavior: Cleans up and formats a scanned QR code or manual text input to match the standard order ID format (e.g. extracts JSON if scanned from the app).
 function normalizePickupCode(raw) {
   if (raw === null || raw === undefined) return '';
   let s = String(raw).trim();
@@ -45,7 +42,6 @@ function normalizePickupCode(raw) {
   return s.replace(/\s+/g, '').toUpperCase();
 }
 
-// Behavior: Checks if the provided pickup code matches the expected order ID for verification during handover.
 function pickupCodeMatchesOrder(order, scannedRaw) {
   const expected = normalizePickupCode(order.orderId);
   if (!expected) return false;

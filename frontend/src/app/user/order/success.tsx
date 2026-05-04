@@ -57,7 +57,6 @@ export default function OrderSuccessScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* UI: Main Content Area - Shows success icon, title, and descriptive text */}
       <View style={styles.content}>
         <View
           style={[
@@ -74,7 +73,6 @@ export default function OrderSuccessScreen() {
         <Text style={styles.title}>{titleText}</Text>
         <Text style={styles.subtitle}>{subtitleText}</Text>
 
-        {/* UI: Order ID / Reference Card - Highlights the unique identifier for the order or submission */}
         {showSubmissionRef ? (
           <View style={styles.orderIdCard}>
             <Text style={styles.orderIdLabel}>Reference</Text>
@@ -103,7 +101,6 @@ export default function OrderSuccessScreen() {
         </Text>
       </View>
 
-      {/* UI: Footer Buttons - Navigation options post-success */}
       <View style={styles.footer}>
         <TouchableOpacity 
           style={styles.doneBtn} 

@@ -39,7 +39,6 @@ export default function CartScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor={BG} translucent={false} />
-      {/* UI: Header Section with Back Button and Title */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <MaterialCommunityIcons name="arrow-left" size={24} color={TEXT_DARK} />
@@ -50,7 +49,6 @@ export default function CartScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {cartItems.length === 0 ? (
-          {/* UI: Empty Cart State - Shows when no items are in the cart */}
           <View style={styles.emptyContainer}>
             <MaterialCommunityIcons name="cart-remove" size={64} color="#CBD5E1" />
             <Text style={styles.emptyTitle}>Your cart is empty</Text>
@@ -60,7 +58,6 @@ export default function CartScreen() {
             </TouchableOpacity>
           </View>
         ) : (
-          /* UI: Cart Items List - Maps through the cart items and displays their details */
           cartItems.map((item) => (
             <View key={item.meal._id} style={styles.cartItem}>
               <Image source={{ uri: item.meal.image || 'https://via.placeholder.com/150' }} style={styles.itemImage} />
@@ -97,7 +94,6 @@ export default function CartScreen() {
         )}
       </ScrollView>
 
-      {/* UI: Footer Section - Displays the total amount and the Checkout button */}
       {cartItems.length > 0 && (
         <View style={styles.footer}>
           <View style={styles.totalRow}>
