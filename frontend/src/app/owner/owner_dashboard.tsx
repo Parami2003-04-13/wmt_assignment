@@ -129,9 +129,9 @@ export default function OwnerDashboard() {
 
     setSaving(true);
     try {
-      let profilePhoto = stallData.profilePhoto;
-      let coverPhoto = stallData.coverPhoto;
-      let approvedDocument = stallData.approvedDocument;
+      let profilePhoto: string | null = stallData.profilePhoto;
+      let coverPhoto: string | null = stallData.coverPhoto;
+      let approvedDocument: string | null = stallData.approvedDocument;
 
       try {
         if (profilePhoto) {

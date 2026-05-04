@@ -19,6 +19,23 @@ import { COLORS } from '../theme/colors';
 
 const Text = (props: any) => <RNText {...props} style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]} />;
 
+/** Returns error message if invalid, or null when password meets rules. */
+function validateOwnerPassword(password: string): string | null {
+  if (password.length < 6) {
+    return 'Password must be at least 6 characters.';
+  }
+  if (!/[a-z]/.test(password)) {
+    return 'Password must include at least one lowercase letter.';
+  }
+  if (!/\d/.test(password)) {
+    return 'Password must include at least one number.';
+  }
+  if (!/[^a-zA-Z0-9]/.test(password)) {
+    return 'Password must include at least one symbol (e.g. ! @ #).';
+  }
+  return null;
+}
+
 export default function SignupOwnerScreen() {
   const router = useRouter();
   const [formData, setFormData] = useState({
@@ -41,6 +58,12 @@ export default function SignupOwnerScreen() {
 
     if (password !== confirmPassword) {
       Alert.alert('Error', 'Passwords do not match.');
+      return;
+    }
+
+    const pwdError = validateOwnerPassword(password);
+    if (pwdError) {
+      Alert.alert('Weak password', pwdError);
       return;
     }
 
@@ -99,7 +122,7 @@ export default function SignupOwnerScreen() {
             <View style={[styles.inputWrapper, { flex: 1, marginRight: 10 }]}>
                 <Text style={styles.inputLabel}>First Name</Text>
                 <TextInput
-                    placeholder="John"
+                    placeholder="First Name"
                     style={styles.inputRow}
                     onChangeText={(v) => setFormData({ ...formData, firstName: v })}
                 />
@@ -107,7 +130,7 @@ export default function SignupOwnerScreen() {
             <View style={[styles.inputWrapper, { flex: 1 }]}>
                 <Text style={styles.inputLabel}>Last Name</Text>
                 <TextInput
-                    placeholder="Doe"
+                    placeholder="Second Name"
                     style={styles.inputRow}
                     onChangeText={(v) => setFormData({ ...formData, lastName: v })}
                 />
@@ -140,8 +163,12 @@ export default function SignupOwnerScreen() {
                 placeholder="••••••••"
                 style={styles.inputRow}
                 secureTextEntry
+                autoCapitalize="none"
                 onChangeText={(v) => setFormData({ ...formData, password: v })}
              />
+             <Text style={styles.passwordHint}>
+               Min 6 characters, include a lowercase letter, a number, and a symbol.
+             </Text>
           </View>
 
           <View style={styles.inputWrapper}>
@@ -181,6 +208,12 @@ const styles = StyleSheet.create({
   inputRow: {
     backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E1E4E8',
     paddingHorizontal: 15, height: 50, fontSize: 15, color: COLORS.textDark
+  },
+  passwordHint: {
+    marginTop: 8,
+    fontSize: 12,
+    color: COLORS.textGray,
+    lineHeight: 17,
   },
   signupBtn: {
     backgroundColor: COLORS.primary, height: 56, borderRadius: 14,

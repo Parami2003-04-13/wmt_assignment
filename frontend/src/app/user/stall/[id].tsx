@@ -50,7 +50,8 @@ function formatOpenTime(raw: string | null | undefined): string {
   const h12 = h % 12 || 12;
   return `${h12}:${min} ${ampm}`;
 }
-
+ 
+//stalls details page
 export default function UserStallDetails() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -67,6 +68,7 @@ export default function UserStallDetails() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [unreadSupportTickets, setUnreadTickets] = useState(0);
 
+  
   const fetchAll = useCallback(async () => {
     if (!stallId) return;
     const [stallRes, mealsRes, unreadRes] = await Promise.all([
@@ -79,6 +81,7 @@ export default function UserStallDetails() {
     setUnreadTickets(unreadRes.data.count);
   }, [stallId]);
 
+  //fetch all data for stall page
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -107,14 +110,17 @@ export default function UserStallDetails() {
     }
   }, [fetchAll]);
 
+  //check if stall is open or closed
   const isOpen = stall?.status === 'Open';
   const statusColor = isOpen ? COLOR_OPEN : COLOR_CLOSED;
 
+  //cover and profile image
   const coverUri =
     stall?.coverPhoto ||
     'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=1000';
   const profileUri = stall?.profilePhoto || 'https://via.placeholder.com/150';
 
+  //meal category buckets
   const mealCategoryBuckets = useMemo(() => {
     const extras = new Set<string>();
     let hasUncategorized = false;
@@ -136,6 +142,7 @@ export default function UserStallDetails() {
     return list;
   }, [mealCategoryBuckets]);
 
+  //filtered sorted meals
   const filteredSortedMeals = useMemo(() => {
     let m = [...meals];
     if (selectedCategory === UNCATEGORIZED_LABEL) {
@@ -147,6 +154,7 @@ export default function UserStallDetails() {
     return m;
   }, [meals, selectedCategory]);
 
+  //grouped entries
   const groupedEntries = useMemo(() => {
     if (selectedCategory) return [] as [string, any[]][];
     const map: Record<string, any[]> = {};
@@ -194,6 +202,7 @@ export default function UserStallDetails() {
     }
   };
 
+  //dial stall phone number
   const dialStall = () => {
     const raw = stall?.phone;
     if (!raw || typeof raw !== 'string') return;
@@ -202,6 +211,7 @@ export default function UserStallDetails() {
     Linking.openURL(`tel:${digits}`).catch(() => {});
   };
 
+  //meal row
   const renderMealRow = (meal: any, isLast: boolean) => {
     const soldOut = (meal.quantity ?? 0) <= 0;
     const qty = Number(meal.quantity ?? 0);
@@ -241,6 +251,7 @@ export default function UserStallDetails() {
     );
   };
 
+  //loading
   if (loading && !stall) {
     return (
       <View style={styles.loadingContainer}>
@@ -255,6 +266,7 @@ export default function UserStallDetails() {
   const bottomReserve = Math.max(insets.bottom, 12) + 24;
 
   return (
+    //stalls details page
     <View style={styles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} translucent={false} />
 
@@ -275,6 +287,7 @@ export default function UserStallDetails() {
         </View>
       </View>
 
+    
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: bottomReserve }}
@@ -309,6 +322,7 @@ export default function UserStallDetails() {
                     styles.statusPill,
                     isOpen ? styles.statusPillOpen : styles.statusPillClosed,
                   ]}>
+                  
                   <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
                   <Text style={[styles.statusPillText, { color: statusColor }]}>
                     {isOpen ? 'Open' : 'Closed'}
@@ -453,8 +467,12 @@ export default function UserStallDetails() {
   );
 }
 
+//css styles
+
 const styles = StyleSheet.create({
+  //screen
   screen: { flex: 1, backgroundColor: COLORS.background },
+  //loading container
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -463,6 +481,7 @@ const styles = StyleSheet.create({
   },
   loadingText: { marginTop: 12, fontSize: 15, color: COLORS.textGray },
 
+  //top bar
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -477,12 +496,15 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
+  //top bar side
   topBarSide: {
     width: 112,
     flexDirection: 'row',
     alignItems: 'center',
   },
+  //top bar side right
   topBarSideRight: { justifyContent: 'flex-end', gap: 2 },
+  //top bar icon
   topBarIcon: {
     width: 40,
     height: 40,
@@ -490,6 +512,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  //wordmark wrap
   wordmarkWrap: {
     flex: 1,
     alignItems: 'center',

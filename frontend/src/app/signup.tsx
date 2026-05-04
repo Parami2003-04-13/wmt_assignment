@@ -103,7 +103,7 @@ export default function SignupScreen() {
           </TouchableOpacity>
           <View style={styles.logoContainer}>
             <Image
-              source={require('../../assets/images/logo-glow.png')}
+              source={require('../../assets/images/campusbites-logo-minimal.png')}
               style={styles.logo}
               resizeMode="contain"
             />
@@ -266,21 +266,23 @@ const styles = StyleSheet.create({
   logoContainer: {
     width: 80,
     height: 80,
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.surface,
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
-    shadowColor: COLORS.primaryDark,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
   },
   logo: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
+    width: 70,
+    height: 70,
+    borderRadius: 16,
   },
   appTitle: {
     fontSize: 28,

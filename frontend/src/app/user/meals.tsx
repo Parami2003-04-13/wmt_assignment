@@ -120,20 +120,9 @@ export default function AllMealsScreen() {
     return ['All', ...presets, ...tail];
   }, [baseMeals]);
 
-  const listMeals = useMemo(() => {
+  /** Category browse only — search does not shrink this grid (matches user dashboard pattern). */
+  const browseMeals = useMemo(() => {
     let rows = [...baseMeals];
-    if (normalizedQuery) {
-      rows = rows.filter((m: any) => {
-        const sid = getMealStallId(m);
-        const st = sid ? stallById[String(sid)] : null;
-        const pop =
-          typeof m?.stall === 'object' && m.stall
-            ? `${m.stall.name ?? ''} ${m.stall.description ?? ''}`
-            : '';
-        const bundle = `${m?.name ?? ''} ${m?.description ?? ''} ${String(m?.price ?? '')} ${String(m?.category ?? '')} ${st?.name ?? ''} ${pop}`;
-        return bundle.toLowerCase().includes(normalizedQuery);
-      });
-    }
     if (selectedCategory === UNCATEGORIZED_LABEL) {
       rows = rows.filter((m: any) => !String(m?.category ?? '').trim());
     } else if (selectedCategory) {
@@ -147,7 +136,39 @@ export default function AllMealsScreen() {
       return String(a?.name ?? '').localeCompare(String(b?.name ?? ''));
     });
     return rows;
-  }, [baseMeals, stallById, normalizedQuery, selectedCategory]);
+  }, [baseMeals, stallById, selectedCategory]);
+
+  /** Campus-wide meal search (same fields as user dashboard), shown as a list — not a filter on the card grid. */
+  const searchMealHits = useMemo(() => {
+    if (!normalizedQuery) return [];
+    return baseMeals
+      .filter((m: any) => {
+        const sid = getMealStallId(m);
+        const st = sid ? stallById[String(sid)] : null;
+        const populated =
+          typeof m?.stall === 'object' && m.stall ? `${m.stall.name ?? ''} ${m.stall.description ?? ''}` : '';
+        const bundle = `${m?.name ?? ''} ${m?.description ?? ''} ${String(m?.price ?? '')} ${String(m?.category ?? '')} ${st?.name ?? ''} ${st?.address ?? ''} ${populated}`;
+        return bundle.toLowerCase().includes(normalizedQuery);
+      })
+      .sort((a: any, b: any) => {
+        const sa = stallById[String(getMealStallId(a) || '')]?.name || '';
+        const sb = stallById[String(getMealStallId(b) || '')]?.name || '';
+        const cmp = String(sa).localeCompare(String(sb));
+        if (cmp !== 0) return cmp;
+        return String(a?.name ?? '').localeCompare(String(b?.name ?? ''));
+      });
+  }, [baseMeals, stallById, normalizedQuery]);
+
+  const isSearchMode = normalizedQuery.length > 0;
+
+  const searchUniqueStallCount = useMemo(() => {
+    const ids = new Set<string>();
+    searchMealHits.forEach((m) => {
+      const id = getMealStallId(m);
+      if (id) ids.add(id);
+    });
+    return ids.size;
+  }, [searchMealHits]);
 
   const openMeal = (meal: any) => {
     setSelectedMeal(meal);
@@ -231,15 +252,17 @@ export default function AllMealsScreen() {
   const emptyState = () => (
     <View style={styles.emptyWrap}>
       <View style={styles.emptyIconBg}>
-        <MaterialCommunityIcons name="food-variant" size={40} color={PRIMARY} />
+        <MaterialCommunityIcons name={isSearchMode ? 'text-search' : 'food-variant'} size={40} color={PRIMARY} />
       </View>
       <Text style={styles.emptyTitle}>
-        {meals.length === 0 ? 'No meals yet' : 'No matches'}
+        {meals.length === 0 ? 'No meals yet' : isSearchMode ? 'No meal results' : 'No matches'}
       </Text>
       <Text style={styles.emptySub}>
         {meals.length === 0
           ? 'Approved stalls haven’t published items, or the list couldn’t load.'
-          : 'Try another category filter, adjust your search, or reset filters below.'}
+          : isSearchMode
+            ? `Nothing matched “${query.trim()}”. Try another dish name, stall, or price.`
+            : 'Try another category filter, or reset filters below.'}
       </Text>
       {(normalizedQuery.length > 0 || selectedCategory != null) && baseMeals.length > 0 ? (
         <TouchableOpacity
@@ -249,10 +272,34 @@ export default function AllMealsScreen() {
             setSelectedCategory(null);
           }}
           activeOpacity={0.85}>
-          <Text style={styles.clearSearchBtnText}>Clear search & filters</Text>
+          <Text style={styles.clearSearchBtnText}>
+            {normalizedQuery.length > 0 && selectedCategory != null
+              ? 'Clear search & filters'
+              : normalizedQuery.length > 0
+                ? 'Clear search'
+                : 'Clear filters'}
+          </Text>
         </TouchableOpacity>
       ) : null}
     </View>
+  );
+
+  const renderSearchRow = ({ item: meal }: { item: any }) => (
+    <TouchableOpacity style={styles.searchRow} onPress={() => openMeal(meal)} activeOpacity={0.75}>
+      <Image
+        source={{ uri: meal.image || 'https://via.placeholder.com/80' }}
+        style={styles.searchRowThumb}
+      />
+      <View style={styles.searchRowBody}>
+        <Text style={styles.searchRowTitle} numberOfLines={2}>
+          {meal.name}
+        </Text>
+        <Text style={styles.searchRowMeta} numberOfLines={1}>
+          {stallLabel(meal)} · Rs. {meal.price}
+        </Text>
+      </View>
+      <MaterialCommunityIcons name="chevron-right" size={20} color={TEXT_GRAY} />
+    </TouchableOpacity>
   );
 
   return (
@@ -275,7 +322,7 @@ export default function AllMealsScreen() {
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Search name, stall, category…"
+            placeholder="Search meals..."
             placeholderTextColor="rgba(255,255,255,0.58)"
             style={styles.searchInput}
             returnKeyType="search"
@@ -291,9 +338,20 @@ export default function AllMealsScreen() {
 
         {!loading ? (
           <Text style={styles.metaLine}>
-            Showing {listMeals.length} {listMeals.length === 1 ? 'dish' : 'dishes'} · {stalls.length}{' '}
-            {stalls.length === 1 ? 'stall' : 'stalls'}
-            {selectedCategory ? ` · ${selectedCategory === UNCATEGORIZED_LABEL ? 'Uncategorized' : selectedCategory}` : ''}
+            {isSearchMode ? (
+              <>
+                {searchMealHits.length} {searchMealHits.length === 1 ? 'match' : 'matches'} ·{' '}
+                {searchUniqueStallCount} {searchUniqueStallCount === 1 ? 'stall' : 'stalls'}
+              </>
+            ) : (
+              <>
+                Showing {browseMeals.length} {browseMeals.length === 1 ? 'dish' : 'dishes'} · {stalls.length}{' '}
+                {stalls.length === 1 ? 'stall' : 'stalls'}
+                {selectedCategory
+                  ? ` · ${selectedCategory === UNCATEGORIZED_LABEL ? 'Uncategorized' : selectedCategory}`
+                  : ''}
+              </>
+            )}
           </Text>
         ) : null}
       </View>
@@ -305,42 +363,45 @@ export default function AllMealsScreen() {
         </View>
       ) : (
         <>
-          <View style={styles.filterSection}>
-            <Text style={styles.filterEyebrow}>Category</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterChipScroll}
-              nestedScrollEnabled>
-              {categoryChips.map((label) => {
-                const isAll = label === 'All';
-                const isActive = isAll ? selectedCategory === null : selectedCategory === label;
-                return (
-                  <TouchableOpacity
-                    key={label}
-                    style={[styles.filterChip, isActive && styles.filterChipActive]}
-                    onPress={() => {
-                      if (isAll) setSelectedCategory(null);
-                      else setSelectedCategory(isActive ? null : label);
-                    }}
-                    activeOpacity={0.85}>
-                    <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>{label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
+          {!isSearchMode ? (
+            <View style={styles.filterSection}>
+              <Text style={styles.filterEyebrow}>Category</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filterChipScroll}
+                nestedScrollEnabled>
+                {categoryChips.map((label) => {
+                  const isAll = label === 'All';
+                  const isActive = isAll ? selectedCategory === null : selectedCategory === label;
+                  return (
+                    <TouchableOpacity
+                      key={label}
+                      style={[styles.filterChip, isActive && styles.filterChipActive]}
+                      onPress={() => {
+                        if (isAll) setSelectedCategory(null);
+                        else setSelectedCategory(isActive ? null : label);
+                      }}
+                      activeOpacity={0.85}>
+                      <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>{label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          ) : null}
 
           <FlatList
-            data={listMeals}
+            data={isSearchMode ? searchMealHits : browseMeals}
             keyExtractor={(item) => String(item._id)}
-            renderItem={renderCard}
+            renderItem={isSearchMode ? renderSearchRow : renderCard}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={[
-              styles.listContent,
+              isSearchMode ? styles.searchListContent : styles.listContent,
               { paddingBottom: insets.bottom + 28 },
-              listMeals.length === 0 && styles.listContentEmpty,
+              (isSearchMode ? searchMealHits.length === 0 : browseMeals.length === 0) && styles.listContentEmpty,
             ]}
+            ItemSeparatorComponent={isSearchMode ? () => <View style={styles.searchRowSep} /> : undefined}
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PRIMARY} colors={[PRIMARY]} />
             }
@@ -480,8 +541,48 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 14,
   },
+  searchListContent: {
+    paddingHorizontal: 0,
+    paddingTop: 0,
+  },
   listContentEmpty: {
     flexGrow: 1,
+  },
+
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    gap: 14,
+    backgroundColor: SURFACE,
+  },
+  searchRowThumb: {
+    width: 56,
+    height: 56,
+    borderRadius: 14,
+    backgroundColor: PRIMARY_SOFT,
+  },
+  searchRowBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  searchRowTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: TEXT_DARK,
+    letterSpacing: -0.2,
+  },
+  searchRowMeta: {
+    marginTop: 4,
+    fontSize: 14,
+    fontWeight: '600',
+    color: TEXT_GRAY,
+  },
+  searchRowSep: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 16 + 56 + 14,
+    backgroundColor: 'rgba(15, 91, 87, 0.1)',
   },
 
   card: {

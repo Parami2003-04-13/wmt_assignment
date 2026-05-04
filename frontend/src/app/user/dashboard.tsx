@@ -409,7 +409,7 @@ export default function UserDashboard() {
                   <MaterialCommunityIcons name={campusNowWindow.icon} size={22} color={PRIMARY} />
                 </View>
                 <View style={{ flex: 1, paddingRight: 8 }}>
-                  <Text style={styles.rightNowKicker}>Right now (Colombo)</Text>
+                  <Text style={styles.rightNowKicker}>Right now</Text>
                   <Text style={styles.rightNowTitle}>{campusNowWindow.title}</Text>
                   <Text style={styles.rightNowSub}>{campusNowWindow.subtitle}</Text>
                 </View>
