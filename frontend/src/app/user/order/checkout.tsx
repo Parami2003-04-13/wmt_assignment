@@ -73,6 +73,7 @@ export default function CheckoutScreen() {
     }
   };
 
+  // Behavior: Opens the device's image library to allow the user to pick a bank transfer slip image, then saves it as a base64 string.
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -97,6 +98,7 @@ export default function CheckoutScreen() {
     return true;
   };
 
+  // Behavior: Handles the time picker UI event, updating the state and running validation on the newly selected time.
   const onTimeChange = (event: any, selectedDate?: Date) => {
     setShowTimePicker(Platform.OS === 'ios');
     if (selectedDate) {
@@ -112,6 +114,7 @@ export default function CheckoutScreen() {
 
 
   // Main Checkout Logic
+  // Behavior: Validates inputs (time, card details, slip), handles mock payment delays for cards, formats the API payload, and submits the order or bank transfer request to the backend.
   const handlePlaceOrder = async () => {
     if (!validateTime(pickupTime)) {
       Alert.alert('Invalid Time', 'Please select a pickup time at least 20 minutes from now.');

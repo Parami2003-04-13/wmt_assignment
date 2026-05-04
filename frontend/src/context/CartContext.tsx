@@ -24,6 +24,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
   // Add Item to Cart Logic
   // Validation: Ensures a user cannot add items from different stalls into the same cart.
+  // Behavior: Checks if the item already exists in the cart. If so, it increases the quantity. If not, it adds the new item. It also alerts the user if they try to add an item from a different stall.
   const addToCart = (meal: any, quantity: number = 1) => {
     if (cartItems.length > 0) {
       const existingStallId = cartItems[0].meal.stall?._id || cartItems[0].meal.stall;
@@ -59,17 +60,20 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
+  // Behavior: Removes a specific meal item entirely from the cart based on its ID.
   const removeFromCart = (mealId: string) => {
     setCartItems((prevItems) => prevItems.filter((item) => item.meal._id !== mealId));
   };
 
   // Clear Cart Logic
+  // Behavior: Empties the entire cart by resetting the state to an empty array.
   const clearCart = () => {
     setCartItems([]);
   };
 
   // Update Item Quantity Logic
   // Validation: If quantity drops to 0 or below, it removes the item entirely.
+  // Behavior: Updates the quantity of a specific meal in the cart. If the new quantity is 0 or less, it removes the item.
   const updateQuantity = (mealId: string, quantity: number) => {
     setCartItems((prevItems) => {
       if (quantity <= 0) {

@@ -32,10 +32,12 @@ const Text = (props: any) => (
   <RNText {...props} style={[{ fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif' }, props.style]} />
 );
 
+// Behavior: Extracts a safe display name for a meal item, falling back to 'Meal' if undefined.
 function orderLineLabel(item: any) {
   return item.meal?.name ?? item.name ?? 'Meal';
 }
 
+// Behavior: Safely extracts the image URI for a meal item.
 function orderLineImageUri(item: any): string | null {
   const raw = item.meal?.image;
   const s = typeof raw === 'string' ? raw.trim() : '';
@@ -43,6 +45,7 @@ function orderLineImageUri(item: any): string | null {
 }
 
 /** Friendly label so bank + Pending is not mistaken for “failed”. */
+// Behavior: Returns a user-friendly string for the payment status, specifically clarifying pending bank transfers.
 function paymentStatusLabel(order: any): string {
   const raw = order?.paymentStatus;
   const pm = order?.paymentMethod;
@@ -72,6 +75,7 @@ const USER_ORDER_FILTER_OPTIONS: { key: UserOrderFilterKey; label: string }[] = 
   { key: 'Cancelled', label: 'Cancelled' },
 ];
 
+// Behavior: Evaluates if an order matches the currently selected UI filter (e.g., 'active', 'Completed', etc.).
 function orderMatchesUserFilter(order: { status?: string }, filter: UserOrderFilterKey): boolean {
   const s = order.status ?? '';
   if (filter === 'all') return true;
@@ -117,11 +121,13 @@ export default function UserOrdersScreen() {
     fetchOrders();
   }, []);
 
+  // Behavior: Triggered when the user pulls down the list. Sets refreshing state and re-fetches orders.
   const onRefresh = () => {
     setRefreshing(true);
     fetchOrders();
   };
 
+  // Behavior: Maps a given order status string to its corresponding theme color.
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Pending': return WARNING;
@@ -134,6 +140,7 @@ export default function UserOrdersScreen() {
     }
   };
 
+  // Behavior: Maps a given payment status string to its corresponding theme color.
   const getPaymentStatusColor = (status: string) => {
     switch (status) {
       case 'Paid': return SUCCESS;

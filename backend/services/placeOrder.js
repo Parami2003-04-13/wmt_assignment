@@ -67,6 +67,7 @@ async function placeOrderCommit({
   return { order: newOrder, payment: newPayment };
 }
 
+// Behavior: Determines the initial payment status and record status based on the selected payment method (e.g. Card vs Bank Transfer).
 function defaultPaymentStatuses(paymentMethod) {
   if (paymentMethod === 'Card') {
     return { orderPaymentStatus: 'Paid', paymentRecordStatus: 'Paid' };
