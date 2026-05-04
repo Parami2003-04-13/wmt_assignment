@@ -345,7 +345,7 @@ export default function UserDashboard() {
             <TouchableOpacity
               style={[styles.headerIconBtn, styles.headerIconBtnAfter]}
               accessibilityLabel="Notifications"
-              onPress={() => router.push('/user/notifications')}>
+              onPress={() => router.push('/user/notifications' as any)}>
               <View style={styles.headerIconInner}>
                 <MaterialCommunityIcons name="bell-outline" size={20} color="rgba(255,255,255,0.92)" />
                 {unreadNotifyCount > 0 ? (

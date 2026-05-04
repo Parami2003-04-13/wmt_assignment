@@ -747,7 +747,7 @@ export default function StallManagement() {
                   activeOpacity={0.85}
                   onPress={() =>
                     router.push({
-                      pathname: '/owner/manage-payments',
+                      pathname: '/owner/manage-payments' as any,
                       params: { stallId: String(stallId), stallName: stall?.name ?? '' },
                     })
                   }>
